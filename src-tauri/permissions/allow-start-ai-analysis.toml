@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-start-ai-analysis"
+description = "允许启动 AI 分析"
+commands.allow = ["start_ai_analysis"]

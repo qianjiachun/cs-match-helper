@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-cancel-ai-analysis"
+description = "允许取消 AI 分析"
+commands.allow = ["cancel_ai_analysis"]

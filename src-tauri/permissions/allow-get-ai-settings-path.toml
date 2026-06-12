@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-ai-settings-path"
+description = "允许获取 AI 设置文件路径"
+commands.allow = ["get_ai_settings_path"]

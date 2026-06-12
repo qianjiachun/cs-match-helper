@@ -1,0 +1,14 @@
+.cursor
+node_modules/
+dist/
+release/
+build/
+zig-out/
+.zig-cache/
+third_party/
+src-tauri/target/
+*.log
+.DS_Store
+Thumbs.db
+source
+response.txt

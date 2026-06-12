@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-start-log-watch"
+description = "允许启动日志监听"
+commands.allow = ["start_log_watch"]

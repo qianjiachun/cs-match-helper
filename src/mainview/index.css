@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-base: #f4f4f5;
+  --color-surface: #ffffff;
+  --color-elevated: #fafafa;
+  --color-muted: #f4f4f5;
+  --color-border: #e4e4e7;
+  --color-border-subtle: #f4f4f5;
+  --color-fg: #18181b;
+  --color-fg-secondary: #52525b;
+  --color-fg-muted: #a1a1aa;
+  --color-accent: #4a90e2;
+  --color-accent-hover: #3b7dd8;
+  --color-accent-muted: #6ba3e8;
+  --color-team-a: #4a90e2;
+  --color-team-a-strong: #3a7fd4;
+  --color-team-b: #f5a623;
+  --color-team-b-strong: #e09818;
+  --color-win: #52c41a;
+  --color-loss: #f5222d;
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-danger: #f5222d;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 表单与显式标记区域仍允许选中、编辑 */
+input,
+textarea,
+select,
+[contenteditable='true'],
+.selectable,
+.selectable * {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+textarea,
+[contenteditable='true'] {
+  cursor: text;
+}
+
+button,
+a[href],
+label,
+[role='button'],
+summary {
+  cursor: pointer;
+}
+
+img,
+svg {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: inherit;
+}
+
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

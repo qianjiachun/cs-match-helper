@@ -1,0 +1,95 @@
+import type { DebugLogEntry, LogLine } from '@core/log/types';
+import type { MatchRecord } from '@core/match/models';
+import type { WatcherStatus } from '@core/types';
+import { getActivePlatform } from '@platforms/registry';
+import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { getLogStatus, onLogLine, onWatcherStatus, startLogWatch } from '../native';
+
+const MAX_DEBUG_LOG_ENTRIES = 500;
+
+export function useLogWatcher() {
+  const watcher = ref<WatcherStatus>({
+    running: false,
+    logPath: '',
+    fileExists: false,
+    fileSize: 0,
+    linesReceived: 0,
+  });
+
+  const matches = shallowRef<MatchRecord[]>([]);
+  const logEntries = shallowRef<DebugLogEntry[]>([]);
+  let unlistenLine: (() => void) | null = null;
+  let unlistenStatus: (() => void) | null = null;
+
+  function pushLogEntry(parsed: LogLine, isMatchEvent: boolean) {
+    const entry: DebugLogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      parsed,
+      isMatchEvent,
+    };
+    const next = [...logEntries.value, entry];
+    logEntries.value =
+      next.length > MAX_DEBUG_LOG_ENTRIES
+        ? next.slice(next.length - MAX_DEBUG_LOG_ENTRIES)
+        : next;
+  }
+
+  function clearLogEntries() {
+    logEntries.value = [];
+  }
+
+  function pushMatchRecord(data: Record<string, unknown>, source: 'log' | 'debug', logLine?: LogLine) {
+    const line: LogLine = logLine ?? {
+      time: new Date().toLocaleString('zh-CN'),
+      level: 'DEBUG',
+      category: source === 'debug' ? 'manual' : 'log',
+      decoded: JSON.stringify(data),
+      raw: source === 'debug' ? '[debug] manual inject' : '',
+    };
+
+    const platform = getActivePlatform();
+    const gameId = data.platform_game_id ?? data.platformGameId;
+    const recordId =
+      typeof gameId === 'string' && gameId
+        ? gameId
+        : `${source}-${Date.now()}`;
+
+    const record = platform.createMatchRecord(recordId, line, data);
+    // 新对局替换上一局，避免主界面残留旧数据
+    matches.value = [record];
+  }
+
+  function handleLogLine(raw: string) {
+    const platform = getActivePlatform();
+    const parsed = platform.parseLogLine(raw);
+    const eventData = platform.extractMatchEvents(parsed.decoded);
+    pushLogEntry(parsed, Boolean(eventData));
+    if (!eventData) return;
+    pushMatchRecord(eventData, 'log', parsed);
+  }
+
+  function injectMatch(data: Record<string, unknown>) {
+    pushMatchRecord(data, 'debug');
+  }
+
+  onMounted(async () => {
+    unlistenLine = await onLogLine((payload) => {
+      handleLogLine(payload.raw);
+    });
+
+    unlistenStatus = await onWatcherStatus((status) => {
+      watcher.value = status;
+    });
+
+    await startLogWatch();
+    watcher.value = await getLogStatus();
+  });
+
+  onUnmounted(() => {
+    unlistenLine?.();
+    unlistenStatus?.();
+  });
+
+  return { watcher, matches, logEntries, clearLogEntries, injectMatch };
+}

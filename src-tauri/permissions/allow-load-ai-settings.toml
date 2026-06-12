@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-load-ai-settings"
+description = "允许读取 AI 设置"
+commands.allow = ["load_ai_settings"]

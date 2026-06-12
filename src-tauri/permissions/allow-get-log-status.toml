@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-log-status"
+description = "允许查询日志监听状态"
+commands.allow = ["get_log_status"]

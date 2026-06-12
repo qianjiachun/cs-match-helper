@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-stop-log-watch"
+description = "允许停止日志监听"
+commands.allow = ["stop_log_watch"]

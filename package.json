@@ -1,0 +1,32 @@
+{
+  "name": "cs-match-helper",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle && node scripts/release.mjs",
+    "build:exe": "cargo build --release --manifest-path src-tauri/Cargo.toml",
+    "build:frontend": "vite build",
+    "icon": "tauri icon src/mainview/assets/icons/app-icon.svg && cargo build --manifest-path src-tauri/Cargo.toml",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.0",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "animejs": "^4.4.1",
+    "lucide-vue-next": "1.0.0",
+    "motion-v": "^2.3.0",
+    "vue": "3.5.35"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.0",
+    "@tauri-apps/cli": "2.11.2",
+    "@types/animejs": "^3.1.13",
+    "@vitejs/plugin-vue": "6.0.7",
+    "tailwindcss": "4.3.0",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vue-tsc": "2.2.8"
+  }
+}
