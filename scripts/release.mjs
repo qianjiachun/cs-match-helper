@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const releaseDir = join(root, 'release');
 const exeSource = join(root, 'src-tauri/target/release/cs-match-helper.exe');
-const appExeName = 'CS匹配助手.exe';
+const appExeName = 'cs-match-helper.exe';
 
 if (!existsSync(exeSource)) {
   console.error(`未找到构建产物: ${exeSource}`);
