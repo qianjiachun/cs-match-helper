@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://github.com/user-attachments/assets/84d38a0e-293e-416d-ab01-2eeb26a66872" width="128" height="128" alt="CS 匹配助手" />
+<img src="https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba" width="128" height="128" alt="CS 匹配助手" />
 
 # CS 匹配助手
 
