@@ -17,6 +17,14 @@
 - 队伍对比：雷达图、组排识别
 - AI 分析：胜率预测与赛前评估（需配置 DeepSeek 密钥）
 
+## 界面预览
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e" width="32%" alt="对局数据面板" />
+  <img src="https://github.com/user-attachments/assets/dc70a30e-2c2b-447d-b633-27368f483431" width="32%" alt="队伍对比" />
+  <img src="https://github.com/user-attachments/assets/fd436175-01e8-410e-865c-e1b5489b77eb" width="32%" alt="AI 赛前分析" />
+</p>
+
 ## 支持平台
 
 - 完美对战平台
