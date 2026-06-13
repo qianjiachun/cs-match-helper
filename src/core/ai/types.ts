@@ -129,7 +129,7 @@ export const AI_MODEL_OPTIONS: readonly AiModelOption[] = [
     value: 'deepseek-v4-flash',
     label: 'DeepSeek V4 Flash（推荐，快速）',
     durationSec: 15,
-    costLabel: '¥0.007',
+    costLabel: '¥0.006',
   },
   {
     value: 'deepseek-v4-pro',
