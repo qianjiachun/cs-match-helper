@@ -72,6 +72,13 @@ export function avgPlayerStat(players: MatchPlayer[], key: PlayerNumericKey): nu
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+/** 两队对比进度条宽度百分比，避免 0/0 产生 NaN% */
+export function ratioWidth(a: number, b: number, fallback = 50): string {
+  const sum = a + b;
+  if (!Number.isFinite(sum) || sum <= 0) return `${fallback}%`;
+  return `${(a / sum) * 100}%`;
+}
+
 function getSortValue(player: MatchPlayer, key: TeamTableSortKey): string | number {
   switch (key) {
     case 'nickname':

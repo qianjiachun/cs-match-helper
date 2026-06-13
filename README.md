@@ -35,6 +35,11 @@
 2. 启动对战平台并匹配
 3. 进入准备界面后自动展示数据
 
+## 系统要求
+
+- Windows 10 或更高版本
+- 需要安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win11 通常已预装；若界面空白或动画异常，请先安装/更新 WebView2）
+
 ## 安全声明
 
 - 本软件不修改游戏文件，不收集数据信息，无任何风险操作

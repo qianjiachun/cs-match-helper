@@ -6,7 +6,7 @@ import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
 import { stagger } from 'animejs/utils';
 import { useCopyFeedback } from '../composables/useCopyFeedback';
-import { avgPlayerStat } from './team-table-shared';
+import { avgPlayerStat, ratioWidth } from './team-table-shared';
 import PlayerAvatar from './PlayerAvatar.vue';
 import TeamRadarCompare from './TeamRadarCompare.vue';
 
@@ -76,10 +76,6 @@ const teamAvgScores = computed(() => {
 let activeTimeline: ReturnType<typeof createTimeline> | null = null;
 let activeScoreAnimations: ReturnType<typeof animate>[] = [];
 
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function primeHidden(elements: NodeListOf<HTMLElement> | HTMLElement[]) {
   elements.forEach((el) => {
     el.style.opacity = '0';
@@ -105,8 +101,6 @@ onMounted(() => {
   void nextTick(() => {
     const root = boardRef.value;
     if (!root) return;
-
-    if (prefersReducedMotion()) return;
 
     const panelEls = root.querySelectorAll<HTMLElement>('.compare-entrance-panel');
     const statEls = root.querySelectorAll<HTMLElement>('.compare-entrance-stat');
@@ -289,11 +283,11 @@ onUnmounted(() => {
           <div v-if="teamAvgScores" class="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-slate-100/80 shadow-inner">
             <div
               class="progress-fill h-full bg-linear-to-r from-blue-400 to-blue-500"
-              :data-width="`${(teamAvgScores.a / (teamAvgScores.a + teamAvgScores.b)) * 100}%`"
+              :data-width="ratioWidth(teamAvgScores.a, teamAvgScores.b)"
             />
             <div
               class="progress-fill h-full bg-linear-to-l from-orange-400 to-orange-500"
-              :data-width="`${(teamAvgScores.b / (teamAvgScores.a + teamAvgScores.b)) * 100}%`"
+              :data-width="ratioWidth(teamAvgScores.b, teamAvgScores.a)"
             />
           </div>
         </div>
@@ -313,11 +307,11 @@ onUnmounted(() => {
               <div class="relative flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 shadow-inner">
                 <div
                   class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-                  :data-width="`${(item.a / (item.a + item.b)) * 100}%`"
+                  :data-width="ratioWidth(item.a, item.b)"
                 />
                 <div
                   class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-                  :data-width="`${(item.b / (item.a + item.b)) * 100}%`"
+                  :data-width="ratioWidth(item.b, item.a)"
                 />
               </div>
               <span class="w-12 font-bold text-orange-500">
@@ -402,11 +396,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgAdpr.a / (compareData.avgAdpr.a + compareData.avgAdpr.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgAdpr.a, compareData.avgAdpr.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgAdpr.b / (compareData.avgAdpr.a + compareData.avgAdpr.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgAdpr.b, compareData.avgAdpr.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
@@ -434,11 +428,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgRating.a / (compareData.avgRating.a + compareData.avgRating.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgRating.a, compareData.avgRating.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgRating.b / (compareData.avgRating.a + compareData.avgRating.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgRating.b, compareData.avgRating.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
@@ -466,11 +460,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgKd.a / (compareData.avgKd.a + compareData.avgKd.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgKd.a, compareData.avgKd.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgKd.b / (compareData.avgKd.a + compareData.avgKd.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgKd.b, compareData.avgKd.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
@@ -498,11 +492,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgHsRate.a / (compareData.avgHsRate.a + compareData.avgHsRate.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgHsRate.a, compareData.avgHsRate.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgHsRate.b / (compareData.avgHsRate.a + compareData.avgHsRate.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgHsRate.b, compareData.avgHsRate.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
@@ -530,11 +524,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgFirstKill.a / (compareData.avgFirstKill.a + compareData.avgFirstKill.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgFirstKill.a, compareData.avgFirstKill.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgFirstKill.b / (compareData.avgFirstKill.a + compareData.avgFirstKill.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgFirstKill.b, compareData.avgFirstKill.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
@@ -562,11 +556,11 @@ onUnmounted(() => {
           <div class="relative mb-2.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
             <div
               class="progress-fill absolute inset-y-0 left-0 bg-blue-500"
-              :data-width="`${(compareData.avgClutch.a / (compareData.avgClutch.a + compareData.avgClutch.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgClutch.a, compareData.avgClutch.b)"
             />
             <div
               class="progress-fill absolute inset-y-0 right-0 bg-orange-500"
-              :data-width="`${(compareData.avgClutch.b / (compareData.avgClutch.a + compareData.avgClutch.b)) * 100}%`"
+              :data-width="ratioWidth(compareData.avgClutch.b, compareData.avgClutch.a)"
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">

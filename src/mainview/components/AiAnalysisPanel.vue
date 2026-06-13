@@ -546,10 +546,4 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
     opacity: 0.75;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .ai-pulse-text {
-    animation: none;
-  }
-}
 </style>

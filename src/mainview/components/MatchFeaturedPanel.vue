@@ -407,12 +407,4 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
     box-shadow: 0 0 0 3px rgb(129 140 248 / 0);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .countdown-urgent,
-  .ai-tab-loading,
-  .ai-status-loading {
-    animation: none;
-  }
-}
 </style>

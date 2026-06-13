@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const releaseDir = join(root, 'release');
+// 单文件 exe 分发：目标机需已安装 Microsoft Edge WebView2 Runtime
 const exeSource = join(root, 'src-tauri/target/release/cs-match-helper.exe');
 const appExeName = 'cs-match-helper.exe';
 

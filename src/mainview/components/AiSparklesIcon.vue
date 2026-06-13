@@ -186,29 +186,4 @@ const badgeSize = {
     opacity: 0.88;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .ai-sparkles-icon--badge,
-  .ai-sparkles-icon__svg,
-  .ai-sparkles-icon--loading .ai-sparkles-icon__svg {
-    animation: none;
-  }
-
-  .ai-sparkles-icon--static.ai-sparkles-icon--badge {
-    background: color-mix(in srgb, var(--color-accent) 12%, white);
-  }
-
-  .ai-sparkles-icon--badge:not(.ai-sparkles-icon--static) {
-    background: rgb(167 139 250 / 0.25);
-    box-shadow: none;
-  }
-
-  .ai-sparkles-icon:not(.ai-sparkles-icon--static) .ai-sparkles-icon__svg :deep(path),
-  .ai-sparkles-icon:not(.ai-sparkles-icon--static) .ai-sparkles-icon__svg :deep(line),
-  .ai-sparkles-icon:not(.ai-sparkles-icon--static) .ai-sparkles-icon__svg :deep(circle),
-  .ai-sparkles-icon:not(.ai-sparkles-icon--static) .ai-sparkles-icon__svg :deep(polyline),
-  .ai-sparkles-icon:not(.ai-sparkles-icon--static) .ai-sparkles-icon__svg :deep(rect) {
-    stroke: #c026d3;
-  }
-}
 </style>

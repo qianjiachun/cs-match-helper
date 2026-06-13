@@ -24,8 +24,6 @@ const orbits = [
 
 onMounted(() => {
   if (!containerRef.value) return;
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (prefersReducedMotion) return;
 
   const orb = containerRef.value.querySelector('.wait__orb');
   const orbitWrappers = containerRef.value.querySelectorAll('.wait__orbit-wrapper');
@@ -268,14 +266,5 @@ onMounted(() => {
 @keyframes orbit-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* Reduced Motion Fallback */
-@media (prefers-reduced-motion: reduce) {
-  .wait__orb-core,
-  .wait__orb-pulse,
-  .wait__orbit {
-    animation: none;
-  }
 }
 </style>

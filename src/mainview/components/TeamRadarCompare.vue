@@ -61,10 +61,6 @@ const secondaryPoints = ref(centerPoints);
 
 let radarAnimation: ReturnType<typeof animate> | null = null;
 
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function applyRadarPoints(progress: number) {
   primaryPoints.value = generateRadarSvgPoints(props.primary, progress);
   secondaryPoints.value = props.secondary
@@ -73,15 +69,6 @@ function applyRadarPoints(progress: number) {
 }
 
 onMounted(() => {
-  const targetPrimary = generateRadarSvgPoints(props.primary);
-  const targetSecondary = props.secondary ? generateRadarSvgPoints(props.secondary) : centerPoints;
-
-  if (prefersReducedMotion()) {
-    primaryPoints.value = targetPrimary;
-    secondaryPoints.value = targetSecondary;
-    return;
-  }
-
   const progress = { value: 0 };
   radarAnimation = animate(progress, {
     value: { from: 0, to: 1, duration: 750, ease: 'outExpo', delay: 120 },

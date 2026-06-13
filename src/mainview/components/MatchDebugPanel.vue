@@ -5,6 +5,10 @@ import { Bug, ChevronDown, ScrollText, X } from 'lucide-vue-next';
 import { nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
+import {
+  collectRuntimeDiagnostics,
+  formatRuntimeDiagnostics,
+} from '../utils/runtime-diagnostics';
 const props = withDefaults(
   defineProps<{
     placement?: 'header' | 'floating' | 'inline';
@@ -33,7 +37,9 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'ai' | 'update';
+type InjectSubTab = 'match' | 'ai' | 'update' | 'runtime';
+
+const runtimeDiagnosticsText = formatRuntimeDiagnostics(collectRuntimeDiagnostics());
 
 const {
   state: updateState,
@@ -257,6 +263,18 @@ watch(
           >
             更新模拟
           </button>
+          <button
+            type="button"
+            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
+            :class="
+              injectSubTab === 'runtime'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-fg-muted hover:text-fg-secondary'
+            "
+            @click="switchInjectSubTab('runtime')"
+          >
+            运行时
+          </button>
         </div>
 
         <div v-if="injectSubTab === 'match'" class="space-y-3">
@@ -305,7 +323,7 @@ watch(
           </div>
         </div>
 
-        <div v-else class="space-y-3">
+        <div v-else-if="injectSubTab === 'update'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
             模拟检测到新版本，用于测试标题栏与关于页的更新提示和弹窗。
           </p>
@@ -343,6 +361,15 @@ watch(
               模拟检测到新版本
             </button>
           </div>
+        </div>
+
+        <div v-else class="space-y-3">
+          <p class="text-[11px] leading-relaxed text-fg-muted">
+            WebView2 与动画能力诊断，用于排查其他电脑上的界面/动画异常。
+          </p>
+          <pre
+            class="selectable max-h-48 overflow-auto rounded-md border border-border bg-base p-3 font-mono text-[10px] leading-relaxed text-fg-secondary whitespace-pre-wrap break-all"
+          >{{ runtimeDiagnosticsText }}</pre>
         </div>
       </div>
 

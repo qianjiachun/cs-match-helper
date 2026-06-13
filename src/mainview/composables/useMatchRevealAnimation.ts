@@ -7,10 +7,6 @@ const REVEAL_SELECTOR = '[data-match-reveal]';
 const PROGRESS_SELECTOR = '[data-match-reveal="progress"]';
 const PROGRESS_HIDDEN_CLASS = 'match-reveal-progress--hidden';
 
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function getProgressBar(root: HTMLElement) {
   return root.querySelector<HTMLElement>(PROGRESS_SELECTOR);
 }
@@ -206,15 +202,6 @@ export function useMatchRevealAnimation(rootRef: Ref<HTMLElement | null>) {
     activeTimeline = null;
     exitAnimation?.pause();
     exitAnimation = null;
-
-    if (prefersReducedMotion()) {
-      root.classList.remove('match-panel--pending');
-      root.classList.add('match-panel--revealed');
-      clearRevealInlineStyles(root);
-      hideProgressBar(root);
-      hasRevealedOnce = true;
-      return;
-    }
 
     if (hasRevealedOnce) {
       exitAnimation = animate(root, {
