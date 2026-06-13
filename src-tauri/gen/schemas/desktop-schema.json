@@ -375,6 +375,12 @@
           "markdownDescription": "允许读取 AI 设置"
         },
         {
+          "description": "允许读取最新日志文件以恢复对局数据",
+          "type": "string",
+          "const": "allow-read-latest-log-lines",
+          "markdownDescription": "允许读取最新日志文件以恢复对局数据"
+        },
+        {
           "description": "允许保存 AI 设置",
           "type": "string",
           "const": "allow-save-ai-settings",

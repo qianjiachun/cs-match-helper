@@ -12,6 +12,8 @@ use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter};
 
 const FALLBACK_TICK: Duration = Duration::from_secs(2);
+/// 启动时回溯读取日志的上限（仅扫描尾部，避免整日志过大）
+const MAX_BOOTSTRAP_READ: u64 = 4 * 1024 * 1024;
 const LOG_SOURCE_LOST_MSG: &str =
     "日志文件已丢失，完美对战平台可能已停止写入。请尝试重新运行完美对战平台。";
 
@@ -56,6 +58,41 @@ impl Default for WatcherState {
             handle: None,
         }
     }
+}
+
+/// 读取日志目录中最新日志文件的行（用于启动时恢复最近一次对局数据）
+pub fn read_latest_log_lines(log_dir: &str) -> Result<Vec<String>, String> {
+    let dir = PathBuf::from(log_dir);
+    let path = platform::resolve_newest_log_in_dir(&dir).ok_or_else(|| "未找到日志文件".to_string())?;
+
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let file_len = meta.len();
+
+    let mut file = File::open(&path).map_err(|e| e.to_string())?;
+    let start = file_len.saturating_sub(MAX_BOOTSTRAP_READ);
+    file.seek(SeekFrom::Start(start))
+        .map_err(|e| e.to_string())?;
+
+    let read_len = file_len - start;
+    let mut buf = vec![0u8; read_len as usize];
+    file.read_exact(&mut buf).map_err(|e| e.to_string())?;
+    let content = String::from_utf8_lossy(&buf);
+
+    // 从中间截断时丢弃首个不完整行
+    let text = if start > 0 {
+        content
+            .split_once('\n')
+            .map(|(_, rest)| rest)
+            .unwrap_or(content.as_ref())
+    } else {
+        content.as_ref()
+    };
+
+    Ok(text
+        .lines()
+        .map(|l| l.trim_end_matches('\r').to_string())
+        .filter(|l| !l.trim().is_empty())
+        .collect())
 }
 
 impl WatcherState {

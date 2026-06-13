@@ -14,6 +14,7 @@
     "core:event:allow-listen",
     "core:event:allow-emit",
     "allow-get-log-status",
+    "allow-read-latest-log-lines",
     "allow-start-log-watch",
     "allow-stop-log-watch",
     "allow-get-ai-settings-path",

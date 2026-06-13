@@ -1,6 +1,9 @@
 import type { LogLine } from '@core/log/types';
 import { decodeLogLine } from './log-decrypt';
 
+/** 启动时恢复对局的最大时效（毫秒） */
+export const BOOTSTRAP_MATCH_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 export function parseLogLine(line: string): LogLine {
   const m = line.match(/^\[([^\]]+)\]\s+\[(\w+)\]\s+(\S+)\s+-\s+(.*)$/);
   if (!m) {
@@ -30,6 +33,68 @@ export function extractEmbeddedJson(decodedText: string): Record<string, unknown
     // ignore malformed JSON
   }
   return null;
+}
+
+/** 从日志行中自后向前查找最近一次匹配成功事件 */
+export function findLastMatchEventInLogLines(lines: string[]): {
+  data: Record<string, unknown>;
+  logLine: LogLine;
+} | null {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const raw = lines[i];
+    if (!raw.trim()) continue;
+    const parsed = parseLogLine(raw);
+    const eventData = extractMatchEvents(parsed.decoded);
+    if (eventData) {
+      return { data: eventData, logLine: parsed };
+    }
+  }
+  return null;
+}
+
+/** 解析日志行中的时间戳 */
+export function parseLogLineTime(time?: string): Date | null {
+  if (!time?.trim()) return null;
+  const trimmed = time.trim();
+
+  const direct = new Date(trimmed);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const timeOnly = trimmed.match(/^(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/);
+  if (timeOnly) {
+    const now = new Date();
+    const parsed = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      Number(timeOnly[1]),
+      Number(timeOnly[2]),
+      Number(timeOnly[3]),
+      Number(timeOnly[4]?.slice(0, 3) ?? 0),
+    );
+    // 跨午夜时日志时间可能略大于当前时刻
+    if (parsed.getTime() > Date.now() + 60_000) {
+      parsed.setDate(parsed.getDate() - 1);
+    }
+    return parsed;
+  }
+
+  const normalized = trimmed.replace(/\//g, '-');
+  const fallback = new Date(normalized);
+  if (!Number.isNaN(fallback.getTime())) return fallback;
+
+  return null;
+}
+
+/** 判断日志行是否在指定时效内（用于启动恢复，避免展示过旧对局） */
+export function isLogLineWithinMaxAge(
+  logLine: LogLine,
+  maxAgeMs: number,
+  now = Date.now(),
+): boolean {
+  const parsed = parseLogLineTime(logLine.time);
+  if (!parsed) return false;
+  return now - parsed.getTime() <= maxAgeMs;
 }
 
 export function extractMatchEvents(decodedText: string): Record<string, unknown> | null {

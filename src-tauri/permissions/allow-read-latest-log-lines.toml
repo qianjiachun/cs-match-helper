@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-read-latest-log-lines"
+description = "允许读取最新日志文件以恢复对局数据"
+commands.allow = ["read_latest_log_lines"]

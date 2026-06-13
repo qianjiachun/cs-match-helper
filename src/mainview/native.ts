@@ -42,6 +42,10 @@ export async function getLogStatus(): Promise<WatcherStatus> {
   return invoke<WatcherStatus>('get_log_status');
 }
 
+export async function readLatestLogLines(logDir: string): Promise<string[]> {
+  return invoke<string[]>('read_latest_log_lines', { logDir });
+}
+
 export async function startLogWatch(logDir?: string): Promise<void> {
   const dir = logDir ?? getActivePlatform().buildLogDir(await homeDir());
   await invoke('start_log_watch', { logDir: dir });

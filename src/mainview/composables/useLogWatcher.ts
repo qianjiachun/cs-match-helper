@@ -2,8 +2,10 @@ import type { DebugLogEntry, LogLine } from '@core/log/types';
 import type { MatchRecord } from '@core/match/models';
 import type { WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
+import { findLastMatchEventInLogLines, isLogLineWithinMaxAge, BOOTSTRAP_MATCH_MAX_AGE_MS } from '@platforms/perfect/log-parser';
+import { homeDir } from '@tauri-apps/api/path';
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
-import { getLogStatus, onLogLine, onWatcherStatus, startLogWatch } from '../native';
+import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch } from '../native';
 
 const MAX_DEBUG_LOG_ENTRIES = 500;
 
@@ -73,6 +75,21 @@ export function useLogWatcher() {
     pushMatchRecord(data, 'debug');
   }
 
+  async function bootstrapLastMatchFromLog() {
+    try {
+      const platform = getActivePlatform();
+      const logDir = platform.buildLogDir(await homeDir());
+      const lines = await readLatestLogLines(logDir);
+      const found = findLastMatchEventInLogLines(lines);
+      if (!found) return;
+      if (!isLogLineWithinMaxAge(found.logLine, BOOTSTRAP_MATCH_MAX_AGE_MS)) return;
+      pushLogEntry(found.logLine, true);
+      pushMatchRecord(found.data, 'log', found.logLine);
+    } catch {
+      // 日志目录不存在或尚无日志时静默忽略
+    }
+  }
+
   onMounted(async () => {
     unlistenLine = await onLogLine((payload) => {
       handleLogLine(payload.raw);
@@ -83,6 +100,7 @@ export function useLogWatcher() {
     });
 
     await startLogWatch();
+    await bootstrapLastMatchFromLog();
     watcher.value = await getLogStatus();
   });
 

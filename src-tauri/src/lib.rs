@@ -30,6 +30,11 @@ fn stop_log_watch(state: tauri::State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn read_latest_log_lines(log_dir: String) -> Result<Vec<String>, String> {
+    log_watcher::read_latest_log_lines(&log_dir)
+}
+
 /// 预留：批量获取玩家扩展数据（首版未实现）
 #[tauri::command]
 fn fetch_player_enrichment(_steam_ids: Vec<String>) -> Result<(), String> {
@@ -64,6 +69,7 @@ pub fn run() {
             get_log_status,
             start_log_watch,
             stop_log_watch,
+            read_latest_log_lines,
             fetch_player_enrichment,
             ai::get_ai_settings_path,
             ai::load_ai_settings,
