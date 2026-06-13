@@ -39,7 +39,7 @@ const compareData = computed(() => {
 
   return {
     avgAdpr: { label: '平均ADR', a: avgPlayerStat(aPlayers, 'adpr'), b: avgPlayerStat(bPlayers, 'adpr'), isPct: false, decimals: 1 },
-    avgRating: { label: '平均Rating Pro', a: avgPlayerStat(aPlayers, 'rating'), b: avgPlayerStat(bPlayers, 'rating'), isPct: false, decimals: 2 },
+    avgRating: { label: '平均近期Rating', a: avgPlayerStat(aPlayers, 'rating'), b: avgPlayerStat(bPlayers, 'rating'), isPct: false, decimals: 2 },
     avgKd: { label: '平均K/D', a: avgPlayerStat(aPlayers, 'kd'), b: avgPlayerStat(bPlayers, 'kd'), isPct: false, decimals: 2 },
     avgHsRate: { label: '平均爆头率', a: avgPlayerStat(aPlayers, 'hsRate'), b: avgPlayerStat(bPlayers, 'hsRate'), isPct: true, decimals: 0 },
     avgFirstKill: { label: '平均首杀成功率', a: avgPlayerStat(aPlayers, 'firstKillSuccessRate'), b: avgPlayerStat(bPlayers, 'firstKillSuccessRate'), isPct: true, decimals: 0 },
@@ -416,7 +416,7 @@ onUnmounted(() => {
             <div class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 text-amber-500">
               <Star class="h-3.5 w-3.5" />
             </div>
-            Rating Pro
+            近期Rating
           </div>
           <div class="mb-3 flex items-center justify-between font-black">
             <span class="text-xl text-blue-600">{{ formatNum(compareData.avgRating.a, 2) }}</span>

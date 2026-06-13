@@ -66,8 +66,6 @@ export function useAiSettingsForm(
       baseUrl: baseUrl.value.trim(),
       model: model.value,
       thinkingEnabled: thinkingEnabled.value,
-      reasoningEffort: ai.settings.value?.reasoningEffort ?? 'medium',
-      autoAnalyze: ai.settings.value?.autoAnalyze ?? true,
     };
   }
 

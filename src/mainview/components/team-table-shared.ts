@@ -1,53 +1,13 @@
 import type { MatchPlayer } from '@core/match/models';
+import {
+  RADAR_COLUMN_DIM,
+  type TeamTableColumnKey,
+} from './team-table-columns';
 
-export type TeamTableSortKey =
-  | 'nickname'
-  | 'score'
-  | 'recentWins'
-  | 'adpr'
-  | 'rating'
-  | 'kd'
-  | 'hsRate'
-  | 'firstKillSuccessRate'
-  | 'rapidStopSuccessRate'
-  | 'reactionTime'
-  | 'weRaw';
+export type { TeamTableColumnKey } from './team-table-columns';
+export type TeamTableSortKey = TeamTableColumnKey;
 
 export type SortDir = 'asc' | 'desc';
-
-export interface TeamTableColumn {
-  key: TeamTableSortKey;
-  label: string;
-  align: 'left' | 'center';
-}
-
-export const TEAM_TABLE_COLUMNS: TeamTableColumn[] = [
-  { key: 'nickname', label: '玩家', align: 'left' },
-  { key: 'score', label: 'ELO', align: 'center' },
-  { key: 'recentWins', label: '近期胜负', align: 'center' },
-  { key: 'adpr', label: 'ADR', align: 'center' },
-  { key: 'rating', label: 'Rating Pro', align: 'center' },
-  { key: 'kd', label: 'K/D', align: 'center' },
-  { key: 'hsRate', label: '爆头率', align: 'center' },
-  { key: 'firstKillSuccessRate', label: '首杀成功率', align: 'center' },
-  { key: 'rapidStopSuccessRate', label: '急停成功率', align: 'center' },
-  { key: 'reactionTime', label: '反应时间', align: 'center' },
-  { key: 'weRaw', label: 'WE', align: 'center' },
-];
-
-/** 队伍数据表统一列宽（玩家列自适应，不在此列） */
-export const TEAM_TABLE_COL_WIDTHS = [
-  '8%',   // ELO
-  '12%',  // 近期胜负
-  '6%',   // ADR
-  '8%',   // Rating Pro
-  '6%',   // K/D
-  '7%',   // 爆头率
-  '8%',   // 首杀成功率
-  '8%',   // 急停成功率
-  '7%',   // 反应时间
-  '9%',   // WE
-] as const;
 
 /** 近 5 场胜负：从 recent_10_stats.win_stats 取最后 5 条，左→右，最右为最近一场 */
 export function getRecentFiveResults(
@@ -60,26 +20,13 @@ export function getRecentWinCount(player: MatchPlayer): number {
   return getRecentFiveResults(player.recentResults).filter((r) => r === 'win').length;
 }
 
-export type PlayerNumericKey = {
-  [K in keyof MatchPlayer]-?: MatchPlayer[K] extends number | undefined ? K : never;
-}[keyof MatchPlayer];
-
-export function avgPlayerStat(players: MatchPlayer[], key: PlayerNumericKey): number {
-  const values = players
-    .map((player) => player[key])
-    .filter((value): value is number => typeof value === 'number');
-  if (!values.length) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+function getRadarScore(player: MatchPlayer, key: TeamTableColumnKey): number | undefined {
+  const dim = RADAR_COLUMN_DIM[key];
+  if (!dim) return undefined;
+  return player.radar[dim]?.score;
 }
 
-/** 两队对比进度条宽度百分比，避免 0/0 产生 NaN% */
-export function ratioWidth(a: number, b: number, fallback = 50): string {
-  const sum = a + b;
-  if (!Number.isFinite(sum) || sum <= 0) return `${fallback}%`;
-  return `${(a / sum) * 100}%`;
-}
-
-function getSortValue(player: MatchPlayer, key: TeamTableSortKey): string | number {
+function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | number {
   switch (key) {
     case 'nickname':
       return player.nickname;
@@ -91,6 +38,8 @@ function getSortValue(player: MatchPlayer, key: TeamTableSortKey): string | numb
       return player.adpr ?? -Infinity;
     case 'rating':
       return player.rating ?? -Infinity;
+    case 'seasonRating':
+      return player.seasonRating ?? -Infinity;
     case 'kd':
       return player.kd ?? -Infinity;
     case 'hsRate':
@@ -103,6 +52,40 @@ function getSortValue(player: MatchPlayer, key: TeamTableSortKey): string | numb
       return player.reactionTime ?? Infinity;
     case 'weRaw':
       return player.weRaw ?? -Infinity;
+    case 'weAvg':
+      return player.weAvg ?? -Infinity;
+    case 'recentWinRate':
+      return player.recentWinRate ?? -Infinity;
+    case 'recentDrawCount':
+      return player.recentDrawCount ?? -Infinity;
+    case 'latest10WinNum':
+      return player.latest10WinNum ?? -Infinity;
+    case 'latest10TotalNum':
+      return player.latest10TotalNum ?? -Infinity;
+    case 'seasonWinRate':
+      return player.seasonWinRate ?? -Infinity;
+    case 'seasonWinNum':
+      return player.seasonWinNum ?? -Infinity;
+    case 'seasonTotalNum':
+      return player.seasonTotalNum ?? -Infinity;
+    case 'mapWinRate':
+      return player.mapWinRate ?? -Infinity;
+    case 'mapWinNum':
+      return player.mapWinNum ?? -Infinity;
+    case 'mapTotalNum':
+      return player.mapTotalNum ?? -Infinity;
+    case 'continuedWins':
+      return player.continuedWins ?? -Infinity;
+    case 'clutchWinRate':
+      return player.clutchWinRate ?? -Infinity;
+    case 'perfectPower':
+      return player.perfectPower ?? -Infinity;
+    case 'rankDesc':
+      return player.rankDesc ?? '';
+    case 'isVip':
+      return player.isVip ? 1 : 0;
+    default:
+      return getRadarScore(player, key) ?? -Infinity;
   }
 }
 
@@ -128,7 +111,7 @@ function compareSortValues(
 
 export function sortTeamPlayers(
   players: MatchPlayer[],
-  key: TeamTableSortKey,
+  key: TeamTableColumnKey,
   dir: SortDir,
 ): MatchPlayer[] {
   return [...players].sort((a, b) =>
@@ -136,8 +119,8 @@ export function sortTeamPlayers(
   );
 }
 
-export function defaultSortDir(key: TeamTableSortKey): SortDir {
-  if (key === 'nickname' || key === 'reactionTime') return 'asc';
+export function defaultSortDir(key: TeamTableColumnKey): SortDir {
+  if (key === 'nickname' || key === 'reactionTime' || key === 'rankDesc') return 'asc';
   return 'desc';
 }
 
@@ -165,6 +148,17 @@ export function formatWeAvg(n: number | undefined): string {
 export function formatMs(n: number | undefined): string {
   if (n === undefined || n === null) return '—';
   return `${Math.round(n)}ms`;
+}
+
+export function formatInteger(n: number | undefined): string {
+  if (n === undefined || n === null) return '—';
+  return String(Math.round(n));
+}
+
+export function formatWinLoss(win?: number, total?: number): string {
+  if (win == null && total == null) return '—';
+  if (win != null && total != null) return `${win}/${total}`;
+  return formatInteger(win ?? total);
 }
 
 export function getResultColor(result: 'win' | 'lose' | 'draw') {
@@ -215,6 +209,81 @@ export function weClass(we?: number) {
   if (rounded > 8) return 'text-emerald-600 font-semibold';
   if (rounded < 8) return 'text-rose-500 font-semibold';
   return 'text-slate-900 font-semibold';
+}
+
+export function cellClassForColumn(key: TeamTableColumnKey): string {
+  switch (key) {
+    case 'rating':
+    case 'seasonRating':
+      return 'font-medium';
+    case 'rankDesc':
+      return 'text-slate-600 text-[12px]';
+    default:
+      return 'text-slate-700';
+  }
+}
+
+export function cellValueClass(key: TeamTableColumnKey, player: MatchPlayer): string {
+  switch (key) {
+    case 'rating':
+      return ratingClass(player.rating);
+    case 'seasonRating':
+      return ratingClass(player.seasonRating);
+    case 'kd':
+      return kdClass(player.kd);
+    case 'weRaw':
+    case 'weAvg':
+      return weClass(key === 'weRaw' ? player.weRaw : player.weAvg);
+    default:
+      return cellClassForColumn(key);
+  }
+}
+
+export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): string {
+  switch (key) {
+    case 'score':
+      return player.score != null ? String(player.score) : '—';
+    case 'adpr':
+      return player.adpr != null ? String(player.adpr) : '—';
+    case 'rating':
+      return formatNum(player.rating, 2);
+    case 'seasonRating':
+      return formatNum(player.seasonRating, 2);
+    case 'kd':
+      return formatNum(player.kd, 2);
+    case 'hsRate':
+    case 'firstKillSuccessRate':
+    case 'rapidStopSuccessRate':
+    case 'clutchWinRate':
+    case 'recentWinRate':
+    case 'seasonWinRate':
+    case 'mapWinRate':
+      return formatPct(player[key]);
+    case 'reactionTime':
+      return formatMs(player.reactionTime);
+    case 'weRaw':
+      return formatWeAvg(player.weRaw);
+    case 'weAvg':
+      return formatWeAvg(player.weAvg);
+    case 'recentDrawCount':
+    case 'latest10WinNum':
+    case 'latest10TotalNum':
+    case 'seasonWinNum':
+    case 'seasonTotalNum':
+    case 'mapWinNum':
+    case 'mapTotalNum':
+    case 'continuedWins':
+    case 'perfectPower':
+      return formatInteger(player[key]);
+    case 'rankDesc':
+      return player.rankDesc?.trim() || '—';
+    case 'isVip':
+      return player.isVip ? '是' : '—';
+    default: {
+      const score = getRadarScore(player, key);
+      return score != null ? formatInteger(score) : '—';
+    }
+  }
 }
 
 /** 开黑组颜色条调色板（相同 troopTeamId 共用一色） */
@@ -307,4 +376,23 @@ export function getPartyBarInfo(
     color: colorMap.get(troopTeamId),
     position,
   };
+}
+
+export type PlayerNumericKey = {
+  [K in keyof MatchPlayer]-?: MatchPlayer[K] extends number | undefined ? K : never;
+}[keyof MatchPlayer];
+
+export function avgPlayerStat(players: MatchPlayer[], key: PlayerNumericKey): number {
+  const values = players
+    .map((player) => player[key])
+    .filter((value): value is number => typeof value === 'number');
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+/** 两队对比进度条宽度百分比，避免 0/0 产生 NaN% */
+export function ratioWidth(a: number, b: number, fallback = 50): string {
+  const sum = a + b;
+  if (!Number.isFinite(sum) || sum <= 0) return `${fallback}%`;
+  return `${(a / sum) * 100}%`;
 }

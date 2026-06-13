@@ -303,7 +303,8 @@ MatchResponse
 | `troopTeamId` | `players.troop_team_id` |
 | `isGreen` | `players.is_green` 或 `extrainfo.is_green` |
 | `adpr` | `extrainfo.adpr` |
-| `rating` | `recent_10_stats.pw_rating_avg` → 回退 `season_rating_pro_average` |
+| `rating` | `recent_10_stats.pw_rating_avg`（近期 Rating） |
+| `seasonRating` | `season_rating_pro_average`（赛季 Rating） |
 | `kd` | 由 `fire_power.kills_per_round_raw` 与 `rounds_with_a_kill_raw` 估算 |
 | `hsRate` | `marksmanship.headshot_rate_raw` |
 | `firstKillSuccessRate` | `first.first_success_rate_raw` |

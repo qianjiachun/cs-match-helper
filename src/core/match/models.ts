@@ -15,7 +15,10 @@ export interface MatchPlayer {
   isGreen?: boolean;
   isVip?: boolean;
   adpr?: number;
+  /** 近 10 场 Rating 均值（pw_rating_avg） */
   rating?: number;
+  /** 赛季 Rating Pro 均值（season_rating_pro_average） */
+  seasonRating?: number;
   kd?: number;
   hsRate?: number;
   firstKillSuccessRate?: number;
@@ -27,7 +30,14 @@ export interface MatchPlayer {
   recentWinRate?: number;
   recentDrawCount?: number;
   seasonWinRate?: number;
+  seasonWinNum?: number;
+  seasonTotalNum?: number;
   mapWinRate?: number;
+  mapWinNum?: number;
+  mapTotalNum?: number;
+  latest10WinNum?: number;
+  latest10TotalNum?: number;
+  continuedWins?: number;
   mapSampleLow?: boolean;
   perfectPower?: number;
   rankDesc?: string;

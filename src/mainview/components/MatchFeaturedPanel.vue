@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onUnmounted } from 'vue';
-import { Map, Clock, Table2, GitCompareArrows } from 'lucide-vue-next';
+import { Map, Clock, Table2, GitCompareArrows, Columns3 } from 'lucide-vue-next';
 import AiSparklesIcon from './AiSparklesIcon.vue';
 import type { MatchRecord } from '@core/match/models';
 import { isAiAnalysisActive } from '@core/ai/types';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import { useMatchRevealAnimation } from '../composables/useMatchRevealAnimation';
+import { useTeamTableColumns } from '../composables/useTeamTableColumns';
 import AiAnalysisPanel from './AiAnalysisPanel.vue';
 import TeamDataBoard from './TeamDataBoard.vue';
 import TeamCompareBoard from './TeamCompareBoard.vue';
@@ -21,6 +22,16 @@ const emit = defineEmits<{
 
 const panelRoot = ref<HTMLElement | null>(null);
 const { playReveal } = useMatchRevealAnimation(panelRoot);
+const {
+  visibleColumns,
+  visibleKeys,
+  customizerItems,
+  setVisible,
+  setColumnOrder,
+  resetColumns,
+} = useTeamTableColumns();
+
+const columnCustomizerOpen = ref(false);
 
 const detail = computed(() => props.match.detail);
 const teams = computed(() => detail.value.teams || []);
@@ -230,8 +241,8 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
 
         <template v-if="teamRatingCompare">
           <span class="text-slate-200">|</span>
-          <span data-match-reveal="meta" class="shrink-0 text-slate-500" title="两队近10场 Rating Pro 均值">
-            Rating
+          <span data-match-reveal="meta" class="shrink-0 text-slate-500" title="两队近期 Rating 均值">
+            近期Rating
             <b class="text-blue-600">{{ teamRatingCompare.a.toFixed(2) }}</b>
             <span class="text-slate-300"> vs </span>
             <b class="text-orange-500">{{ teamRatingCompare.b.toFixed(2) }}</b>
@@ -276,11 +287,30 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
         {{ aiStatusCapsule.text }}
       </span>
 
-      <div
-        data-match-reveal="tabs"
-        class="inline-flex shrink-0 rounded-md bg-slate-100 p-0.5 text-[12px]"
-        role="tablist"
-      >
+      <div class="flex shrink-0 items-center gap-1.5">
+        <button
+          v-if="activeTab === 'team-data'"
+          type="button"
+          data-match-reveal="tabs"
+          class="relative inline-flex h-[30px] cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-600 shadow-sm transition-colors duration-200 hover:border-blue-200 hover:bg-blue-50/60 hover:text-blue-700"
+          title="自定义列"
+          aria-label="自定义列"
+          @click="columnCustomizerOpen = true"
+        >
+          <Columns3 class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span class="hidden sm:inline">列</span>
+          <span
+            class="inline-flex min-w-[16px] items-center justify-center rounded bg-slate-100 px-1 text-[10px] font-semibold leading-none text-slate-500"
+          >
+            {{ visibleKeys.length }}
+          </span>
+        </button>
+
+        <div
+          data-match-reveal="tabs"
+          class="inline-flex shrink-0 rounded-md bg-slate-100 p-0.5 text-[12px]"
+          role="tablist"
+        >
         <button
           type="button"
           role="tab"
@@ -329,16 +359,24 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
           <AiSparklesIcon size="sm" :loading="isAiLoading" />
           {{ isAiLoading ? '分析中' : 'AI 分析' }}
         </button>
+        </div>
       </div>
     </header>
 
     <div class="min-h-0 flex-1 overflow-hidden">
       <TeamDataBoard
         v-if="activeTab === 'team-data'"
+        v-model:customizer-open="columnCustomizerOpen"
         :key="match.id"
         :teams="teams"
+        :columns="visibleColumns"
+        :visible-keys="visibleKeys"
+        :customizer-items="customizerItems"
         :highlighted-side="highlightedSide"
         :highlighted-steam-id="highlightedSteamId"
+        @toggle-column="setVisible"
+        @set-column-order="setColumnOrder"
+        @reset-columns="resetColumns"
       />
       <TeamCompareBoard v-else-if="activeTab === 'compare'" :key="match.id" :teams="teams" />
       <AiAnalysisPanel

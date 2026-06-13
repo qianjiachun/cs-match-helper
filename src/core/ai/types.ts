@@ -20,14 +20,15 @@ export function isAiAnalysisActive(
 }
 
 export interface SaveAiSettingsInput {
-  analysisEnabled: boolean;
+  /** 仅提交需要更新的字段，未提交字段保留本地已有值 */
+  analysisEnabled?: boolean;
   /** 传空字符串表示清除已保存的 Key */
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  thinkingEnabled: boolean;
-  reasoningEffort: string;
-  autoAnalyze: boolean;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: string;
+  autoAnalyze?: boolean;
 }
 
 export interface StartAiAnalysisInput {

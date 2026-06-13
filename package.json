@@ -5,7 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
+    "predev": "node scripts/version.mjs sync",
+    "prebuild": "node scripts/version.mjs sync",
     "build": "tauri build --no-bundle && node scripts/release.mjs",
+    "version:get": "node scripts/version.mjs get",
+    "version:set": "node scripts/version.mjs set",
+    "version:sync": "node scripts/version.mjs sync",
+    "version:verify": "node scripts/version.mjs verify",
     "build:exe": "cargo build --release --manifest-path src-tauri/Cargo.toml",
     "build:frontend": "vite build",
     "icon": "tauri icon src/mainview/assets/icons/app-icon.svg && cargo build --manifest-path src-tauri/Cargo.toml",

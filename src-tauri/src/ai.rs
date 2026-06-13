@@ -85,16 +85,17 @@ pub struct AiSettingsPublic {
     pub timeout_ms: u64,
 }
 
-#[derive(Debug, Deserialize)]
+/// 局部补丁：仅更新前端明确提交的字段，未提交字段保留本地已有值。
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveAiSettingsInput {
-    pub analysis_enabled: bool,
-    pub api_key: String,
-    pub base_url: String,
-    pub model: String,
-    pub thinking_enabled: bool,
-    pub reasoning_effort: String,
-    pub auto_analyze: bool,
+    pub analysis_enabled: Option<bool>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub thinking_enabled: Option<bool>,
+    pub reasoning_effort: Option<String>,
+    pub auto_analyze: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,6 +182,10 @@ fn settings_path() -> Result<PathBuf, String> {
     Ok(parent.join(SETTINGS_FILENAME))
 }
 
+pub fn parse_settings_json(content: &str) -> Result<AiSettings, String> {
+    serde_json::from_str(content).map_err(|e| format!("解析设置失败: {e}"))
+}
+
 pub fn load_settings_file() -> Result<AiSettings, String> {
     let path = settings_path()?;
     if !path.exists() {
@@ -188,7 +193,47 @@ pub fn load_settings_file() -> Result<AiSettings, String> {
     }
     let content =
         fs::read_to_string(&path).map_err(|e| format!("读取设置失败 ({path:?}): {e}"))?;
-    serde_json::from_str(&content).map_err(|e| format!("解析设置失败: {e}"))
+    parse_settings_json(&content)
+}
+
+/// 将保存补丁合并到已有设置，未出现在补丁中的字段保持不变。
+pub fn apply_settings_patch(settings: &mut AiSettings, input: &SaveAiSettingsInput) {
+    if let Some(v) = input.analysis_enabled {
+        settings.analysis_enabled = v;
+    }
+    if let Some(ref v) = input.api_key {
+        settings.api_key = v.trim().to_string();
+    }
+    if let Some(ref v) = input.base_url {
+        let trimmed = v.trim();
+        settings.base_url = if trimmed.is_empty() {
+            default_base_url()
+        } else {
+            trimmed.to_string()
+        };
+    }
+    if let Some(ref v) = input.model {
+        let trimmed = v.trim();
+        settings.model = if trimmed.is_empty() {
+            default_model()
+        } else {
+            trimmed.to_string()
+        };
+    }
+    if let Some(v) = input.thinking_enabled {
+        settings.thinking_enabled = v;
+    }
+    if let Some(ref v) = input.reasoning_effort {
+        let trimmed = v.trim();
+        settings.reasoning_effort = if trimmed.is_empty() {
+            default_reasoning_effort()
+        } else {
+            trimmed.to_string()
+        };
+    }
+    if let Some(v) = input.auto_analyze {
+        settings.auto_analyze = v;
+    }
 }
 
 pub fn save_settings_file(settings: &AiSettings) -> Result<(), String> {
@@ -263,14 +308,7 @@ pub fn load_ai_settings() -> Result<AiSettingsPublic, String> {
 #[tauri::command]
 pub fn save_ai_settings(input: SaveAiSettingsInput) -> Result<AiSettingsPublic, String> {
     let mut settings = load_settings_file()?;
-    settings.api_key = input.api_key.trim().to_string();
-    settings.analysis_enabled = input.analysis_enabled;
-    settings.base_url = input.base_url.trim().to_string();
-    settings.model = input.model.trim().to_string();
-    settings.thinking_enabled = input.thinking_enabled;
-    settings.reasoning_effort = input.reasoning_effort;
-    settings.auto_analyze = input.auto_analyze;
-    settings.timeout_ms = AI_REQUEST_TIMEOUT_MS;
+    apply_settings_patch(&mut settings, &input);
     save_settings_file(&settings)?;
     Ok(to_public(&settings))
 }
@@ -446,4 +484,137 @@ async fn run_streaming_analysis(
     }
 
     Ok((full_text, usage))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_legacy_json_fills_missing_fields_with_defaults() {
+        let legacy = r#"{
+            "analysisEnabled": false,
+            "apiKey": "sk-test-key",
+            "baseUrl": "https://api.example.com",
+            "model": "deepseek-v4-pro",
+            "thinkingEnabled": true
+        }"#;
+
+        let settings = parse_settings_json(legacy).expect("legacy json should parse");
+
+        assert!(!settings.analysis_enabled);
+        assert_eq!(settings.api_key, "sk-test-key");
+        assert_eq!(settings.base_url, "https://api.example.com");
+        assert_eq!(settings.model, "deepseek-v4-pro");
+        assert!(settings.thinking_enabled);
+        assert_eq!(settings.reasoning_effort, "medium");
+        assert!(settings.auto_analyze);
+        assert_eq!(settings.timeout_ms, AI_REQUEST_TIMEOUT_MS);
+    }
+
+    #[test]
+    fn partial_patch_preserves_unmentioned_fields() {
+        let mut settings = AiSettings {
+            analysis_enabled: true,
+            api_key: "sk-keep-me".to_string(),
+            base_url: "https://custom.example.com".to_string(),
+            model: "deepseek-v4-pro".to_string(),
+            thinking_enabled: true,
+            reasoning_effort: "high".to_string(),
+            auto_analyze: false,
+            timeout_ms: 123_456,
+        };
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                base_url: Some("https://api.deepseek.com".to_string()),
+                model: Some("deepseek-v4-flash".to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(settings.api_key, "sk-keep-me");
+        assert_eq!(settings.base_url, "https://api.deepseek.com");
+        assert_eq!(settings.model, "deepseek-v4-flash");
+        assert!(settings.analysis_enabled);
+        assert!(settings.thinking_enabled);
+        assert_eq!(settings.reasoning_effort, "high");
+        assert!(!settings.auto_analyze);
+        assert_eq!(settings.timeout_ms, 123_456);
+    }
+
+    #[test]
+    fn patch_can_clear_api_key_with_empty_string() {
+        let mut settings = AiSettings {
+            api_key: "sk-clear-me".to_string(),
+            ..AiSettings::default()
+        };
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                api_key: Some(String::new()),
+                ..Default::default()
+            },
+        );
+
+        assert!(settings.api_key.is_empty());
+    }
+
+    #[test]
+    fn patch_trims_api_key_and_string_fields() {
+        let mut settings = AiSettings::default();
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                api_key: Some("  sk-trimmed  ".to_string()),
+                base_url: Some("  https://api.deepseek.com  ".to_string()),
+                model: Some("  deepseek-v4-flash  ".to_string()),
+                reasoning_effort: Some("  high  ".to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(settings.api_key, "sk-trimmed");
+        assert_eq!(settings.base_url, "https://api.deepseek.com");
+        assert_eq!(settings.model, "deepseek-v4-flash");
+        assert_eq!(settings.reasoning_effort, "high");
+    }
+
+    #[test]
+    fn patch_empty_base_url_and_model_fall_back_to_defaults() {
+        let mut settings = AiSettings {
+            base_url: "https://custom.example.com".to_string(),
+            model: "deepseek-v4-pro".to_string(),
+            ..AiSettings::default()
+        };
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                base_url: Some("   ".to_string()),
+                model: Some("".to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(settings.base_url, default_base_url());
+        assert_eq!(settings.model, default_model());
+    }
+
+    #[test]
+    fn deserialize_patch_input_ignores_missing_fields() {
+        let input: SaveAiSettingsInput =
+            serde_json::from_str(r#"{"model":"deepseek-v4-pro"}"#).expect("patch json");
+
+        assert!(input.analysis_enabled.is_none());
+        assert!(input.api_key.is_none());
+        assert!(input.base_url.is_none());
+        assert_eq!(input.model.as_deref(), Some("deepseek-v4-pro"));
+        assert!(input.thinking_enabled.is_none());
+        assert!(input.reasoning_effort.is_none());
+        assert!(input.auto_analyze.is_none());
+    }
 }

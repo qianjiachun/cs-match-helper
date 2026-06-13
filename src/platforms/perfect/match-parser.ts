@@ -148,6 +148,8 @@ function parseRecentStats(extra: Record<string, unknown>): {
   ratings: number[];
   weAvg?: number;
   ratingAvg?: number;
+  winNum?: number;
+  totalNum?: number;
 } {
   const recent = extra.recent_10_stats;
   if (!recent || typeof recent !== 'object') {
@@ -178,6 +180,8 @@ function parseRecentStats(extra: Record<string, unknown>): {
     ratings,
     weAvg: pickNumber(r, ['we_avg']),
     ratingAvg: pickNumber(r, ['pw_rating_avg']),
+    winNum: wins,
+    totalNum: results.length,
   };
 }
 
@@ -265,7 +269,8 @@ function mergePlayer(
     isGreen: pickBool(raw, ['is_green']) ?? pickBool(extra, ['is_green']),
     isVip: pickBool(extra, ['isVip']),
     adpr: pickNumber(extra, ['adpr']),
-    rating: recent.ratingAvg ?? pickNumber(extra, ['season_rating_pro_average']),
+    rating: recent.ratingAvg,
+    seasonRating: pickNumber(extra, ['season_rating_pro_average']),
     kd: combat.kd,
     hsRate: combat.hsRate,
     firstKillSuccessRate: combat.firstKillSuccessRate,
@@ -277,7 +282,14 @@ function mergePlayer(
     recentWinRate: recent.winRate,
     recentDrawCount: recent.drawCount,
     seasonWinRate,
+    seasonWinNum: seasonWin,
+    seasonTotalNum: seasonTotal,
     mapWinRate,
+    mapWinNum: mapWinNum,
+    mapTotalNum: mapTotalNum,
+    latest10WinNum: pickNumber(extra, ['latest_10_win_num']) ?? recent.winNum,
+    latest10TotalNum: pickNumber(extra, ['latest_10_total_num']) ?? recent.totalNum,
+    continuedWins: pickNumber(extra, ['continued_wins']),
     mapSampleLow,
     perfectPower,
     rankDesc,

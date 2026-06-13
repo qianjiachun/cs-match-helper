@@ -58,6 +58,11 @@ pub fn run() {
         })
         .manage(AiAnalysisState::default())
         .setup(|app| {
+            let version = env!("CARGO_PKG_VERSION");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
+            }
+
             if let Some(log_dir) = default_log_dir() {
                 let state = app.state::<AppState>();
                 let mut watcher = state.watcher.lock().unwrap();
