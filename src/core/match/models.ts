@@ -17,7 +17,7 @@ export interface MatchPlayer {
   adpr?: number;
   /** 近 10 场 Rating 均值（pw_rating_avg） */
   rating?: number;
-  /** 赛季 Rating Pro 均值（season_rating_pro_average） */
+  /** 赛季 Rating Pro 均值（season_rating_pro_average）；5E 下为本场 Rating */
   seasonRating?: number;
   kd?: number;
   hsRate?: number;
@@ -41,11 +41,19 @@ export interface MatchPlayer {
   mapSampleLow?: boolean;
   perfectPower?: number;
   rankDesc?: string;
+  /** 5E：段位名 / 赛季等级 */
+  rankLevel?: string;
+  /** 5E：排名（全服） */
+  rankNum?: number;
+  /** 5E：本场 ELO 变化（sts.change_elo） */
+  eloChange?: number;
   radar: Record<string, RadarDimension>;
   recentResults: Array<'win' | 'lose' | 'draw'>;
   recentRatings: number[];
   tags: string[];
 }
+
+export type MatchPlatformId = 'perfect' | '5e';
 
 export interface MatchTeam {
   side: 'A' | 'B';
@@ -77,6 +85,7 @@ export interface MatchInsights {
 }
 
 export interface MatchDetail {
+  platformId?: MatchPlatformId;
   platformGameId?: string;
   mapName?: string;
   readyLeftTimeMs?: number;
@@ -100,6 +109,7 @@ export interface MatchSummary {
 
 export interface MatchRecord {
   id: string;
+  platformId?: MatchPlatformId;
   time?: string;
   level?: string;
   category?: string;

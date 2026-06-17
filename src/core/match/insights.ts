@@ -1,4 +1,4 @@
-import type { MatchDetail, MatchInsights, MatchPlayer, MatchTeam } from './models';
+import type { MatchDetail, MatchInsights, MatchPlatformId, MatchPlayer, MatchTeam } from './models';
 
 const RADAR_LABELS: Record<string, string> = {
   fire_power: '火力',
@@ -24,7 +24,15 @@ function avg(nums: number[]): number | undefined {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
-function sumTeamStats(team: MatchTeam): void {
+function avgSeasonRating(team: MatchTeam): number | undefined {
+  return avg(team.players.map((p) => p.seasonRating).filter((n): n is number => n != null));
+}
+
+function avgWeRaw(team: MatchTeam): number | undefined {
+  return avg(team.players.map((p) => p.weRaw).filter((n): n is number => n != null));
+}
+
+function sumTeamStats(team: MatchTeam, platformId: MatchPlatformId = 'perfect'): void {
   const players = team.players;
   team.avgScore = avg(players.map((p) => p.score).filter((n): n is number => n != null));
   team.avgRating = avg(players.map((p) => p.rating).filter((n): n is number => n != null));
@@ -46,17 +54,28 @@ function sumTeamStats(team: MatchTeam): void {
   team.totalScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) : undefined;
   team.avgKd = avg(players.map((p) => p.kd).filter((n): n is number => n != null));
 
-  const teamRadar: Record<string, number> = {};
-  for (const { key } of TEAM_RADAR_DIMS) {
-    const v = teamRadarAvg(team, key);
-    if (v != null) teamRadar[key] = Math.round(v);
+  if (platformId !== '5e') {
+    const teamRadar: Record<string, number> = {};
+    for (const { key } of TEAM_RADAR_DIMS) {
+      const v = teamRadarAvg(team, key);
+      if (v != null) teamRadar[key] = Math.round(v);
+    }
+    team.teamRadar = Object.keys(teamRadar).length > 0 ? teamRadar : undefined;
+  } else {
+    team.teamRadar = undefined;
   }
-  team.teamRadar = Object.keys(teamRadar).length > 0 ? teamRadar : undefined;
 
-  team.strengthScore = computeStrengthScore(team);
+  team.strengthScore = computeStrengthScore(team, platformId);
 }
 
-function computeStrengthScore(team: MatchTeam): number {
+function computeStrengthScore(team: MatchTeam, platformId: MatchPlatformId = 'perfect'): number {
+  if (platformId === '5e') {
+    return compute5eStrengthScore(team);
+  }
+  return computePerfectStrengthScore(team);
+}
+
+function computePerfectStrengthScore(team: MatchTeam): number {
   let score = 0;
   let weight = 0;
   if (team.avgScore != null) {
@@ -81,6 +100,40 @@ function computeStrengthScore(team: MatchTeam): number {
   }
   if (team.mapWinRate != null) {
     score += team.mapWinRate * 1500 * 0.1;
+    weight += 0.1;
+  }
+  return weight > 0 ? score / weight : 0;
+}
+
+function compute5eStrengthScore(team: MatchTeam): number {
+  let score = 0;
+  let weight = 0;
+  const avgElo = team.avgScore;
+  const avgMatchRating = avgSeasonRating(team);
+  const avgRws = avgWeRaw(team);
+
+  if (avgElo != null) {
+    score += avgElo * 0.3;
+    weight += 0.3;
+  }
+  if (avgMatchRating != null) {
+    score += avgMatchRating * 2000 * 0.25;
+    weight += 0.25;
+  }
+  if (team.avgAdpr != null) {
+    score += team.avgAdpr * 25 * 0.15;
+    weight += 0.15;
+  }
+  if (avgRws != null) {
+    score += avgRws * 200 * 0.1;
+    weight += 0.1;
+  }
+  if (team.mapWinRate != null) {
+    score += team.mapWinRate * 1500 * 0.1;
+    weight += 0.1;
+  }
+  if (team.recentWinRate != null) {
+    score += team.recentWinRate * 2000 * 0.1;
     weight += 0.1;
   }
   return weight > 0 ? score / weight : 0;
@@ -113,61 +166,64 @@ function teamRadarAvg(team: MatchTeam, dim: string): number | undefined {
 }
 
 export function finalizeMatchDetail(detail: MatchDetail): MatchDetail {
+  const platformId = detail.platformId ?? 'perfect';
   for (const team of detail.teams) {
-    sumTeamStats(team);
+    sumTeamStats(team, platformId);
   }
 
   if (detail.teams.length >= 2) {
-    detail.insights = buildInsights(detail.teams[0], detail.teams[1]);
+    detail.insights = buildInsights(detail.teams[0], detail.teams[1], platformId);
   } else if (detail.teams.length === 1) {
-    detail.insights = buildSingleTeamInsights(detail.teams[0]);
+    detail.insights = buildSingleTeamInsights(detail.teams[0], platformId);
   }
 
   return detail;
 }
 
-function buildSingleTeamInsights(team: MatchTeam): MatchInsights {
+function buildSingleTeamInsights(team: MatchTeam, platformId: MatchPlatformId): MatchInsights {
+  const rankKey = platformId === '5e' ? 'seasonRating' : 'rating';
   return {
     strongerSide: team.side,
     scoreDiff: 0,
     ratingDiff: 0,
-    highlights: collectHighlights(team, null),
-    risks: collectRisks(team, null),
-    topPlayers: topPlayers(team.players, 'rating'),
-    weakPlayers: weakPlayers(team.players, 'rating'),
-    tendencies: collectTendencies(team),
+    highlights: collectHighlights(team, null, platformId),
+    risks: collectRisks(team, null, platformId),
+    topPlayers: topPlayers(team.players, rankKey),
+    weakPlayers: weakPlayers(team.players, rankKey),
+    tendencies: collectTendencies(team, platformId),
   };
 }
 
-function buildInsights(teamA: MatchTeam, teamB: MatchTeam): MatchInsights {
+function buildInsights(teamA: MatchTeam, teamB: MatchTeam, platformId: MatchPlatformId): MatchInsights {
   const scoreDiff = (teamA.strengthScore ?? 0) - (teamB.strengthScore ?? 0);
   const ratingDiff = (teamA.avgRating ?? 0) - (teamB.avgRating ?? 0);
   const strongerSide =
     Math.abs(scoreDiff) < 50 ? undefined : scoreDiff > 0 ? teamA.side : teamB.side;
+  const rankKey = platformId === '5e' ? 'seasonRating' : 'rating';
 
   return {
     strongerSide,
     scoreDiff,
     ratingDiff,
     highlights: [
-      ...collectHighlights(teamA, 'A'),
-      ...collectHighlights(teamB, 'B'),
+      ...collectHighlights(teamA, 'A', platformId),
+      ...collectHighlights(teamB, 'B', platformId),
     ],
     risks: [
-      ...collectRisks(teamA, 'A'),
-      ...collectRisks(teamB, 'B'),
+      ...collectRisks(teamA, 'A', platformId),
+      ...collectRisks(teamB, 'B', platformId),
     ],
     topPlayers: [
-      ...topPlayers(teamA.players, 'rating', 1),
-      ...topPlayers(teamB.players, 'rating', 1),
+      ...topPlayers(teamA.players, rankKey, 1),
+      ...topPlayers(teamB.players, rankKey, 1),
     ],
     weakPlayers: [
-      ...weakPlayers(teamA.players, 'rating', 1),
-      ...weakPlayers(teamB.players, 'rating', 1),
+      ...weakPlayers(teamA.players, rankKey, 1),
+      ...weakPlayers(teamB.players, rankKey, 1),
     ],
     tendencies: [
-      ...collectTendencies(teamA),
-      ...collectTendencies(teamB),
+      ...collectTendencies(teamA, platformId),
+      ...collectTendencies(teamB, platformId),
     ],
   };
 }
@@ -178,57 +234,95 @@ function sideLabel(side: 'A' | 'B' | null): string {
   return '本队';
 }
 
-function collectHighlights(team: MatchTeam, side: 'A' | 'B' | null): string[] {
+function collectHighlights(team: MatchTeam, side: 'A' | 'B' | null, platformId: MatchPlatformId): string[] {
   const label = sideLabel(side);
   const tips: string[] = [];
 
-  if (team.avgRating != null && team.avgRating >= 1.15) {
-    tips.push(`${label} 近期 Rating 偏高 (${team.avgRating.toFixed(2)})`);
-  }
-  if (team.avgWe != null && team.avgWe >= 10) {
-    tips.push(`${label} WE 均值较高 (${team.avgWe.toFixed(1)})`);
-  }
-  const fire = teamRadarAvg(team, 'fire_power');
-  if (fire != null && fire >= 70) {
-    tips.push(`${label} 火力维度突出`);
-  }
-  const sniper = teamRadarAvg(team, 'sniper');
-  if (sniper != null && sniper >= 70) {
-    tips.push(`${label} 狙击能力较强`);
-  }
-  if (team.partyGroups.length > 0) {
-    const maxParty = Math.max(...team.partyGroups);
-    tips.push(`${label} 疑似 ${maxParty} 人组排`);
+  if (platformId === '5e') {
+    if (team.avgScore != null && team.avgScore >= 1800) {
+      tips.push(`${label} 平均 ELO 偏高 (${Math.round(team.avgScore)})`);
+    }
+    const avgMatchRating = avgSeasonRating(team);
+    if (avgMatchRating != null && avgMatchRating >= 1.1) {
+      tips.push(`${label} Rating 偏高 (${avgMatchRating.toFixed(2)})`);
+    }
+    const avgRws = avgWeRaw(team);
+    if (avgRws != null && avgRws >= 8) {
+      tips.push(`${label} RWS 均值较高 (${avgRws.toFixed(1)})`);
+    }
+    if (team.mapWinRate != null && team.mapWinRate >= 0.55) {
+      tips.push(`${label} 地图胜率较高 (${Math.round(team.mapWinRate * 100)}%)`);
+    }
+    if (team.recentWinRate != null && team.recentWinRate >= 0.6) {
+      tips.push(`${label} 近期胜率较高 (${Math.round(team.recentWinRate * 100)}%)`);
+    }
+  } else {
+    if (team.avgRating != null && team.avgRating >= 1.15) {
+      tips.push(`${label} 近期 Rating 偏高 (${team.avgRating.toFixed(2)})`);
+    }
+    if (team.avgWe != null && team.avgWe >= 10) {
+      tips.push(`${label} WE 均值较高 (${team.avgWe.toFixed(1)})`);
+    }
+    const fire = teamRadarAvg(team, 'fire_power');
+    if (fire != null && fire >= 70) {
+      tips.push(`${label} 火力维度突出`);
+    }
+    const sniper = teamRadarAvg(team, 'sniper');
+    if (sniper != null && sniper >= 70) {
+      tips.push(`${label} 狙击能力较强`);
+    }
+    if (team.partyGroups.length > 0) {
+      const maxParty = Math.max(...team.partyGroups);
+      tips.push(`${label} 疑似 ${maxParty} 人组排`);
+    }
   }
 
   return tips;
 }
 
-function collectRisks(team: MatchTeam, side: 'A' | 'B' | null): string[] {
+function collectRisks(team: MatchTeam, side: 'A' | 'B' | null, platformId: MatchPlatformId): string[] {
   const label = sideLabel(side);
   const tips: string[] = [];
 
-  if (team.avgRating != null && team.avgRating < 0.95) {
-    tips.push(`${label} 近期 Rating 偏低 (${team.avgRating.toFixed(2)})`);
-  }
-  const lowMapSamples = team.players.filter((p) => p.mapSampleLow).length;
-  if (lowMapSamples >= 3) {
-    tips.push(`${label} 多人地图样本偏少`);
-  }
-  const highScoreLowForm = team.players.filter(
-    (p) => p.score != null && p.score >= 2050 && p.rating != null && p.rating < 1.0,
-  );
-  if (highScoreLowForm.length > 0) {
-    tips.push(`${label} 存在高分但近期低迷玩家`);
-  }
-  if (team.singleCount >= 4) {
-    tips.push(`${label} 单排玩家较多 (${team.singleCount}/5)`);
+  if (platformId === '5e') {
+    const avgMatchRating = avgSeasonRating(team);
+    if (avgMatchRating != null && avgMatchRating < 0.85) {
+      tips.push(`${label} Rating 偏低 (${avgMatchRating.toFixed(2)})`);
+    }
+    if (team.mapWinRate != null && team.mapWinRate < 0.4) {
+      tips.push(`${label} 地图胜率偏低 (${Math.round(team.mapWinRate * 100)}%)`);
+    }
+    if (team.recentWinRate != null && team.recentWinRate < 0.4) {
+      tips.push(`${label} 近期胜率偏低 (${Math.round(team.recentWinRate * 100)}%)`);
+    }
+    const lowMapSamples = team.players.filter((p) => (p.mapTotalNum ?? 0) < 5).length;
+    if (lowMapSamples >= 3) {
+      tips.push(`${label} 多人地图样本偏少`);
+    }
+  } else {
+    if (team.avgRating != null && team.avgRating < 0.95) {
+      tips.push(`${label} 近期 Rating 偏低 (${team.avgRating.toFixed(2)})`);
+    }
+    const lowMapSamples = team.players.filter((p) => p.mapSampleLow).length;
+    if (lowMapSamples >= 3) {
+      tips.push(`${label} 多人地图样本偏少`);
+    }
+    const highScoreLowForm = team.players.filter(
+      (p) => p.score != null && p.score >= 2050 && p.rating != null && p.rating < 1.0,
+    );
+    if (highScoreLowForm.length > 0) {
+      tips.push(`${label} 存在高分但近期低迷玩家`);
+    }
+    if (team.singleCount >= 4) {
+      tips.push(`${label} 单排玩家较多 (${team.singleCount}/5)`);
+    }
   }
 
   return tips;
 }
 
-function collectTendencies(team: MatchTeam): string[] {
+function collectTendencies(team: MatchTeam, platformId: MatchPlatformId): string[] {
+  if (platformId === '5e') return [];
   const tips: string[] = [];
   const dims = Object.keys(RADAR_LABELS);
   let bestDim = '';

@@ -2,7 +2,7 @@ import type { LogLine } from '@core/log/types';
 import type { MatchRecord } from '@core/match/models';
 
 /** 当前已实现的平台 */
-export type PlatformId = 'perfect';
+export type PlatformId = 'perfect' | '5e';
 
 /**
  * 平台适配器（完美平台当前通过日志监听实现）。

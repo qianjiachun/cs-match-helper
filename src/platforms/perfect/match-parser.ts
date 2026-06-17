@@ -334,6 +334,7 @@ export function buildMatchDetail(data: Record<string, unknown>): MatchDetail {
   const { teams, unassigned } = groupTeams(players);
 
   const detail: MatchDetail = {
+    platformId: 'perfect',
     platformGameId: pickString(data, ['platform_game_id', 'platformGameId']),
     mapName: pickString(data, ['map_name', 'mapName', 'map']),
     readyLeftTimeMs: pickNumber(data, ['ready_left_time_ms']),
@@ -388,6 +389,7 @@ export function createMatchRecord(
 ): MatchRecord {
   return {
     id,
+    platformId: 'perfect',
     time: logLine.time,
     level: logLine.level,
     category: logLine.category,

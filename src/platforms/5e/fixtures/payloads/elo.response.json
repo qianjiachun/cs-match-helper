@@ -1,0 +1,212 @@
+{
+  "data": {
+    "6fb40ff3-e1fc-11ef-848e-506b4bfa3106": {
+      "modes": {
+        "9": {
+          "uid": 22272443,
+          "elo": 1766.61,
+          "matchTotal": 16,
+          "matchStatus": 0,
+          "levelId": 46,
+          "rank": 497962,
+          "seasonElo": 1750,
+          "specialData": "{\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2106.52,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "76af4325-dd04-11ed-9ce2-ec0d9a495494": {
+      "modes": {
+        "9": {
+          "uid": 14729071,
+          "elo": 1751.1,
+          "matchTotal": 9,
+          "matchStatus": 2,
+          "levelId": 46,
+          "rank": 518139,
+          "seasonElo": 1550,
+          "specialData": "{\"match_data\":[{\"is_win\":0,\"match_id\":\"\",\"match_status\":2,\"change_elo\":0}],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 1836.95,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "921e3a65-62af-11f0-a93a-0c42a164bc3c": {
+      "modes": {
+        "9": {
+          "uid": 24668243,
+          "elo": 1751.1,
+          "matchTotal": 6,
+          "matchStatus": 2,
+          "levelId": 46,
+          "rank": 512639,
+          "seasonElo": 1750,
+          "specialData": "{\"match_data\":[{\"is_win\":0,\"match_id\":\"\",\"match_status\":2,\"change_elo\":0}],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2009.26,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "9765b3f5-fd93-11ef-848e-506b4bfa3106": {
+      "modes": {
+        "9": {
+          "uid": 22867063,
+          "elo": 1786.49,
+          "matchTotal": 28,
+          "matchStatus": 0,
+          "levelId": 46,
+          "rank": 481877,
+          "seasonElo": 1650,
+          "specialData": "{\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 1786.49,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "a2f6b0d8-8504-11f0-a93a-0c42a164bc3c": {
+      "modes": {
+        "9": {
+          "uid": 25267454,
+          "elo": 1804.68,
+          "matchTotal": 6,
+          "matchStatus": 0,
+          "levelId": 46,
+          "rank": 389184,
+          "seasonElo": 1650,
+          "specialData": "{\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 1804.68,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "b6c90410-53b8-11ef-ac9f-ec0d9a7185e0": {
+      "modes": {
+        "9": {
+          "uid": 19554457,
+          "elo": 1753.1,
+          "matchTotal": 3,
+          "matchStatus": 3,
+          "levelId": 46,
+          "rank": 587105,
+          "seasonElo": 1750,
+          "specialData": "{\"match_data\":[{\"is_win\":-1,\"match_id\":\"g161-20260613150205606032219\",\"match_status\":0,\"change_elo\":0},{\"is_win\":1,\"match_id\":\"g161-20260614142743982331607\",\"match_status\":0,\"change_elo\":88.03718418655535},{\"is_win\":-1,\"match_id\":\"g161-20260616142514118291320\",\"match_status\":0,\"change_elo\":-84.93924191825977},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0}],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2133.22,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "ed954be0-7222-11ee-9ce2-ec0d9a495494": {
+      "modes": {
+        "9": {
+          "uid": 16458650,
+          "elo": 1750,
+          "matchTotal": 0,
+          "matchStatus": 3,
+          "levelId": 0,
+          "rank": 608396,
+          "seasonElo": 1750,
+          "specialData": "{\"match_data\":[{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0}],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2712.49,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "ee440358-95ee-11ef-ac9f-ec0d9a7185e0": {
+      "modes": {
+        "9": {
+          "uid": 20810080,
+          "elo": 1771.97,
+          "matchTotal": 15,
+          "matchStatus": 0,
+          "levelId": 46,
+          "rank": 493979,
+          "seasonElo": 1750,
+          "specialData": "{\"promotion_data\":[45],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2200.1,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "f0b5effe-f25d-11ea-a071-ec0d9a718678": {
+      "modes": {
+        "9": {
+          "uid": 6333895,
+          "elo": 1811.45,
+          "matchTotal": 14,
+          "matchStatus": 0,
+          "levelId": 46,
+          "rank": 383920,
+          "seasonElo": 1550,
+          "specialData": "{\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 1811.45,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    },
+    "fd023f9a-efda-11f0-a93a-0c42a164bc3c": {
+      "modes": {
+        "9": {
+          "uid": 26754565,
+          "elo": 1750,
+          "matchTotal": 0,
+          "matchStatus": 3,
+          "levelId": 0,
+          "rank": 546336,
+          "seasonElo": 1750,
+          "specialData": "{\"match_data\":[{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0},{\"is_win\":0,\"match_id\":\"\",\"match_status\":0,\"change_elo\":0}],\"star_2026\":{\"change_small_star_num\":0,\"origin_small_star_num\":0,\"change_type\":0,\"now_small_star_num\":0}}",
+          "season": "2026s3",
+          "maxElo": 2046.2,
+          "maxLevelId": 0,
+          "LevelVersion": 2,
+          "star_num": 0,
+          "dragon_flag": 0
+        }
+      }
+    }
+  },
+  "code": 0,
+  "message": "操作成功",
+  "status": true,
+  "timestamp": 1781594800,
+  "ext": [],
+  "trace_id": "e231926e500835325b42c65c6c455956",
+  "success": true,
+  "errcode": 0
+}
