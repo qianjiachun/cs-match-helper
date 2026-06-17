@@ -2,7 +2,9 @@
 import { computed } from 'vue';
 import type { MatchRecord } from '@core/match/models';
 import type { WatcherStatus } from '@core/types';
+import type { PlatformId } from '@platforms/types';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
+import type { useP5eCdp } from '../composables/useP5eCdp';
 import MatchEmptyState from '../components/MatchEmptyState.vue';
 import MatchFeaturedPanel from '../components/MatchFeaturedPanel.vue';
 
@@ -10,6 +12,8 @@ const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
   matches: MatchRecord[];
   watcher: WatcherStatus;
+  platform: PlatformId;
+  p5e?: ReturnType<typeof useP5eCdp>;
 }>();
 
 const emit = defineEmits<{
@@ -25,6 +29,11 @@ const latestMatch = computed(() => props.matches[0] ?? null);
       <MatchFeaturedPanel :ai="ai" :match="latestMatch" @open-settings="emit('openSettings')" />
     </div>
 
-    <MatchEmptyState v-else :watcher="watcher" />
+    <MatchEmptyState
+      v-else
+      :watcher="watcher"
+      :platform="platform"
+      :p5e-phase="p5e?.status.value.phase"
+    />
   </div>
 </template>

@@ -4,12 +4,24 @@ import CopyToast from './components/CopyToast.vue';
 import TitleBar from './components/TitleBar.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import { useAiAnalysis } from './composables/useAiAnalysis';
+import { useAppSession } from './composables/useAppSession';
 import { useLogWatcher } from './composables/useLogWatcher';
+import { useP5eCdp } from './composables/useP5eCdp';
 import { useUpdateCheck } from './composables/useUpdateCheck';
 import MatchAssistantView from './views/MatchAssistantView.vue';
+import P5eLaunchView from './views/P5eLaunchView.vue';
+import PlatformSelectView from './views/PlatformSelectView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
+import type { PlatformId } from '@platforms/types';
 
-const { matches, logEntries, clearLogEntries, watcher, injectMatch } = useLogWatcher();
+const { phase, selectedPlatform, selectPlatform, completeP5eSetup, resetToPlatformSelect } =
+  useAppSession();
+
+const { matches, logEntries, clearLogEntries, watcher, injectMatch, startWatching, stopWatching } =
+  useLogWatcher();
+const p5e = useP5eCdp((record) => {
+  matches.value = [record];
+});
 const ai = useAiAnalysis();
 const {
   formattedVersion,
@@ -44,6 +56,29 @@ function openSettings(tab: SettingsTab = 'ai') {
 
 function goMain() {
   currentView.value = 'main';
+  const match = matches.value[0];
+  if (match) {
+    void ai.analyzeMatch(match);
+  }
+}
+
+async function onSelectPlatform(id: PlatformId) {
+  selectPlatform(id);
+  if (id === 'perfect') {
+    await stopWatching();
+    await startWatching();
+  } else {
+    void stopWatching();
+  }
+}
+
+function onP5eReady() {
+  completeP5eSetup();
+}
+
+function onBackFromP5e() {
+  resetToPlatformSelect();
+  void p5e.stopCollect();
 }
 </script>
 
@@ -53,6 +88,7 @@ function goMain() {
       :view="currentView"
       :inject-match="injectMatch"
       :inject-ai-result="injectAiResult"
+      :p5e="p5e"
       :log-entries="logEntries"
       :watcher="watcher"
       :version="formattedVersion"
@@ -63,21 +99,51 @@ function goMain() {
       @open-update-dialog="openDialog()"
     />
     <main class="relative min-h-0 flex-1 overflow-hidden">
-      <MatchAssistantView
-        v-show="currentView === 'main'"
-        class="h-full"
-        :ai="ai"
-        :matches="matches"
-        :watcher="watcher"
-        @open-settings="openSettings"
-      />
-      <SettingsView
-        v-show="currentView === 'settings'"
-        class="h-full"
-        :ai="ai"
-        :initial-tab="settingsTab"
-        :visible="currentView === 'settings'"
-      />
+      <div
+        class="view-shell"
+        :class="currentView === 'main' ? 'view-shell--active' : 'view-shell--exit-left'"
+        :aria-hidden="currentView !== 'main'"
+      >
+        <Transition name="phase-cross" mode="out-in">
+          <PlatformSelectView
+            v-if="phase === 'select-platform'"
+            key="select-platform"
+            class="h-full"
+            @select="onSelectPlatform"
+          />
+          <P5eLaunchView
+            v-else-if="phase === 'p5e-launch'"
+            key="p5e-launch"
+            class="h-full"
+            :p5e="p5e"
+            @ready="onP5eReady"
+            @back="onBackFromP5e"
+          />
+          <MatchAssistantView
+            v-else
+            key="match-assistant"
+            class="h-full"
+            :ai="ai"
+            :matches="matches"
+            :watcher="watcher"
+            :platform="selectedPlatform ?? 'perfect'"
+            :p5e="p5e"
+            @open-settings="openSettings"
+          />
+        </Transition>
+      </div>
+      <div
+        class="view-shell"
+        :class="currentView === 'settings' ? 'view-shell--active' : 'view-shell--exit-right'"
+        :aria-hidden="currentView !== 'settings'"
+      >
+        <SettingsView
+          class="h-full"
+          :ai="ai"
+          :initial-tab="settingsTab"
+          :visible="currentView === 'settings'"
+        />
+      </div>
     </main>
     <CopyToast />
     <UpdateDialog

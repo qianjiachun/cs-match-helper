@@ -3,18 +3,35 @@ import { computed, onMounted, ref } from 'vue';
 import { animate } from 'animejs';
 import { stagger } from 'animejs';
 import type { WatcherStatus } from '@core/types';
+import type { PlatformId } from '@platforms/types';
+import type { P5eCdpPhase } from '@platforms/5e/types';
 
 const props = defineProps<{
   watcher: WatcherStatus;
+  platform?: PlatformId;
+  p5ePhase?: P5eCdpPhase;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
 
-const showPlatformHint = computed(
-  () =>
+const showPlatformHint = computed(() => {
+  if (props.platform === '5e') {
+    return props.p5ePhase === 'reconnecting' || props.p5ePhase === 'error';
+  }
+  return (
     props.watcher.running &&
-    (props.watcher.logSourceLost || !props.watcher.fileExists),
-);
+    (props.watcher.logSourceLost || !props.watcher.fileExists)
+  );
+});
+
+const hintText = computed(() => {
+  if (props.platform === '5e') {
+    if (props.p5ePhase === 'reconnecting') return '正在连接 5E，请稍候…';
+    if (props.p5ePhase === 'error') return '连接中断，请尝试重新启动 5E';
+    return '';
+  }
+  return '请重启完美对战平台';
+});
 
 const orbits = [
   { size: 100, dotSize: 5, duration: 6 },
@@ -132,7 +149,7 @@ onMounted(() => {
       class="wait__hint"
       role="note"
     >
-      请重启完美对战平台
+      {{ hintText }}
     </p>
   </div>
 </template>

@@ -5,7 +5,7 @@ import { getActivePlatform } from '@platforms/registry';
 import { findLastMatchEventInLogLines, isLogLineWithinMaxAge, BOOTSTRAP_MATCH_MAX_AGE_MS } from '@platforms/perfect/log-parser';
 import { homeDir } from '@tauri-apps/api/path';
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
-import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch } from '../native';
+import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
 
 const MAX_DEBUG_LOG_ENTRIES = 500;
 
@@ -22,6 +22,7 @@ export function useLogWatcher() {
   const logEntries = shallowRef<DebugLogEntry[]>([]);
   let unlistenLine: (() => void) | null = null;
   let unlistenStatus: (() => void) | null = null;
+  let watching = false;
 
   function pushLogEntry(parsed: LogLine, isMatchEvent: boolean) {
     const entry: DebugLogEntry = {
@@ -58,7 +59,6 @@ export function useLogWatcher() {
         : `${source}-${Date.now()}`;
 
     const record = platform.createMatchRecord(recordId, line, data);
-    // 新对局替换上一局，避免主界面残留旧数据
     matches.value = [record];
   }
 
@@ -90,6 +90,34 @@ export function useLogWatcher() {
     }
   }
 
+  async function startWatching() {
+    if (watching) return;
+    watching = true;
+
+    await startLogWatch();
+    await bootstrapLastMatchFromLog();
+    watcher.value = await getLogStatus();
+  }
+
+  async function stopWatching() {
+    if (!watching) return;
+    watching = false;
+
+    try {
+      await stopLogWatch();
+    } catch {
+      // ignore
+    }
+
+    watcher.value = {
+      running: false,
+      logPath: '',
+      fileExists: false,
+      fileSize: 0,
+      linesReceived: 0,
+    };
+  }
+
   onMounted(async () => {
     unlistenLine = await onLogLine((payload) => {
       handleLogLine(payload.raw);
@@ -98,16 +126,13 @@ export function useLogWatcher() {
     unlistenStatus = await onWatcherStatus((status) => {
       watcher.value = status;
     });
-
-    await startLogWatch();
-    await bootstrapLastMatchFromLog();
-    watcher.value = await getLogStatus();
   });
 
   onUnmounted(() => {
     unlistenLine?.();
     unlistenStatus?.();
+    void stopWatching();
   });
 
-  return { watcher, matches, logEntries, clearLogEntries, injectMatch };
+  return { watcher, matches, logEntries, clearLogEntries, injectMatch, startWatching, stopWatching };
 }

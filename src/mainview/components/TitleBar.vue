@@ -14,6 +14,7 @@ defineProps<{
   view: 'main' | 'settings';
   injectMatch: (data: Record<string, unknown>) => void;
   injectAiResult: (raw: string) => Promise<string | null>;
+  p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
   logEntries: DebugLogEntry[];
   watcher: WatcherStatus;
   version: string;
@@ -55,11 +56,12 @@ const emit = defineEmits<{
 
     <div class="no-drag relative flex h-full items-stretch">
       <MatchDebugPanel
-        v-if="debugEnabled && view === 'main'"
+        v-if="debugEnabled"
         placement="header"
         :log-entries="logEntries"
         :watcher="watcher"
         :inject-ai-result="injectAiResult"
+        :p5e="p5e"
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />
