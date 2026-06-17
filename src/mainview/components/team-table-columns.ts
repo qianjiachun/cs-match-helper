@@ -25,9 +25,12 @@ export type TeamTableColumnKey =
   | 'mapWinNum'
   | 'mapTotalNum'
   | 'continuedWins'
+  | 'eloChange'
   | 'clutchWinRate'
   | 'perfectPower'
   | 'rankDesc'
+  | 'rankLevel'
+  | 'rankNum'
   | 'isVip'
   | 'radar_fire_power'
   | 'radar_marksmanship'
@@ -66,7 +69,7 @@ export const TEAM_TABLE_COLUMN_CATEGORIES: Record<TeamTableColumnCategory, strin
   other: '其他',
 };
 
-export const TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
+export const PERFECT_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
     key: 'nickname',
     label: '玩家',
@@ -349,16 +352,200 @@ export const TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   },
 ];
 
-export const TEAM_TABLE_COLUMN_MAP = new Map(
-  TEAM_TABLE_COLUMN_DEFS.map((def) => [def.key, def]),
-);
+/** 5E 专属默认列（不含完美雷达/急停/反应时间等） */
+export const P5E_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
+  {
+    key: 'nickname',
+    label: '玩家',
+    category: 'basic',
+    align: 'left',
+    width: 'auto',
+    fixed: true,
+    defaultVisible: true,
+    sortable: true,
+  },
+  { key: 'score', label: 'ELO', category: 'basic', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  {
+    key: 'seasonRating',
+    label: 'Rating',
+    description: 'match.fight.rating，无当局时回退地图 Rating',
+    category: 'combat',
+    align: 'center',
+    width: '7%',
+    defaultVisible: true,
+    sortable: true,
+  },
+  {
+    key: 'rating',
+    label: '近期Rating',
+    description: 'special_data / 地图 Rating',
+    category: 'recent',
+    align: 'center',
+    width: '8%',
+    defaultVisible: true,
+    sortable: true,
+  },
+  { key: 'adpr', label: 'ADR', category: 'combat', align: 'center', width: '6%', defaultVisible: true, sortable: true },
+  { key: 'weRaw', label: 'RWS', category: 'combat', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  { key: 'kd', label: 'K/D', category: 'combat', align: 'center', width: '6%', defaultVisible: true, sortable: true },
+  { key: 'hsRate', label: '爆头率', category: 'combat', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  {
+    key: 'recentWins',
+    label: '近期胜负',
+    description: '近 5 场 W/L/D',
+    category: 'recent',
+    align: 'center',
+    width: '11%',
+    defaultVisible: true,
+    sortable: true,
+  },
+  {
+    key: 'mapWinRate',
+    label: '地图胜率',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'rankLevel',
+    label: '段位',
+    description: 'level_info.level_name 或赛季 Lv',
+    category: 'other',
+    align: 'center',
+    width: '9%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'rankNum',
+    label: '排名',
+    description: 'sts.rank / elo.rank',
+    category: 'other',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'firstKillSuccessRate',
+    label: '首杀成功率',
+    category: 'combat',
+    align: 'center',
+    width: '8%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'mapTotalNum',
+    label: '地图场次',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'recentWinRate',
+    label: '近期胜率',
+    category: 'recent',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'seasonTotalNum',
+    label: '赛季场次',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'eloChange',
+    label: 'ELO变化',
+    description: '本场 ELO 变化（sts.change_elo）',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'mapWinNum',
+    label: '地图胜场',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'latest10WinNum',
+    label: '近10胜场',
+    category: 'recent',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'latest10TotalNum',
+    label: '近10场次',
+    category: 'recent',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'continuedWins',
+    label: '连胜',
+    category: 'season',
+    align: 'center',
+    width: '6%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'isVip',
+    label: 'VIP',
+    category: 'other',
+    align: 'center',
+    width: '5%',
+    defaultVisible: false,
+    sortable: true,
+  },
+];
 
-export function getDefaultColumnOrder(): TeamTableColumnKey[] {
-  return TEAM_TABLE_COLUMN_DEFS.map((def) => def.key);
+/** @deprecated 使用 getTeamTableColumnDefs(platformId) */
+export const TEAM_TABLE_COLUMN_DEFS = PERFECT_TEAM_TABLE_COLUMN_DEFS;
+
+export type TeamTablePlatformId = 'perfect' | '5e';
+
+export function getTeamTableColumnDefs(platformId: TeamTablePlatformId = 'perfect'): TeamTableColumnDef[] {
+  return platformId === '5e' ? P5E_TEAM_TABLE_COLUMN_DEFS : PERFECT_TEAM_TABLE_COLUMN_DEFS;
 }
 
-export function getDefaultVisibleColumnKeys(): TeamTableColumnKey[] {
-  return TEAM_TABLE_COLUMN_DEFS.filter((def) => def.defaultVisible).map((def) => def.key);
+export function getTeamTableColumnMap(platformId: TeamTablePlatformId = 'perfect'): Map<TeamTableColumnKey, TeamTableColumnDef> {
+  return new Map(getTeamTableColumnDefs(platformId).map((def) => [def.key, def]));
+}
+
+export const TEAM_TABLE_COLUMN_MAP = getTeamTableColumnMap('perfect');
+
+export function getDefaultColumnOrder(platformId: TeamTablePlatformId = 'perfect'): TeamTableColumnKey[] {
+  return getTeamTableColumnDefs(platformId).map((def) => def.key);
+}
+
+export function getDefaultVisibleColumnKeys(platformId: TeamTablePlatformId = 'perfect'): TeamTableColumnKey[] {
+  return getTeamTableColumnDefs(platformId).filter((def) => def.defaultVisible).map((def) => def.key);
+}
+
+export function getStorageKeyForPlatform(platformId: TeamTablePlatformId): string {
+  return `cs-match-helper.team-table-columns-v7.${platformId}`;
 }
 
 export const RADAR_COLUMN_DIM: Partial<Record<TeamTableColumnKey, string>> = {

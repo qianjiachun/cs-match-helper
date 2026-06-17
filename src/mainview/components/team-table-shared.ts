@@ -76,12 +76,18 @@ function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | nu
       return player.mapTotalNum ?? -Infinity;
     case 'continuedWins':
       return player.continuedWins ?? -Infinity;
+    case 'eloChange':
+      return player.eloChange ?? -Infinity;
     case 'clutchWinRate':
       return player.clutchWinRate ?? -Infinity;
     case 'perfectPower':
       return player.perfectPower ?? -Infinity;
     case 'rankDesc':
       return player.rankDesc ?? '';
+    case 'rankLevel':
+      return player.rankLevel ?? '';
+    case 'rankNum':
+      return player.rankNum ?? -Infinity;
     case 'isVip':
       return player.isVip ? 1 : 0;
     default:
@@ -120,7 +126,8 @@ export function sortTeamPlayers(
 }
 
 export function defaultSortDir(key: TeamTableColumnKey): SortDir {
-  if (key === 'nickname' || key === 'reactionTime' || key === 'rankDesc') return 'asc';
+  if (key === 'nickname' || key === 'reactionTime' || key === 'rankDesc' || key === 'rankLevel') return 'asc';
+  if (key === 'rankNum') return 'asc';
   return 'desc';
 }
 
@@ -217,6 +224,7 @@ export function cellClassForColumn(key: TeamTableColumnKey): string {
     case 'seasonRating':
       return 'font-medium';
     case 'rankDesc':
+    case 'rankLevel':
       return 'text-slate-600 text-[12px]';
     default:
       return 'text-slate-700';
@@ -230,10 +238,9 @@ export function cellValueClass(key: TeamTableColumnKey, player: MatchPlayer): st
     case 'seasonRating':
       return ratingClass(player.seasonRating);
     case 'kd':
-      return kdClass(player.kd);
     case 'weRaw':
     case 'weAvg':
-      return weClass(key === 'weRaw' ? player.weRaw : player.weAvg);
+      return cellClassForColumn(key);
     default:
       return cellClassForColumn(key);
   }
@@ -242,7 +249,7 @@ export function cellValueClass(key: TeamTableColumnKey, player: MatchPlayer): st
 export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): string {
   switch (key) {
     case 'score':
-      return player.score != null ? String(player.score) : '—';
+      return player.score != null ? String(Math.round(player.score)) : '—';
     case 'adpr':
       return player.adpr != null ? String(player.adpr) : '—';
     case 'rating':
@@ -273,10 +280,14 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
     case 'mapWinNum':
     case 'mapTotalNum':
     case 'continuedWins':
+    case 'eloChange':
     case 'perfectPower':
       return formatInteger(player[key]);
     case 'rankDesc':
-      return player.rankDesc?.trim() || '—';
+    case 'rankLevel':
+      return player[key]?.trim() || '—';
+    case 'rankNum':
+      return player.rankNum != null ? `#${player.rankNum.toLocaleString('zh-CN')}` : '—';
     case 'isVip':
       return player.isVip ? '是' : '—';
     default: {

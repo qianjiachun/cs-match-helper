@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onUnmounted } from 'vue';
-import { Map, Clock, Table2, GitCompareArrows, Columns3 } from 'lucide-vue-next';
+import { Clock, Table2, GitCompareArrows, Columns3 } from 'lucide-vue-next';
 import AiSparklesIcon from './AiSparklesIcon.vue';
-import type { MatchRecord } from '@core/match/models';
+import PlatformLogo from './PlatformLogo.vue';
+import type { MatchRecord, MatchPlayer } from '@core/match/models';
 import { isAiAnalysisActive } from '@core/ai/types';
+import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import { useMatchRevealAnimation } from '../composables/useMatchRevealAnimation';
 import { useTeamTableColumns } from '../composables/useTeamTableColumns';
@@ -22,6 +24,11 @@ const emit = defineEmits<{
 
 const panelRoot = ref<HTMLElement | null>(null);
 const { playReveal } = useMatchRevealAnimation(panelRoot);
+
+const detail = computed(() => props.match.detail);
+const teams = computed(() => detail.value.teams || []);
+const platformId = computed(() => props.match.platformId ?? detail.value.platformId ?? 'perfect');
+
 const {
   visibleColumns,
   visibleKeys,
@@ -29,13 +36,11 @@ const {
   setVisible,
   setColumnOrder,
   resetColumns,
-} = useTeamTableColumns();
+} = useTeamTableColumns(platformId);
 
 const columnCustomizerOpen = ref(false);
 
-const detail = computed(() => props.match.detail);
-const teams = computed(() => detail.value.teams || []);
-const mapName = computed(() => detail.value.mapName || '未知地图');
+const mapName = computed(() => detail.value.mapName || props.match.summary.mapName || '未知地图');
 
 const teamA = computed(() => teams.value.find((t) => t.side === 'A'));
 const teamB = computed(() => teams.value.find((t) => t.side === 'B'));
@@ -56,11 +61,23 @@ const teamEloCompare = computed(() => {
   return { a, b, diff, leader };
 });
 
+function avgFromPlayers(players: MatchPlayer[], pick: (p: MatchPlayer) => number | undefined): number | null {
+  const vals = players.map(pick).filter((n): n is number => n != null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+
 const teamRatingCompare = computed(() => {
-  const a = teamA.value?.avgRating;
-  const b = teamB.value?.avgRating;
+  if (!teamA.value || !teamB.value) return null;
+  if (platformId.value === '5e') {
+    const a = avgFromPlayers(teamA.value.players, (p) => p.seasonRating);
+    const b = avgFromPlayers(teamB.value.players, (p) => p.seasonRating);
+    if (a == null || b == null) return null;
+    return { a, b, label: 'Rating' };
+  }
+  const a = teamA.value.avgRating;
+  const b = teamB.value.avgRating;
   if (a == null || b == null) return null;
-  return { a, b };
+  return { a, b, label: '近期Rating' };
 });
 
 const teamMapWinCompare = computed(() => {
@@ -100,9 +117,10 @@ const aiStatusCapsule = computed(() => {
   if (s === 'no-key') return { text: '缺少 Key', tone: 'warn' as const };
   if (s === 'error') return { text: 'AI 失败', tone: 'warn' as const };
   if (s === 'done' && r) {
-    const winner = r.predictedWinner;
-    const pct = winner === 'B' ? r.winProbability.B : r.winProbability.A;
-    return { text: `${winner} ${pct}%`, tone: 'done' as const };
+    return {
+      text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability),
+      tone: 'done' as const,
+    };
   }
   return null;
 });
@@ -182,7 +200,7 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
     >
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px]">
         <div data-match-reveal="meta" class="flex items-center gap-1.5 text-slate-600">
-          <Map class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <PlatformLogo :platform-id="platformId" size="sm" />
           <span class="font-medium text-slate-800">{{ mapName }}</span>
         </div>
 
@@ -241,8 +259,8 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
 
         <template v-if="teamRatingCompare">
           <span class="text-slate-200">|</span>
-          <span data-match-reveal="meta" class="shrink-0 text-slate-500" title="两队近期 Rating 均值">
-            近期Rating
+          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="`两队${teamRatingCompare.label}均值`">
+            {{ teamRatingCompare.label }}
             <b class="text-blue-600">{{ teamRatingCompare.a.toFixed(2) }}</b>
             <span class="text-slate-300"> vs </span>
             <b class="text-orange-500">{{ teamRatingCompare.b.toFixed(2) }}</b>
@@ -363,33 +381,40 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
       </div>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-hidden">
-      <TeamDataBoard
-        v-if="activeTab === 'team-data'"
-        v-model:customizer-open="columnCustomizerOpen"
-        :key="match.id"
-        :teams="teams"
-        :columns="visibleColumns"
-        :visible-keys="visibleKeys"
-        :customizer-items="customizerItems"
-        :highlighted-side="highlightedSide"
-        :highlighted-steam-id="highlightedSteamId"
-        @toggle-column="setVisible"
-        @set-column-order="setColumnOrder"
-        @reset-columns="resetColumns"
-      />
-      <TeamCompareBoard v-else-if="activeTab === 'compare'" :key="match.id" :teams="teams" />
-      <AiAnalysisPanel
-        v-else
-        :key="match.id"
-        :match="match"
-        :ai="ai"
-        :highlighted-side="highlightedSide"
-        :highlighted-steam-id="highlightedSteamId"
-        @highlight-side="onHighlightSide"
-        @highlight-player="onHighlightPlayer"
-        @open-settings="emit('openSettings')"
-      />
+    <div class="relative min-h-0 flex-1 overflow-hidden">
+      <Transition name="tab-fade" mode="out-in">
+        <TeamDataBoard
+          v-if="activeTab === 'team-data'"
+          key="team-data"
+          v-model:customizer-open="columnCustomizerOpen"
+          :teams="teams"
+          :columns="visibleColumns"
+          :visible-keys="visibleKeys"
+          :customizer-items="customizerItems"
+          :highlighted-side="highlightedSide"
+          :highlighted-steam-id="highlightedSteamId"
+          @toggle-column="setVisible"
+          @set-column-order="setColumnOrder"
+          @reset-columns="resetColumns"
+        />
+        <TeamCompareBoard
+          v-else-if="activeTab === 'compare'"
+          key="compare"
+          :teams="teams"
+          :platform-id="platformId"
+        />
+        <AiAnalysisPanel
+          v-else
+          key="ai"
+          :match="match"
+          :ai="ai"
+          :highlighted-side="highlightedSide"
+          :highlighted-steam-id="highlightedSteamId"
+          @highlight-side="onHighlightSide"
+          @highlight-player="onHighlightPlayer"
+          @open-settings="emit('openSettings')"
+        />
+      </Transition>
     </div>
     </div>
   </div>

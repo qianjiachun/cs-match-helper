@@ -10,7 +10,7 @@ defineProps<{
 
 <template>
   <div
-    class="pointer-events-none absolute left-0 w-[3px]"
+    class="pointer-events-none absolute left-1 z-10 w-[3px]"
     :title="title"
     :style="{ backgroundColor: color }"
     :class="[

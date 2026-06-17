@@ -161,29 +161,30 @@ const accent = props.team.side === 'A'
               v-for="col in columns"
               :key="col.key"
               class="px-2 py-2.5"
-              :class="col.align === 'left' ? 'px-3' : 'text-center'"
+              :class="[
+                col.align === 'left' ? 'px-3' : 'text-center',
+                col.key === 'nickname' ? 'relative' : '',
+              ]"
             >
               <template v-if="col.key === 'nickname'">
-                <div class="relative overflow-visible whitespace-nowrap">
-                  <PartyBarIndicator
-                    v-if="partyBarByPlayer.get(player.steamId)?.show"
-                    :color="partyBarByPlayer.get(player.steamId)!.color!"
-                    :position="partyBarByPlayer.get(player.steamId)!.position"
-                    title="组排"
-                  />
-                  <button
-                    type="button"
-                    class="group flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left"
-                    :title="`点击复制 Steam ID: ${player.steamId}`"
-                    @click="onPlayerClick(player.steamId, player.nickname)"
-                  >
-                    <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="sm" shape="rounded" />
-                    <span class="truncate font-medium text-slate-800 transition-colors group-hover:text-blue-600">
-                      {{ player.nickname }}
-                    </span>
-                    <PlayerGreenBadge :show="player.isGreen" />
-                  </button>
-                </div>
+                <PartyBarIndicator
+                  v-if="partyBarByPlayer.get(player.steamId)?.show"
+                  :color="partyBarByPlayer.get(player.steamId)!.color!"
+                  :position="partyBarByPlayer.get(player.steamId)!.position"
+                  title="组排"
+                />
+                <button
+                  type="button"
+                  class="group flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left"
+                  :title="`点击复制 Steam ID: ${player.steamId}`"
+                  @click="onPlayerClick(player.steamId, player.nickname)"
+                >
+                  <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="sm" shape="rounded" />
+                  <span class="truncate font-medium text-slate-800 transition-colors group-hover:text-blue-600">
+                    {{ player.nickname }}
+                  </span>
+                  <PlayerGreenBadge :show="player.isGreen" />
+                </button>
               </template>
 
               <template v-else-if="col.key === 'recentWins'">

@@ -1,15 +1,17 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
+import type { MatchPlatformId } from '@core/match/models';
 import {
   getDefaultColumnOrder,
   getDefaultVisibleColumnKeys,
-  TEAM_TABLE_COLUMN_DEFS,
-  TEAM_TABLE_COLUMN_MAP,
+  getStorageKeyForPlatform,
+  getTeamTableColumnDefs,
+  getTeamTableColumnMap,
   type TeamTableColumnDef,
   type TeamTableColumnKey,
+  type TeamTablePlatformId,
 } from '../components/team-table-columns';
 
-const STORAGE_KEY = 'cs-match-helper.team-table-columns-v2';
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 7;
 
 interface StoredColumnPrefs {
   version: number;
@@ -17,12 +19,16 @@ interface StoredColumnPrefs {
   visible: TeamTableColumnKey[];
 }
 
-function isColumnKey(value: unknown): value is TeamTableColumnKey {
-  return typeof value === 'string' && TEAM_TABLE_COLUMN_MAP.has(value as TeamTableColumnKey);
+function toTablePlatformId(platformId?: MatchPlatformId): TeamTablePlatformId {
+  return platformId === '5e' ? '5e' : 'perfect';
 }
 
-function normalizePrefs(raw: StoredColumnPrefs): StoredColumnPrefs {
-  const allKeys = getDefaultColumnOrder();
+function isColumnKey(value: unknown, platformId: TeamTablePlatformId): value is TeamTableColumnKey {
+  return typeof value === 'string' && getTeamTableColumnMap(platformId).has(value as TeamTableColumnKey);
+}
+
+function normalizePrefs(raw: StoredColumnPrefs, platformId: TeamTablePlatformId): StoredColumnPrefs {
+  const allKeys = getDefaultColumnOrder(platformId);
   const known = new Set(allKeys);
 
   const order = [
@@ -38,63 +44,77 @@ function normalizePrefs(raw: StoredColumnPrefs): StoredColumnPrefs {
     return {
       version: STORAGE_VERSION,
       order: allKeys,
-      visible: getDefaultVisibleColumnKeys(),
+      visible: getDefaultVisibleColumnKeys(platformId),
     };
   }
 
   return { version: STORAGE_VERSION, order, visible };
 }
 
-function loadPrefs(): StoredColumnPrefs {
+function loadPrefs(platformId: TeamTablePlatformId): StoredColumnPrefs {
   const fallback: StoredColumnPrefs = {
     version: STORAGE_VERSION,
-    order: getDefaultColumnOrder(),
-    visible: getDefaultVisibleColumnKeys(),
+    order: getDefaultColumnOrder(platformId),
+    visible: getDefaultVisibleColumnKeys(platformId),
   };
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKeyForPlatform(platformId));
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<StoredColumnPrefs>;
     if (!Array.isArray(parsed.order) || !Array.isArray(parsed.visible)) return fallback;
-    return normalizePrefs({
-      version: STORAGE_VERSION,
-      order: parsed.order.filter(isColumnKey),
-      visible: parsed.visible.filter(isColumnKey),
-    });
+    return normalizePrefs(
+      {
+        version: STORAGE_VERSION,
+        order: parsed.order.filter((key) => isColumnKey(key, platformId)),
+        visible: parsed.visible.filter((key) => isColumnKey(key, platformId)),
+      },
+      platformId,
+    );
   } catch {
     return fallback;
   }
 }
 
-function savePrefs(prefs: StoredColumnPrefs) {
+function savePrefs(platformId: TeamTablePlatformId, prefs: StoredColumnPrefs) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    localStorage.setItem(getStorageKeyForPlatform(platformId), JSON.stringify(prefs));
   } catch {
     // 存储不可用时静默忽略
   }
 }
 
-export function useTeamTableColumns() {
-  const initial = loadPrefs();
+export function useTeamTableColumns(platformId: Ref<MatchPlatformId | undefined>) {
+  const tablePlatformId = computed(() => toTablePlatformId(platformId.value));
+
+  const initial = loadPrefs(tablePlatformId.value);
   const columnOrder = ref<TeamTableColumnKey[]>([...initial.order]);
   const visibleKeys = ref<TeamTableColumnKey[]>([...initial.visible]);
+
+  watch(tablePlatformId, (next) => {
+    const prefs = loadPrefs(next);
+    columnOrder.value = [...prefs.order];
+    visibleKeys.value = [...prefs.visible];
+  });
+
+  const columnDefs = computed(() => getTeamTableColumnDefs(tablePlatformId.value));
+  const columnMap = computed(() => getTeamTableColumnMap(tablePlatformId.value));
 
   const visibleColumns = computed<TeamTableColumnDef[]>(() =>
     columnOrder.value
       .filter((key) => visibleKeys.value.includes(key))
-      .map((key) => TEAM_TABLE_COLUMN_MAP.get(key)!)
+      .map((key) => columnMap.value.get(key)!)
       .filter(Boolean),
   );
 
   const customizerItems = computed(() =>
     columnOrder.value
-      .map((key) => TEAM_TABLE_COLUMN_MAP.get(key)!)
+      .map((key) => columnMap.value.get(key)!)
       .filter(Boolean),
   );
 
   function persist() {
-    savePrefs({
+    savePrefs(tablePlatformId.value, {
       version: STORAGE_VERSION,
       order: [...columnOrder.value],
       visible: [...visibleKeys.value],
@@ -134,7 +154,7 @@ export function useTeamTableColumns() {
   }
 
   function setColumnOrder(order: TeamTableColumnKey[]) {
-    const allKeys = getDefaultColumnOrder();
+    const allKeys = getDefaultColumnOrder(tablePlatformId.value);
     const known = new Set(allKeys);
     const normalized = [
       ...order.filter((key) => known.has(key)),
@@ -146,8 +166,8 @@ export function useTeamTableColumns() {
   }
 
   function resetColumns() {
-    columnOrder.value = getDefaultColumnOrder();
-    visibleKeys.value = getDefaultVisibleColumnKeys();
+    columnOrder.value = getDefaultColumnOrder(tablePlatformId.value);
+    visibleKeys.value = getDefaultVisibleColumnKeys(tablePlatformId.value);
     persist();
   }
 
@@ -156,7 +176,8 @@ export function useTeamTableColumns() {
     visibleKeys,
     visibleColumns,
     customizerItems,
-    allColumnDefs: TEAM_TABLE_COLUMN_DEFS,
+    allColumnDefs: columnDefs,
+    tablePlatformId,
     setVisible,
     moveColumn,
     reorderColumn,
