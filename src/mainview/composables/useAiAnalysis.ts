@@ -61,6 +61,14 @@ export function useAiAnalysis() {
   }
 
   async function analyzeMatch(record: MatchRecord, force = false) {
+    if (
+      !force &&
+      activeMatchId.value === record.id &&
+      (status.value === 'loading' || status.value === 'streaming' || status.value === 'done')
+    ) {
+      return;
+    }
+
     if (!settings.value) {
       await refreshSettings();
     }
