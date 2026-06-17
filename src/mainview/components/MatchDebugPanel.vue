@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
-import { Bug, ChevronDown, ScrollText, X } from 'lucide-vue-next';
-import { nextTick, ref, watch } from 'vue';
+import { Bug, ChevronDown, Code2, ScrollText, X } from 'lucide-vue-next';
+import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
+import type { useP5eCdp } from '../composables/useP5eCdp';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
+import { closeAppDevtools, openAppDevtools } from '../utils/devtools';
 import {
   collectRuntimeDiagnostics,
   formatRuntimeDiagnostics,
@@ -15,6 +17,7 @@ const props = withDefaults(
     logEntries?: DebugLogEntry[];
     watcher?: WatcherStatus;
     injectAiResult?: (raw: string) => Promise<string | null>;
+    p5e?: ReturnType<typeof useP5eCdp>;
   }>(),
   {
     placement: 'inline',
@@ -37,7 +40,10 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'ai' | 'update' | 'runtime';
+type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'runtime';
+type LogSubTab = 'perfect' | 'p5e';
+
+const isDev = import.meta.env.DEV;
 
 const runtimeDiagnosticsText = formatRuntimeDiagnostics(collectRuntimeDiagnostics());
 
@@ -52,6 +58,7 @@ const {
 const open = ref(false);
 const activeTab = ref<DebugTab>('inject');
 const injectSubTab = ref<InjectSubTab>('match');
+const logSubTab = ref<LogSubTab>('perfect');
 const input = ref('');
 const aiInput = ref('');
 const error = ref('');
@@ -59,6 +66,72 @@ const aiError = ref('');
 const autoScroll = ref(true);
 const logListRef = ref<HTMLElement | null>(null);
 const expandedIds = ref<Set<string>>(new Set());
+
+const p5eNdjsonInput = ref('');
+const p5eError = ref('');
+const devtoolsError = ref('');
+
+const p5eLogEntries = computed(() => props.p5e?.logEntries.value ?? []);
+const activeLogEntries = computed(() =>
+  logSubTab.value === 'p5e' ? p5eLogEntries.value : props.logEntries,
+);
+const totalLogCount = computed(
+  () => props.logEntries.length + (props.p5e?.logEntries.value.length ?? 0),
+);
+
+const p5ePhaseLabel: Record<string, string> = {
+  idle: '空闲',
+  launching: '启动中',
+  cdpReady: '已连接',
+  collecting: '采集中',
+  reconnecting: '重连中',
+  stopped: '已停止',
+  error: '错误',
+};
+
+async function openDevtoolsPanel() {
+  devtoolsError.value = '';
+  try {
+    await openAppDevtools();
+  } catch (err) {
+    devtoolsError.value = String(err);
+  }
+}
+
+async function closeDevtoolsPanel() {
+  devtoolsError.value = '';
+  try {
+    await closeAppDevtools();
+  } catch (err) {
+    devtoolsError.value = String(err);
+  }
+}
+
+async function simulateP5eMatch() {
+  p5eError.value = '';
+  if (!props.p5e) {
+    p5eError.value = '5E 模块未就绪';
+    return;
+  }
+  const record = await props.p5e.simulateFixture();
+  if (!record) p5eError.value = props.p5e.lastError.value ?? '模拟失败';
+  else if (props.placement === 'header') open.value = false;
+}
+
+function replayP5eNdjson() {
+  p5eError.value = '';
+  if (!props.p5e) {
+    p5eError.value = '5E 模块未就绪';
+    return;
+  }
+  const bundles = props.p5e.replayNdjson(p5eNdjsonInput.value);
+  if (!bundles.length) {
+    p5eError.value = '未解析到有效 5e 匹配事件';
+    return;
+  }
+  p5eNdjsonInput.value = '';
+  if (props.placement === 'header') open.value = false;
+}
 
 function submit() {
   error.value = '';
@@ -123,7 +196,11 @@ function toggleExpand(id: string) {
 }
 
 function clearLogs() {
-  emit('clearLogs');
+  if (logSubTab.value === 'p5e') {
+    props.p5e?.clearLogEntries();
+  } else {
+    emit('clearLogs');
+  }
   expandedIds.value = new Set();
 }
 
@@ -147,7 +224,7 @@ function levelClass(level?: string) {
 }
 
 watch(
-  () => props.logEntries.length,
+  () => [props.logEntries.length, p5eLogEntries.value.length] as const,
   async () => {
     if (!autoScroll.value || activeTab.value !== 'logs') return;
     await nextTick();
@@ -180,14 +257,25 @@ watch(
           <Bug class="h-3.5 w-3.5 text-fg-muted" />
           调试面板
         </span>
-        <button
-          type="button"
-          class="cursor-pointer rounded p-1 text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
-          aria-label="关闭"
-          @click="close"
-        >
-          <X class="h-4 w-4" />
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-[11px] text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
+            title="打开 WebView 开发者工具（F12 / Ctrl+Shift+I）"
+            @click="openDevtoolsPanel"
+          >
+            <Code2 class="h-3.5 w-3.5" />
+            DevTools
+          </button>
+          <button
+            type="button"
+            class="cursor-pointer rounded p-1 text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
+            aria-label="关闭"
+            @click="close"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div class="flex border-b border-border bg-base px-2">
@@ -216,10 +304,10 @@ watch(
           <ScrollText class="h-3.5 w-3.5" />
           日志输出
           <span
-            v-if="logEntries.length"
+            v-if="totalLogCount"
             class="rounded-full bg-elevated px-1.5 py-0.5 text-[10px] text-fg-muted"
           >
-            {{ logEntries.length }}
+            {{ totalLogCount }}
           </span>
         </button>
       </div>
@@ -238,6 +326,19 @@ watch(
             @click="switchInjectSubTab('match')"
           >
             匹配数据
+          </button>
+          <button
+            v-if="isDev"
+            type="button"
+            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
+            :class="
+              injectSubTab === 'p5e'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-fg-muted hover:text-fg-secondary'
+            "
+            @click="switchInjectSubTab('p5e')"
+          >
+            5E 模拟
           </button>
           <button
             type="button"
@@ -296,6 +397,36 @@ watch(
               @click="submit"
             >
               注入
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="isDev && injectSubTab === 'p5e'" class="space-y-3">
+          <p class="text-[11px] leading-relaxed text-fg-muted">
+            一键模拟 5e 匹配成功，或粘贴 NDJSON 逐行回放（自动过滤 token/curl）。
+          </p>
+          <button
+            type="button"
+            class="w-full cursor-pointer rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover"
+            @click="simulateP5eMatch"
+          >
+            模拟 5e 匹配成功
+          </button>
+          <textarea
+            v-model="p5eNdjsonInput"
+            class="h-28 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
+            placeholder="粘贴 5e-match-events.ndjson 内容…"
+            spellcheck="false"
+          />
+          <div class="flex items-center justify-between gap-3">
+            <p v-if="p5eError" class="text-[11px] text-danger">{{ p5eError }}</p>
+            <span v-else />
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors hover:bg-elevated"
+              @click="replayP5eNdjson"
+            >
+              NDJSON 回放
             </button>
           </div>
         </div>
@@ -367,6 +498,27 @@ watch(
           <p class="text-[11px] leading-relaxed text-fg-muted">
             WebView2 与动画能力诊断，用于排查其他电脑上的界面/动画异常。
           </p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="flex cursor-pointer items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
+              @click="openDevtoolsPanel"
+            >
+              <Code2 class="h-3.5 w-3.5" />
+              打开开发者工具
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
+              @click="closeDevtoolsPanel"
+            >
+              关闭开发者工具
+            </button>
+          </div>
+          <p class="text-[10px] text-fg-muted">
+            快捷键：F12 或 Ctrl+Shift+I<span v-if="!isDev">（需先解锁调试模式）</span>
+          </p>
+          <p v-if="devtoolsError" class="text-[11px] text-danger">{{ devtoolsError }}</p>
           <pre
             class="selectable max-h-48 overflow-auto rounded-md border border-border bg-base p-3 font-mono text-[10px] leading-relaxed text-fg-secondary whitespace-pre-wrap break-all"
           >{{ runtimeDiagnosticsText }}</pre>
@@ -375,17 +527,60 @@ watch(
 
       <!-- 日志 -->
       <div v-else class="flex flex-col">
+        <div v-if="p5e" class="flex border-b border-border bg-base px-2">
+          <button
+            type="button"
+            class="cursor-pointer border-b-2 px-3 py-1.5 text-[10px] font-medium transition-colors"
+            :class="
+              logSubTab === 'perfect'
+                ? 'border-accent text-fg'
+                : 'border-transparent text-fg-muted hover:text-fg-secondary'
+            "
+            @click="logSubTab = 'perfect'"
+          >
+            完美日志
+            <span v-if="logEntries.length" class="ml-1 text-fg-muted">({{ logEntries.length }})</span>
+          </button>
+          <button
+            type="button"
+            class="cursor-pointer border-b-2 px-3 py-1.5 text-[10px] font-medium transition-colors"
+            :class="
+              logSubTab === 'p5e'
+                ? 'border-accent text-fg'
+                : 'border-transparent text-fg-muted hover:text-fg-secondary'
+            "
+            @click="logSubTab = 'p5e'"
+          >
+            5E 数据
+            <span v-if="p5eLogEntries.length" class="ml-1 text-fg-muted">({{ p5eLogEntries.length }})</span>
+          </button>
+        </div>
+
         <div
           class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2 text-[10px] text-fg-muted"
         >
-          <span :class="watcher.running ? 'text-success' : 'text-fg-muted'">
-            {{ watcher.running ? '监听中' : '未监听' }}
-          </span>
-          <span>已收 {{ watcher.linesReceived }} 行</span>
-          <span>展示 {{ logEntries.length }} 条</span>
-          <span class="truncate" :title="watcher.logPath">
-            {{ watcher.fileExists ? watcher.logPath : '等待日志文件…' }}
-          </span>
+          <template v-if="logSubTab === 'p5e' && p5e">
+            <span :class="p5e.status.value.running ? 'text-success' : 'text-fg-muted'">
+              {{ p5e.status.value.running ? '采集中' : '未采集' }}
+            </span>
+            <span>阶段 {{ p5ePhaseLabel[p5e.status.value.phase] ?? p5e.status.value.phase }}</span>
+            <span v-if="p5e.status.value.port">端口 {{ p5e.status.value.port }}</span>
+            <span>事件 {{ p5e.status.value.eventsEmitted }}</span>
+            <span>展示 {{ p5eLogEntries.length }} 条</span>
+            <span v-if="p5e.lastError.value" class="text-danger truncate" :title="p5e.lastError.value">
+              错误: {{ p5e.lastError.value }}
+            </span>
+          </template>
+          <template v-else>
+            <span :class="watcher.running ? 'text-success' : 'text-fg-muted'">
+              {{ watcher.running ? '监听中' : '未监听' }}
+            </span>
+            <span>已收 {{ watcher.linesReceived }} 行</span>
+            <span>展示 {{ logEntries.length }} 条</span>
+            <span class="truncate" :title="watcher.logPath">
+              {{ watcher.fileExists ? watcher.logPath : '等待日志文件…' }}
+            </span>
+          </template>
           <div class="ml-auto flex items-center gap-2">
             <label class="flex cursor-pointer items-center gap-1">
               <input v-model="autoScroll" type="checkbox" class="accent-accent" />
@@ -406,14 +601,19 @@ watch(
           class="selectable max-h-[min(420px,50vh)] overflow-y-auto p-3"
         >
           <p
-            v-if="!logEntries.length"
+            v-if="!activeLogEntries.length"
             class="py-8 text-center text-[11px] text-fg-muted"
           >
-            暂无日志。开始监听后，每行 log 的解析结果会显示在这里。
+            <template v-if="logSubTab === 'p5e'">
+              暂无 5E 数据。启动 5E 并开始匹配后，采集到的 API 响应会显示在这里。
+            </template>
+            <template v-else>
+              暂无日志。开始监听后，每行 log 的解析结果会显示在这里。
+            </template>
           </p>
 
           <article
-            v-for="entry in logEntries"
+            v-for="entry in activeLogEntries"
             :key="entry.id"
             class="mb-2 rounded-md border border-border bg-base p-2.5 last:mb-0"
             :class="entry.isMatchEvent ? 'border-accent/30 bg-accent/5' : ''"

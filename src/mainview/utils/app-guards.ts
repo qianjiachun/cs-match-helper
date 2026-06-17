@@ -1,5 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { debugEnabled } from '../composables/useDebugUnlock';
+import { openAppDevtools } from './devtools';
 
 function isDevtoolsShortcut(event: KeyboardEvent): boolean {
   const { key, ctrlKey, shiftKey, metaKey, altKey } = event;
@@ -11,11 +12,17 @@ function isDevtoolsShortcut(event: KeyboardEvent): boolean {
 
 async function openDevtools(): Promise<void> {
   try {
-    await getCurrentWindow().openDevtools();
+    await openAppDevtools();
   } catch {
-    // 非 Tauri 环境或当前构建未启用 devtools API
+    try {
+      await getCurrentWindow().openDevtools();
+    } catch {
+      // 非 Tauri 环境或当前构建未启用 devtools API
+    }
   }
 }
+
+export { openDevtools };
 
 const SELECTABLE_SELECTOR = 'input, textarea, select, [contenteditable="true"], .selectable';
 

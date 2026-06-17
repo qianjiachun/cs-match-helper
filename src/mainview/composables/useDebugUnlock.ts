@@ -2,7 +2,8 @@ import { computed, ref } from 'vue';
 
 const UNLOCK_CLICKS = 10;
 
-export const debugEnabled = ref(false);
+/** 开发环境默认开启调试；正式包需通过关于页点击解锁 */
+export const debugEnabled = ref(import.meta.env.DEV);
 const aboutClickCount = ref(0);
 
 export function useDebugUnlock() {
@@ -11,7 +12,7 @@ export function useDebugUnlock() {
   );
 
   function registerAboutClick() {
-    if (debugEnabled.value) return;
+    if (import.meta.env.DEV || debugEnabled.value) return;
 
     aboutClickCount.value += 1;
     if (aboutClickCount.value >= UNLOCK_CLICKS) {
