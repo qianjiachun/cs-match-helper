@@ -93,13 +93,15 @@ function selectTab(tab: SettingsTab) {
         <p class="mt-1 text-[13px] text-fg-muted">{{ contentDesc[activeTab] }}</p>
       </header>
 
-      <div class="mx-auto max-w-2xl px-6 py-6">
-        <AiSettingsSection
-          v-if="activeTab === 'ai'"
-          :ai="ai"
-          :settings-visible="visible ?? true"
-        />
-        <AboutSettingsSection v-else />
+      <div class="relative mx-auto max-w-2xl px-6 py-6">
+        <Transition name="settings-tab" mode="out-in">
+          <div v-if="activeTab === 'ai'" key="ai">
+            <AiSettingsSection :ai="ai" :settings-visible="visible ?? true" />
+          </div>
+          <div v-else key="about">
+            <AboutSettingsSection />
+          </div>
+        </Transition>
       </div>
     </div>
   </div>
