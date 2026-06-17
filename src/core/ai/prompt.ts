@@ -1,9 +1,11 @@
 import type { MatchPlayer, MatchRecord, MatchTeam } from '@core/match/models';
 import { RADAR_LABELS } from '@core/match/insights';
+import { AI_USER_PROMPT_SCHEMA } from './ai-prompt-schema';
 import { METRIC_BASELINES_TEXT, mapFitHint } from './baselines';
+import { buildP5eAiAnalysisRequest } from './p5e-prompt';
 import type { StartAiAnalysisInput } from './types';
 
-const SYSTEM_PROMPT = `你是 CS2 完美世界匹配赛前分析助手。你只能基于输入数据做概率判断，不要编造缺失字段。
+export const PERFECT_SYSTEM_PROMPT = `你是 CS2 完美世界匹配赛前分析助手。你只能基于输入数据做概率判断，不要编造缺失字段。
 所有 player 在输出文案中必须称为「玩家」，禁止使用「球员」。
 请结合 CS2 对局理解：地图控制、首杀/补枪、道具、狙击、残局、组排协同、近期状态与当前地图适配度。
 输出必须是严格 JSON，不要 Markdown，不要代码块。
@@ -16,25 +18,6 @@ keyFactors 最多 5 条，risks 最多 3 条，quickReasons 2-3 条短句。
 playerNotes：仅列出对本局判断有实质影响的玩家，数量随对局而定（可 0 人，也可多人）；不要为了凑数强行点评平庸玩家。每名玩家附 1 句具体依据（指标/角色/地图/状态），可选 role 字段标注定位（entry/awp/lurk/anchor/support/risk）。
 
 ${METRIC_BASELINES_TEXT}`;
-
-const USER_PROMPT_PREFIX = `请在 30 秒确认场景下快速给出赛前判断。
-重要：JSON 字段请按以下顺序输出，把结论字段放在最前面以便尽快展示：
-{
-  "predictedWinner": "A|B|Even|Unknown",
-  "winProbability": { "A": number, "B": number },
-  "headline": string,
-  "quickReasons": string[],
-  "confidence": number,
-  "stabilityReason": string,
-  "teamSummary": { "A": string, "B": string },
-  "keyFactors": [{ "side": "A|B|Both", "type": "strength|risk|map|party|form", "text": string, "weight": number }],
-  "playerNotes": [{ "steamId": string, "nickname": string, "side": "A|B", "text": string, "role": string }],
-  "risks": string[],
-  "dataQuality": string
-}
-
-匹配数据摘要：
-`;
 
 function round(n: number | undefined, digits = 2): number | undefined {
   if (n == null || Number.isNaN(n)) return undefined;
@@ -223,13 +206,20 @@ export function buildMatchSummary(record: MatchRecord): MatchSummaryPayload {
   };
 }
 
-export function buildAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
+export function buildPerfectAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
   const summary = buildMatchSummary(record);
   return {
     matchId: record.id,
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT_PREFIX + JSON.stringify(summary),
+    systemPrompt: PERFECT_SYSTEM_PROMPT,
+    userPrompt: AI_USER_PROMPT_SCHEMA + JSON.stringify(summary),
   };
+}
+
+export function buildAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
+  if (record.platformId === '5e' || record.detail.platformId === '5e') {
+    return buildP5eAiAnalysisRequest(record);
+  }
+  return buildPerfectAiAnalysisRequest(record);
 }
 
 export function parseAiAnalysisResult(raw: string): import('./types').AiAnalysisResult | null {
