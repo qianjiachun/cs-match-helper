@@ -5,7 +5,13 @@ mod update;
 
 use ai::AiAnalysisState;
 use log_watcher::WatcherState;
+use platform::{
+    fetch_5e_match_detail, launch_with_cdp, probe_5e_environment, wait_for_cdp_port,
+    P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
+    get_cdp_status, start_cdp_collector, stop_cdp_collector,
+};
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::Manager;
 
 #[tauri::command]
@@ -41,12 +47,86 @@ fn fetch_player_enrichment(_steam_ids: Vec<String>) -> Result<(), String> {
     Err("player enrichment not implemented".to_string())
 }
 
-struct AppState {
-    watcher: Mutex<WatcherState>,
+#[tauri::command]
+async fn launch_5e_with_cdp(
+    port: Option<u16>,
+    client_root: Option<String>,
+) -> Result<P5eLaunchResult, String> {
+    let preferred = port.unwrap_or(P5E_DEFAULT_CDP_PORT);
+    let mut result = tokio::task::spawn_blocking(move || launch_with_cdp(client_root.as_deref(), preferred))
+        .await
+        .map_err(|e| format!("启动任务失败: {e}"))??;
+
+    if result.launched && !result.cdp_ready {
+        let ready = wait_for_cdp_port(result.port, Duration::from_secs(60)).await;
+        result.cdp_ready = ready;
+        result.message = if ready {
+            format!("5E 已启动，端口 {} 已就绪", result.port)
+        } else {
+            format!(
+                "5E 已启动，但端口 {} 在 60 秒内未就绪；请完全退出 5E 后重试",
+                result.port
+            )
+        };
+    }
+
+    Ok(result)
 }
 
-fn default_log_dir() -> Option<std::path::PathBuf> {
-    platform::log_dir()
+#[tauri::command]
+async fn start_5e_cdp_collector(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, P5eCdpRuntime>,
+    port: Option<u16>,
+    client_root: Option<String>,
+) -> Result<P5eCdpStatus, String> {
+    start_cdp_collector(app, state, port, client_root).await
+}
+
+#[tauri::command]
+async fn probe_5e_cdp_active() -> P5eProbeResult {
+    tokio::task::spawn_blocking(|| probe_5e_environment(P5E_DEFAULT_CDP_PORT))
+        .await
+        .unwrap_or_else(|_| P5eProbeResult {
+            external_running: false,
+            five_e_process_running: false,
+            cdp_port: None,
+            installed: false,
+            client_root: None,
+            message: "探测失败".to_string(),
+        })
+}
+
+#[tauri::command]
+fn stop_5e_cdp_collector(state: tauri::State<'_, P5eCdpRuntime>) -> P5eCdpStatus {
+    stop_cdp_collector(state)
+}
+
+#[tauri::command]
+fn get_5e_cdp_status(state: tauri::State<'_, P5eCdpRuntime>) -> P5eCdpStatus {
+    get_cdp_status(state)
+}
+
+#[tauri::command]
+fn open_app_devtools(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    window.open_devtools();
+    Ok(())
+}
+
+#[tauri::command]
+fn close_app_devtools(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    window.close_devtools();
+    Ok(())
+}
+
+struct AppState {
+    watcher: Mutex<WatcherState>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,16 +137,11 @@ pub fn run() {
             watcher: Mutex::new(WatcherState::default()),
         })
         .manage(AiAnalysisState::default())
+        .manage(P5eCdpRuntime::default())
         .setup(|app| {
             let version = env!("CARGO_PKG_VERSION");
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
-            }
-
-            if let Some(log_dir) = default_log_dir() {
-                let state = app.state::<AppState>();
-                let mut watcher = state.watcher.lock().unwrap();
-                let _ = watcher.start(app.handle().clone(), log_dir.display().to_string());
             }
             Ok(())
         })
@@ -76,6 +151,14 @@ pub fn run() {
             stop_log_watch,
             read_latest_log_lines,
             fetch_player_enrichment,
+            launch_5e_with_cdp,
+            start_5e_cdp_collector,
+            stop_5e_cdp_collector,
+            get_5e_cdp_status,
+            probe_5e_cdp_active,
+            fetch_5e_match_detail,
+            open_app_devtools,
+            close_app_devtools,
             ai::get_ai_settings_path,
             ai::load_ai_settings,
             ai::save_ai_settings,

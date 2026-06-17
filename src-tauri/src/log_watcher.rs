@@ -154,7 +154,9 @@ impl WatcherState {
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
         if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
+            thread::spawn(move || {
+                let _ = handle.join();
+            });
         }
     }
 }

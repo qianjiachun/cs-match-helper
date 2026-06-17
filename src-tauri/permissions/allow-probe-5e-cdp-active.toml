@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-probe-5e-cdp-active"
+description = "允许检测 5E 是否已在外部运行"
+commands.allow = ["probe_5e_cdp_active"]

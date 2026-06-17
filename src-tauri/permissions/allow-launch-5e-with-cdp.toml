@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-launch-5e-with-cdp"
+description = "允许带 CDP 端口启动 5E 客户端"
+commands.allow = ["launch_5e_with_cdp"]

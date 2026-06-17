@@ -357,6 +357,24 @@
           "markdownDescription": "允许检查 GitHub 发布版本"
         },
         {
+          "description": "允许关闭应用内 WebView 开发者工具",
+          "type": "string",
+          "const": "allow-close-app-devtools",
+          "markdownDescription": "允许关闭应用内 WebView 开发者工具"
+        },
+        {
+          "description": "允许通过 match_code 拉取 5E 对局详情（地图等）",
+          "type": "string",
+          "const": "allow-fetch-5e-match-detail",
+          "markdownDescription": "允许通过 match_code 拉取 5E 对局详情（地图等）"
+        },
+        {
+          "description": "允许查询 5E CDP 采集状态",
+          "type": "string",
+          "const": "allow-get-5e-cdp-status",
+          "markdownDescription": "允许查询 5E CDP 采集状态"
+        },
+        {
           "description": "允许获取 AI 设置文件路径",
           "type": "string",
           "const": "allow-get-ai-settings-path",
@@ -369,10 +387,28 @@
           "markdownDescription": "允许查询日志监听状态"
         },
         {
+          "description": "允许带 CDP 端口启动 5E 客户端",
+          "type": "string",
+          "const": "allow-launch-5e-with-cdp",
+          "markdownDescription": "允许带 CDP 端口启动 5E 客户端"
+        },
+        {
           "description": "允许读取 AI 设置",
           "type": "string",
           "const": "allow-load-ai-settings",
           "markdownDescription": "允许读取 AI 设置"
+        },
+        {
+          "description": "允许打开应用内 WebView 开发者工具",
+          "type": "string",
+          "const": "allow-open-app-devtools",
+          "markdownDescription": "允许打开应用内 WebView 开发者工具"
+        },
+        {
+          "description": "允许检测 5E 是否已在外部运行",
+          "type": "string",
+          "const": "allow-probe-5e-cdp-active",
+          "markdownDescription": "允许检测 5E 是否已在外部运行"
         },
         {
           "description": "允许读取最新日志文件以恢复对局数据",
@@ -387,6 +423,12 @@
           "markdownDescription": "允许保存 AI 设置"
         },
         {
+          "description": "允许启动 5E CDP 采集器",
+          "type": "string",
+          "const": "allow-start-5e-cdp-collector",
+          "markdownDescription": "允许启动 5E CDP 采集器"
+        },
+        {
           "description": "允许启动 AI 分析",
           "type": "string",
           "const": "allow-start-ai-analysis",
@@ -397,6 +439,12 @@
           "type": "string",
           "const": "allow-start-log-watch",
           "markdownDescription": "允许启动日志监听"
+        },
+        {
+          "description": "允许停止 5E CDP 采集器",
+          "type": "string",
+          "const": "allow-stop-5e-cdp-collector",
+          "markdownDescription": "允许停止 5E CDP 采集器"
         },
         {
           "description": "允许停止日志监听",

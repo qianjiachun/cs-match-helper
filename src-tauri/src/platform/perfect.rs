@@ -1,16 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-pub fn log_dir() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    Some(
-        home.join("AppData")
-            .join("Roaming")
-            .join("Wmpvp")
-            .join("Log"),
-    )
-}
-
 /// 从目标路径向上查找最近存在的目录，日志目录尚未创建时用于监听父目录
 pub fn find_watchable_parent(target: &Path) -> PathBuf {
     let mut current = target.to_path_buf();

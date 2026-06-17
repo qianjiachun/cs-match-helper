@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-stop-5e-cdp-collector"
+description = "允许停止 5E CDP 采集器"
+commands.allow = ["stop_5e_cdp_collector"]

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-5e-match-detail"
+description = "允许通过 match_code 拉取 5E 对局详情（地图等）"
+commands.allow = ["fetch_5e_match_detail"]

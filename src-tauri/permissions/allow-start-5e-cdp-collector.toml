@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-start-5e-cdp-collector"
+description = "允许启动 5E CDP 采集器"
+commands.allow = ["start_5e_cdp_collector"]

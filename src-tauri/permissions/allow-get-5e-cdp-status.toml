@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-5e-cdp-status"
+description = "允许查询 5E CDP 采集状态"
+commands.allow = ["get_5e_cdp_status"]

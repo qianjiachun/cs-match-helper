@@ -23,6 +23,14 @@
     "allow-start-ai-analysis",
     "allow-cancel-ai-analysis",
     "allow-check-for-update",
+    "allow-launch-5e-with-cdp",
+    "allow-start-5e-cdp-collector",
+    "allow-stop-5e-cdp-collector",
+    "allow-get-5e-cdp-status",
+    "allow-probe-5e-cdp-active",
+    "allow-fetch-5e-match-detail",
+    "allow-open-app-devtools",
+    "allow-close-app-devtools",
     "opener:default",
     "core:webview:deny-internal-toggle-devtools"
   ]

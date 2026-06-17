@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-open-app-devtools"
+description = "允许打开应用内 WebView 开发者工具"
+commands.allow = ["open_app_devtools"]
+
+[[permission]]
+identifier = "allow-close-app-devtools"
+description = "允许关闭应用内 WebView 开发者工具"
+commands.allow = ["close_app_devtools"]
