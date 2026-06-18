@@ -1,4 +1,4 @@
-/** 队伍数据表列定义（与 response.md 字段对应） */
+/** 队伍数据表列定义（与 docs/response.md 字段对应） */
 
 export type TeamTableColumnKey =
   | 'nickname'

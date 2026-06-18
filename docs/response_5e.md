@@ -830,7 +830,7 @@ sequenceDiagram
 | MatchRecord | `src/platforms/5e/match-parser.ts` |
 | CDP 白名单（Rust） | `src-tauri/src/platform/platform_5e_sink.rs` |
 | 测试夹具 | `src/platforms/5e/fixtures/5e-match-success.fixture.json` |
-| **本文档** | `response_5e.md` |
+| **本文档** | `docs/response_5e.md` |
 
 ---
 
