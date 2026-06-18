@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { Info, Settings, Sparkles } from 'lucide-vue-next';
+import { Info, MessageCircle, Settings, Sparkles } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
+import type { useComments } from '../composables/useComments';
 import AboutSettingsSection from '../components/settings/AboutSettingsSection.vue';
 import AiSettingsSection from '../components/settings/AiSettingsSection.vue';
+import CommentHistorySection from '../components/settings/CommentHistorySection.vue';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 
-export type SettingsTab = 'ai' | 'about';
+export type SettingsTab = 'ai' | 'comments' | 'about';
 
 const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
+  comments: ReturnType<typeof useComments>;
   initialTab?: SettingsTab;
   visible?: boolean;
 }>();
@@ -25,11 +28,13 @@ watch(
 
 const navItems = [
   { id: 'ai' as const, label: 'AI 设置', icon: Sparkles },
+  { id: 'comments' as const, label: '我的评论', icon: MessageCircle },
   { id: 'about' as const, label: '关于', icon: Info },
 ];
 
 const contentDesc: Record<SettingsTab, string> = {
   ai: 'API 与模型配置',
+  comments: '查看和管理你发表过的评论',
   about: '版本与作者信息',
 };
 
@@ -97,6 +102,12 @@ function selectTab(tab: SettingsTab) {
         <Transition name="settings-tab" mode="out-in">
           <div v-if="activeTab === 'ai'" key="ai">
             <AiSettingsSection :ai="ai" :settings-visible="visible ?? true" />
+          </div>
+          <div v-else-if="activeTab === 'comments'" key="comments">
+            <CommentHistorySection
+              :comments="comments"
+              :visible="visible && activeTab === 'comments'"
+            />
           </div>
           <div v-else key="about">
             <AboutSettingsSection />
