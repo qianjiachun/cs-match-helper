@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
-import { Bug, ChevronDown, Code2, ScrollText, X } from 'lucide-vue-next';
+import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import type { useP5eCdp } from '../composables/useP5eCdp';
+import type { useComments } from '../composables/useComments';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
 import { closeAppDevtools, openAppDevtools } from '../utils/devtools';
 import {
@@ -18,6 +19,7 @@ const props = withDefaults(
     watcher?: WatcherStatus;
     injectAiResult?: (raw: string) => Promise<string | null>;
     p5e?: ReturnType<typeof useP5eCdp>;
+    comments?: ReturnType<typeof useComments>;
   }>(),
   {
     placement: 'inline',
@@ -40,7 +42,7 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'runtime';
+type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'comments' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
 const isDev = import.meta.env.DEV;
@@ -168,6 +170,15 @@ async function submitAi() {
   if (props.placement === 'header') {
     open.value = false;
   }
+}
+
+function openMockComments(scenario: 'list' | 'empty' | 'loading' | 'error' = 'list') {
+  props.comments?.openMockDrawer(scenario);
+  if (props.placement === 'header') open.value = false;
+}
+
+function fillMockHistory() {
+  props.comments?.fillMockHistory();
 }
 
 function switchInjectSubTab(tab: InjectSubTab) {
@@ -356,6 +367,18 @@ watch(
             type="button"
             class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
             :class="
+              injectSubTab === 'comments'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-fg-muted hover:text-fg-secondary'
+            "
+            @click="switchInjectSubTab('comments')"
+          >
+            评论 Mock
+          </button>
+          <button
+            type="button"
+            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
+            :class="
               injectSubTab === 'update'
                 ? 'bg-surface text-fg shadow-sm'
                 : 'text-fg-muted hover:text-fg-secondary'
@@ -450,6 +473,57 @@ watch(
               @click="submitAi"
             >
               注入 AI 结果
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="injectSubTab === 'comments'" class="space-y-3">
+          <p class="text-[11px] leading-relaxed text-fg-muted">
+            打开带 Mock 数据的评论抽屉，或填充设置页「我的评论」列表（不请求接口）。
+          </p>
+          <div class="rounded-md border border-border bg-base px-3 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
+            <p>玩家：调试玩家_Mock</p>
+            <p class="mt-1">SteamID：76561198000000001</p>
+            <p class="mt-1">Mock 列表含 5 条评论（含 1 条自己的评论）</p>
+            <p class="mt-1">Mock 历史含 5 条评论（3 个不同 SteamID）</p>
+          </div>
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
+            @click="openMockComments('list')"
+          >
+            <MessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
+            打开 Mock 评论抽屉
+          </button>
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-[12px] font-medium text-accent transition-colors duration-200 hover:bg-accent/10"
+            @click="fillMockHistory"
+          >
+            <MessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
+            填充我的评论
+          </button>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
+              @click="openMockComments('empty')"
+            >
+              空状态
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
+              @click="openMockComments('loading')"
+            >
+              加载中
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
+              @click="openMockComments('error')"
+            >
+              错误态
             </button>
           </div>
         </div>
