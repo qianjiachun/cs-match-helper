@@ -31,6 +31,7 @@
     "allow-fetch-5e-match-detail",
     "allow-open-app-devtools",
     "allow-close-app-devtools",
+    "allow-get-comment-client-key",
     "opener:default",
     "core:webview:deny-internal-toggle-devtools"
   ]

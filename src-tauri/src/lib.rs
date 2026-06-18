@@ -1,4 +1,5 @@
 mod ai;
+mod comments;
 mod log_watcher;
 mod platform;
 mod update;
@@ -166,6 +167,7 @@ pub fn run() {
             ai::cancel_ai_analysis,
             update::get_app_version,
             update::check_for_update,
+            comments::get_comment_client_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-comment-client-key"
+description = "允许获取评论客户端身份"
+commands.allow = ["get_comment_client_key"]

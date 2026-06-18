@@ -381,6 +381,12 @@
           "markdownDescription": "允许获取 AI 设置文件路径"
         },
         {
+          "description": "允许获取评论客户端身份",
+          "type": "string",
+          "const": "allow-get-comment-client-key",
+          "markdownDescription": "允许获取评论客户端身份"
+        },
+        {
           "description": "允许查询日志监听状态",
           "type": "string",
           "const": "allow-get-log-status",
