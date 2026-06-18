@@ -40,14 +40,25 @@ function showToast(message: string) {
 }
 
 export function useCopyFeedback() {
-  async function copyText(text: string, successMessage = '已复制') {
+  async function copyText(
+    text: string,
+    options?: string | { successMessage?: string; showToast?: boolean },
+  ): Promise<boolean> {
+    const opts =
+      typeof options === 'string'
+        ? { successMessage: options, showToast: true }
+        : { showToast: true, ...options };
+
     const ok = await copyToClipboard(text);
-    showToast(ok ? successMessage : '复制失败，请重试');
+    if (opts.showToast !== false) {
+      showToast(ok ? (opts.successMessage ?? '已复制') : '复制失败，请重试');
+    }
+    return ok;
   }
 
   async function copySteamId(steamId: string, nickname?: string) {
     const label = nickname ? `${nickname} 的 Steam ID` : 'Steam ID';
-    await copyText(steamId, `已复制 ${label}`);
+    return copyText(steamId, `已复制 ${label}`);
   }
 
   return {

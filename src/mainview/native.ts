@@ -130,3 +130,7 @@ export async function getAppVersion(): Promise<string> {
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
   return invoke<UpdateCheckResult>('check_for_update');
 }
+
+export async function getCommentClientKey(): Promise<string> {
+  return invoke<string>('get_comment_client_key');
+}
