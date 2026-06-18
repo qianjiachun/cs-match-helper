@@ -177,6 +177,14 @@ describe('5E AI prompt', () => {
     expect(P5E_SYSTEM_PROMPT).not.toContain('Rating Pro 均值');
   });
 
+  it('prompts require Simplified Chinese user-facing output', () => {
+    expect(P5E_SYSTEM_PROMPT).toContain('简体中文');
+    expect(P5E_SYSTEM_PROMPT).toContain('严禁全英文');
+    const perfectReq = buildPerfectAiAnalysisRequest(buildPerfectRecord());
+    expect(perfectReq.systemPrompt).toContain('简体中文');
+    expect(perfectReq.userPrompt).toContain('严禁全英文');
+  });
+
   it('perfect buildPerfectAiAnalysisRequest unchanged in shape', () => {
     const record = buildPerfectRecord();
     const summary = buildMatchSummary(record);
