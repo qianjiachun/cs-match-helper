@@ -99,9 +99,12 @@ await fetch(`${API_BASE}/comment/add`, {
 | text | string | 评论内容 |
 | likes | number | 点赞数 |
 | createTime | number | 创建时间（毫秒时间戳） |
+| color | string? | 作者标识色（十六进制，如 `#5a8fd3`）；由作者 `clientKey` 确定性生成，同一匿名用户的多条评论颜色一致 |
 | liked | boolean? | 当前客户端是否已点赞 |
 | self | boolean? | 当前客户端是否为作者 |
 | editedAt | number? | 最后编辑时间（毫秒时间戳） |
+
+> **说明：** `color` 仅在有 `clientKey` 的评论上返回；缺少 `clientKey` 的旧评论不会包含该字段。客户端可用此颜色区分不同匿名作者，无需展示真实身份。
 
 ### 历史评论项 `HistoryItem`
 
@@ -114,7 +117,9 @@ await fetch(`${API_BASE}/comment/add`, {
 
 ### 游标 `Cursor`
 
-用于深翻页，比 `page` 性能更好：
+用于深翻页，比 `page` 性能更好。`comment/list` 的游标形态取决于 `sort` 参数：
+
+**时间排序（`sort: "time"`，默认）：**
 
 ```json
 {
@@ -123,7 +128,17 @@ await fetch(`${API_BASE}/comment/add`, {
 }
 ```
 
-下一页请求时，将上一页响应中的 `nextCursor` 原样传入即可。
+**热评排序（`sort: "hot"`）：**
+
+```json
+{
+  "likes": 5,
+  "createTime": 1718000000000,
+  "id": "665f..."
+}
+```
+
+下一页请求时，将上一页响应中的 `nextCursor` 原样传入 `cursor` 即可。**时间流与热评的游标不可混用。**
 
 ---
 
@@ -133,9 +148,9 @@ await fetch(`${API_BASE}/comment/add`, {
 |------|-------------|------|
 | `comment/add` | 是 | 发表评论 |
 | `comment/update` | 是 | 编辑自己的评论 |
-| `comment/list` | 是 | 查询某玩家的评论列表 |
+| `comment/list` | 是 | 查询某玩家的评论列表（支持按时间或热评排序） |
 | `comment/history` | 是 | 查询当前客户端发表的评论历史 |
-| `comment/like` | 是 | 点赞 |
+| `comment/like` | 是 | 点赞/取消点赞（切换） |
 | `comment/batch` | 否 | 批量查询玩家评论数量 |
 
 ---
@@ -199,7 +214,7 @@ Content-Type: application/json
 
 `POST /api/v1/cs-match-helper/comment/update`
 
-仅评论作者可编辑，无时间限制。
+仅评论作者可编辑，且评论创建后 **30 天内** 可修改。
 
 ### 请求头
 
@@ -234,11 +249,26 @@ Content-Type: application/json
 }
 ```
 
+### 业务规则
+
+- **作者校验：** 服务端在更新时将请求头 `x-cs-client-key` 写入查询条件，必须与评论发表时的 `clientKey` 一致才会更新。编辑他人评论时更新结果为 `null`，统一返回「评论不存在或无权限编辑」（不区分评论是否存在，避免信息泄露）。
+- **编辑窗口：** 自 `createTime` 起 **30 天内** 可编辑；超过 30 天返回「评论超过30天不可编辑」。
+- 编辑不占用「24 小时内对同一玩家最多 3 条新评论」的发表限额。
+
+| 场景 | 结果 |
+|------|------|
+| 30 天内且为本人评论 | 编辑成功 |
+| 超过 30 天 | `评论超过30天不可编辑` |
+| 非本人（含评论不存在） | `评论不存在或无权限编辑` |
+
+> 失败时服务端可能额外查询一次文档，用于区分「超期」与「无权限」；成功路径仍为一次原子 `findOneAndUpdate`。
+
 ### 常见错误
 
 | msg | 说明 |
 |-----|------|
 | 评论不存在或无权限编辑 | 评论不存在，或非当前客户端发表 |
+| 评论超过30天不可编辑 | 评论创建已超过 30 天 |
 | 发送消息失败，包含敏感词：... | 敏感词拦截 |
 
 ---
@@ -247,7 +277,7 @@ Content-Type: application/json
 
 `POST /api/v1/cs-match-helper/comment/list`
 
-查询指定玩家的评论，按时间倒序，支持分页。
+查询指定玩家的评论，支持按时间或热评排序，并分页返回。
 
 ### 请求头
 
@@ -261,6 +291,7 @@ Content-Type: application/json
 ```json
 {
   "steamid": "76561198000000000",
+  "sort": "time",
   "limit": 20,
   "cursor": {
     "createTime": 1718612345678,
@@ -272,12 +303,36 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | steamid | string | 是 | 玩家 SteamID |
+| sort | string | 否 | 排序方式，默认 `time`；见下表 |
 | limit | number | 否 | 每页条数，默认 20，最大 50 |
-| page | number | 否 | 页码，从 1 开始（浅翻页可用） |
-| cursor | object | 否 | 游标翻页，优先于 page |
-| before | number | 否 | 旧版游标（仅时间戳），建议改用 cursor |
+| page | number | 否 | 页码，从 1 开始；**仅 `sort: "time"` 可用** |
+| cursor | object | 否 | 游标翻页，优先于 page；形态见「游标 Cursor」 |
+| before | number | 否 | 旧版游标（仅时间戳）；**仅 `sort: "time"` 可用**，建议改用 cursor |
+
+**`sort` 取值：**
+
+| 值 | 含义 |
+|---|---|
+| `time` | 按发布时间倒序（默认，原有行为） |
+| `hot` | 按点赞数倒序；点赞相同则较新的在前 |
+
+### 分页规则
+
+**`sort: "time"`（默认）**
+
+行为与之前一致，支持三种翻页方式：`page`、`before`、`cursor`（`createTime` + `id`）。
+
+**`sort: "hot"`**
+
+- 仅支持游标分页，**不支持** `page` 和 `before`（传入会返回错误）。
+- 首屏不传 `cursor`；翻页时将上一页 `nextCursor` 原样传回，且游标必须包含 `likes`。
+- 排序规则：`likes` 从高到低 → 相同则 `createTime` 从新到旧 → 再相同则 `id` 倒序。
 
 ### 成功响应
+
+单条评论字段不变（`id`、`text`、`likes`、`createTime`、`color`、`liked`、`self`、`editedAt`）。
+
+**时间排序示例：**
 
 ```json
 {
@@ -290,9 +345,19 @@ Content-Type: application/json
         "text": "这把很强",
         "likes": 3,
         "createTime": 1718612345678,
+        "color": "#5a8fd3",
         "liked": false,
         "self": true,
         "editedAt": 1718612400000
+      },
+      {
+        "id": "674a1b2c3d4e5f6789012346",
+        "text": "又一条",
+        "likes": 0,
+        "createTime": 1718612000000,
+        "color": "#5a8fd3",
+        "liked": false,
+        "self": false
       }
     ],
     "more": true,
@@ -304,15 +369,30 @@ Content-Type: application/json
 }
 ```
 
+**热评排序时，`nextCursor` 会多一个 `likes` 字段：**
+
+```json
+{
+  "more": true,
+  "nextCursor": {
+    "likes": 5,
+    "createTime": 1718000000000,
+    "id": "665f..."
+  }
+}
+```
+
+`more` 表示是否还有下一页。
+
 ### 翻页建议
 
-**首屏：**
+**时间流 — 首屏：**
 
 ```json
 { "steamid": "76561198000000000", "limit": 20 }
 ```
 
-**加载更多：**
+**时间流 — 加载更多：**
 
 ```json
 {
@@ -322,7 +402,41 @@ Content-Type: application/json
 }
 ```
 
+**热评 — 首屏：**
+
+```json
+{
+  "steamid": "76561198000000000",
+  "sort": "hot",
+  "limit": 20
+}
+```
+
+**热评 — 加载更多：**
+
+```json
+{
+  "steamid": "76561198000000000",
+  "sort": "hot",
+  "limit": 20,
+  "cursor": {
+    "likes": 5,
+    "createTime": 1718000000000,
+    "id": "665f..."
+  }
+}
+```
+
 将上一页 `data.nextCursor` 传入下一页请求的 `cursor` 字段。当 `more` 为 `false` 时表示没有更多数据。
+
+同一 `clientKey` 发表的评论会返回相同的 `color`，便于在列表中识别同一匿名用户的多条发言。
+
+### 常见错误
+
+| msg | 说明 |
+|-----|------|
+| 热评排序仅支持游标分页 | `sort: "hot"` 时传了 `page` 或 `before` |
+| 热评游标缺少 likes 字段 | `sort: "hot"` 翻页时 `cursor` 未包含 `likes` |
 
 ---
 
@@ -372,8 +486,18 @@ Content-Type: application/json
         "text": "这把很强",
         "likes": 3,
         "createTime": 1718612345678,
+        "color": "#5a8fd3",
         "self": true,
         "editedAt": 1718612400000
+      },
+      {
+        "id": "674a1b2c3d4e5f6789012346",
+        "steamid": "76561198000000001",
+        "text": "又一条",
+        "likes": 0,
+        "createTime": 1718612000000,
+        "color": "#5a8fd3",
+        "self": true
       }
     ],
     "more": false,
@@ -384,11 +508,11 @@ Content-Type: application/json
 
 ---
 
-## 5. 点赞
+## 5. 点赞 / 取消点赞
 
 `POST /api/v1/cs-match-helper/comment/like`
 
-同一客户端对同一条评论只能点赞一次。
+同一客户端对同一条评论**切换**点赞状态：未点赞则点赞，已点赞则取消。
 
 ### 请求头
 
@@ -409,6 +533,13 @@ Content-Type: application/json
 |------|------|------|------|
 | commentId | string | 是 | 评论 ID |
 
+### 行为
+
+| 当前状态 | 调用后 |
+|---------|--------|
+| 未点赞 | 点赞，`likes + 1` |
+| 已点赞 | 取消点赞，`likes - 1`（不低于 0） |
+
 ### 成功响应
 
 ```json
@@ -417,15 +548,17 @@ Content-Type: application/json
   "msg": "success",
   "data": {
     "likes": 4,
-    "alreadyLiked": false
+    "liked": true
   }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| likes | 当前点赞总数 |
-| alreadyLiked | 是否已点过赞（`true` 时 likes 不会增加） |
+| likes | 操作后的点赞总数 |
+| liked | 操作后是否处于已点赞状态（`true` 已赞，`false` 未赞） |
+
+客户端可根据 `liked` 更新 UI（如实心/空心赞图标）。
 
 ### 限频
 
@@ -476,7 +609,13 @@ Content-Type: application/json
 ### 对局准备页
 
 1. 调用 `comment/batch` 获取 10 名玩家的评论数量。
-2. 用户点击某玩家时，调用 `comment/list` 查看评论详情。
+2. 用户点击某玩家时，调用 `comment/list` 查看评论详情（可按时间或热评切换）。
+
+### 时间流与热评
+
+1. 时间流（`sort: "time"`）与热评（`sort: "hot"`）是两个独立列表，游标不能混用。
+2. 切换 tab 时重新请求首屏，不要沿用另一种排序的 `cursor`。
+3. `comment/history` 仍只按时间排序，未改动。
 
 ### 发表评论
 
@@ -486,13 +625,20 @@ Content-Type: application/json
 
 ### 编辑自己的评论
 
-1. 在 `comment/list` 响应中，当 `self === true` 时展示编辑入口。
-2. 调用 `comment/update` 提交新内容。
+1. 在 `comment/list` 响应中，当 `self === true` 且 `createTime` 距今未超过 30 天时展示编辑入口（客户端也可本地按 `createTime` 预判，最终以 `comment/update` 返回为准）。
+2. 调用 `comment/update` 提交新内容；Header 须携带与发表评论时相同的 `x-cs-client-key`。
+3. 若返回「评论超过30天不可编辑」，隐藏或禁用编辑入口并提示用户。
 
 ### 我的评论
 
 1. 调用 `comment/history` 分页加载当前客户端发表过的所有评论。
 2. 可通过 `steamid` 字段跳转回对应玩家详情。
+
+### 评论作者颜色
+
+1. `comment/list` 与 `comment/history` 的列表项可能包含 `color` 字段。
+2. 客户端可用 `color` 渲染头像边框、用户名或左侧色条，区分不同匿名作者。
+3. 无 `color` 时使用默认样式（兼容旧数据）。
 
 ---
 
