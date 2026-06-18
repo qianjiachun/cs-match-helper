@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MatchPlayer } from '@core/match/models';
+import { isValidSteamId64 } from '@core/comments/steam-id';
 import PlayerAvatar from './PlayerAvatar.vue';
 
 const props = defineProps<{
@@ -9,7 +10,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  playerClick: [steamId: string, nickname: string];
+  playerClick: [player: MatchPlayer];
 }>();
 
 const hoverRingClass = computed(() =>
@@ -30,9 +31,10 @@ function formatElo(score?: number): string {
       v-for="p in players.slice(0, 5)"
       :key="p.steamId"
       type="button"
-      class="group flex min-w-0 cursor-pointer flex-col items-center transition-transform duration-200 hover:-translate-y-1"
-      :title="`点击复制 Steam ID: ${p.steamId}`"
-      @click="emit('playerClick', p.steamId, p.nickname)"
+      class="group flex min-w-0 flex-col items-center transition-transform duration-200 hover:-translate-y-1"
+      :class="isValidSteamId64(p.steamId) ? 'cursor-pointer' : 'cursor-default'"
+      :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+      @click="emit('playerClick', p)"
     >
       <PlayerAvatar
         :src="p.avatar"

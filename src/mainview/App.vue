@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import CopyToast from './components/CopyToast.vue';
+import PlayerCommentsDrawer from './components/comments/PlayerCommentsDrawer.vue';
 import TitleBar from './components/TitleBar.vue';
 import UpdateDialog from './components/UpdateDialog.vue';
 import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
+import { useComments } from './composables/useComments';
 import { useLogWatcher } from './composables/useLogWatcher';
 import { useP5eCdp } from './composables/useP5eCdp';
 import { useUpdateCheck } from './composables/useUpdateCheck';
@@ -23,6 +25,7 @@ const p5e = useP5eCdp((record) => {
   matches.value = [record];
 });
 const ai = useAiAnalysis();
+const comments = useComments();
 const {
   formattedVersion,
   dialogOpen,
@@ -93,6 +96,7 @@ function onBackFromP5e() {
       :watcher="watcher"
       :version="formattedVersion"
       :has-update="updateState.hasUpdate"
+      :comments="comments"
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
       @go-main="goMain"
@@ -124,6 +128,7 @@ function onBackFromP5e() {
             key="match-assistant"
             class="h-full"
             :ai="ai"
+            :comments="comments"
             :matches="matches"
             :watcher="watcher"
             :platform="selectedPlatform ?? 'perfect'"
@@ -140,12 +145,14 @@ function onBackFromP5e() {
         <SettingsView
           class="h-full"
           :ai="ai"
+          :comments="comments"
           :initial-tab="settingsTab"
           :visible="currentView === 'settings'"
         />
       </div>
     </main>
     <CopyToast />
+    <PlayerCommentsDrawer :comments="comments" />
     <UpdateDialog
       :open="dialogOpen"
       :current-version="updateState.currentVersion"

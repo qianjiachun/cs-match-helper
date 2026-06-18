@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { MatchTeam } from '@core/match/models';
+import type { MatchPlayer, MatchTeam } from '@core/match/models';
 import type { TeamTableColumnDef } from './team-table-columns';
 import PlayerAvatar from './PlayerAvatar.vue';
 import PlayerGreenBadge from './PlayerGreenBadge.vue';
 import PartyBarIndicator from './PartyBarIndicator.vue';
-import { useCopyFeedback } from '../composables/useCopyFeedback';
+import PlayerCommentBadge from './comments/PlayerCommentBadge.vue';
+import { isValidSteamId64 } from '@core/comments/steam-id';
 import {
   buildTroopColorMap,
   buildTroopTeamSizes,
@@ -27,6 +28,11 @@ const props = defineProps<{
   columns: TeamTableColumnDef[];
   highlighted?: boolean;
   highlightedSteamId?: string | null;
+  getCommentCount?: (steamId: string) => number;
+}>();
+
+const emit = defineEmits<{
+  openComments: [player: MatchPlayer];
 }>();
 
 const sortKey = ref<TeamTableColumnKey>('seasonRating');
@@ -69,10 +75,9 @@ function toggleSort(key: TeamTableColumnKey) {
   }
 }
 
-const { copySteamId } = useCopyFeedback();
-
-function onPlayerClick(steamId: string, nickname: string) {
-  void copySteamId(steamId, nickname);
+function onPlayerClick(player: MatchPlayer) {
+  if (!isValidSteamId64(player.steamId)) return;
+  emit('openComments', player);
 }
 
 const accent = props.team.side === 'A'
@@ -150,7 +155,7 @@ const accent = props.team.side === 'A'
             v-for="(player, idx) in sortedPlayers"
             :key="player.steamId"
             data-match-reveal="row"
-            class="border-b border-slate-100/80 transition-colors duration-200 last:border-b-0"
+            class="border-b border-slate-100/80 transition-colors duration-200 last:border-b-0 group"
             :class="[
               idx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white',
               'hover:bg-slate-100/70',
@@ -173,18 +178,26 @@ const accent = props.team.side === 'A'
                   :position="partyBarByPlayer.get(player.steamId)!.position"
                   title="组排"
                 />
-                <button
-                  type="button"
-                  class="group flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left"
-                  :title="`点击复制 Steam ID: ${player.steamId}`"
-                  @click="onPlayerClick(player.steamId, player.nickname)"
-                >
-                  <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="sm" shape="rounded" />
-                  <span class="truncate font-medium text-slate-800 transition-colors group-hover:text-blue-600">
-                    {{ player.nickname }}
-                  </span>
-                  <PlayerGreenBadge :show="player.isGreen" />
-                </button>
+                <div class="flex min-w-0 items-center gap-1">
+                  <button
+                    type="button"
+                    class="group/name flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left"
+                    :class="isValidSteamId64(player.steamId) ? '' : 'cursor-default'"
+                    :title="isValidSteamId64(player.steamId) ? `查看 ${player.nickname} 的评论` : player.steamId"
+                    @click="onPlayerClick(player)"
+                  >
+                    <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="sm" shape="rounded" />
+                    <span class="truncate font-medium text-slate-800 transition-colors group-hover/name:text-blue-600">
+                      {{ player.nickname }}
+                    </span>
+                    <PlayerGreenBadge :show="player.isGreen" />
+                  </button>
+                  <PlayerCommentBadge
+                    :steam-id="player.steamId"
+                    :count="getCommentCount?.(player.steamId) ?? 0"
+                    @open="emit('openComments', player)"
+                  />
+                </div>
               </template>
 
               <template v-else-if="col.key === 'recentWins'">

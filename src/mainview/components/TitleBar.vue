@@ -5,6 +5,7 @@ import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import appIcon from '@app-icon';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
+import type { useComments } from '../composables/useComments';
 import MatchDebugPanel from './MatchDebugPanel.vue';
 import UpdateBadge from './UpdateBadge.vue';
 
@@ -19,6 +20,7 @@ defineProps<{
   watcher: WatcherStatus;
   version: string;
   hasUpdate: boolean;
+  comments: ReturnType<typeof useComments>;
 }>();
 
 const emit = defineEmits<{
@@ -62,6 +64,7 @@ const emit = defineEmits<{
         :watcher="watcher"
         :inject-ai-result="injectAiResult"
         :p5e="p5e"
+        :comments="comments"
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue';
 import { Crosshair, Swords, UserCheck } from 'lucide-vue-next';
-import type { MatchTeam } from '@core/match/models';
+import type { MatchTeam, MatchPlayer } from '@core/match/models';
+import { isValidSteamId64 } from '@core/comments/steam-id';
 import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
 import { stagger } from 'animejs/utils';
-import { useCopyFeedback } from '../composables/useCopyFeedback';
 import { avgPlayerStat, ratioWidth } from './team-table-shared';
 import {
   buildP5eCoreMetrics,
@@ -21,11 +21,15 @@ const props = defineProps<{
   teamB: MatchTeam;
 }>();
 
-const boardRef = ref<HTMLElement | null>(null);
-const { copySteamId } = useCopyFeedback();
+const emit = defineEmits<{
+  openComments: [player: MatchPlayer];
+}>();
 
-function onPlayerClick(steamId: string, nickname: string) {
-  void copySteamId(steamId, nickname);
+const boardRef = ref<HTMLElement | null>(null);
+
+function onPlayerClick(player: MatchPlayer) {
+  if (!isValidSteamId64(player.steamId)) return;
+  emit('openComments', player);
 }
 
 const coreMetrics = computed(() => buildP5eCoreMetrics(props.teamA, props.teamB));

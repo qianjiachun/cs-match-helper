@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MatchTeam } from '@core/match/models';
+import type { MatchTeam, MatchPlayer } from '@core/match/models';
 import type { TeamTableColumnDef, TeamTableColumnKey } from './team-table-columns';
 import TeamPlayerTable from './TeamPlayerTable.vue';
 import TeamTableColumnCustomizer from './TeamTableColumnCustomizer.vue';
@@ -12,6 +12,7 @@ const props = defineProps<{
   customizerItems: TeamTableColumnDef[];
   highlightedSide?: 'A' | 'B' | null;
   highlightedSteamId?: string | null;
+  getCommentCount?: (steamId: string) => number;
 }>();
 
 const customizerOpen = defineModel<boolean>('customizerOpen', { default: false });
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   toggleColumn: [key: TeamTableColumnKey, visible: boolean];
   setColumnOrder: [order: TeamTableColumnKey[]];
   resetColumns: [];
+  openComments: [player: MatchPlayer];
 }>();
 
 const teamA = computed(() => props.teams.find((t) => t.side === 'A'));
@@ -34,6 +36,8 @@ const teamB = computed(() => props.teams.find((t) => t.side === 'B'));
       :columns="columns"
       :highlighted="highlightedSide === 'A'"
       :highlighted-steam-id="highlightedSteamId"
+      :get-comment-count="getCommentCount"
+      @open-comments="(player) => emit('openComments', player)"
     />
     <TeamPlayerTable
       v-if="teamB"
@@ -41,6 +45,8 @@ const teamB = computed(() => props.teams.find((t) => t.side === 'B'));
       :columns="columns"
       :highlighted="highlightedSide === 'B'"
       :highlighted-steam-id="highlightedSteamId"
+      :get-comment-count="getCommentCount"
+      @open-comments="(player) => emit('openComments', player)"
     />
 
     <TeamTableColumnCustomizer

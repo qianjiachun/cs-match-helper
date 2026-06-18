@@ -2,10 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue';
 import { Crosshair, Star, Target, Skull, UserCheck, Flag } from 'lucide-vue-next';
 import type { MatchPlatformId, MatchTeam, MatchPlayer } from '@core/match/models';
+import { isValidSteamId64 } from '@core/comments/steam-id';
 import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
 import { stagger } from 'animejs/utils';
-import { useCopyFeedback } from '../composables/useCopyFeedback';
 import { avgPlayerStat, ratioWidth } from './team-table-shared';
 import PlayerAvatar from './PlayerAvatar.vue';
 import TeamRadarCompare from './TeamRadarCompare.vue';
@@ -17,13 +17,17 @@ const props = defineProps<{
   platformId?: MatchPlatformId;
 }>();
 
+const emit = defineEmits<{
+  openComments: [player: MatchPlayer];
+}>();
+
 const boardRef = ref<HTMLElement | null>(null);
-const { copySteamId } = useCopyFeedback();
 
 const is5e = computed(() => props.platformId === '5e');
 
-function onPlayerClick(steamId: string, nickname: string) {
-  void copySteamId(steamId, nickname);
+function onPlayerClick(player: MatchPlayer) {
+  if (!isValidSteamId64(player.steamId)) return;
+  emit('openComments', player);
 }
 
 const teamA = computed(() => props.teams.find((t) => t.side === 'A'));
@@ -235,6 +239,7 @@ onUnmounted(() => {
     v-if="is5e && teamA && teamB"
     :team-a="teamA"
     :team-b="teamB"
+    @open-comments="(player) => emit('openComments', player)"
   />
   <div v-else ref="boardRef" class="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-6 py-6">
     <!-- 上排：队伍 A | 综合对比 | 队伍 B -->
@@ -257,8 +262,9 @@ onUnmounted(() => {
               :key="p.steamId"
               type="button"
               class="group flex cursor-pointer flex-col items-center transition-transform duration-200 hover:-translate-y-1"
-              :title="`点击复制 Steam ID: ${p.steamId}`"
-              @click="onPlayerClick(p.steamId, p.nickname)"
+              :class="isValidSteamId64(p.steamId) ? '' : 'cursor-default'"
+              :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+              @click="onPlayerClick(p)"
             >
               <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-blue-200" />
               <span class="mt-1.5 max-w-[48px] truncate text-[10px] text-slate-600 transition-colors group-hover:text-blue-600">{{ p.nickname }}</span>
@@ -375,8 +381,9 @@ onUnmounted(() => {
               :key="p.steamId"
               type="button"
               class="group flex cursor-pointer flex-col items-center transition-transform duration-200 hover:-translate-y-1"
-              :title="`点击复制 Steam ID: ${p.steamId}`"
-              @click="onPlayerClick(p.steamId, p.nickname)"
+              :class="isValidSteamId64(p.steamId) ? '' : 'cursor-default'"
+              :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+              @click="onPlayerClick(p)"
             >
               <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-orange-200" />
               <span class="mt-1.5 max-w-[48px] truncate text-[10px] text-slate-600 transition-colors group-hover:text-orange-500">{{ p.nickname }}</span>

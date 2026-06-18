@@ -7,6 +7,7 @@ import type { MatchRecord, MatchPlayer } from '@core/match/models';
 import { isAiAnalysisActive } from '@core/ai/types';
 import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
+import type { useComments } from '../composables/useComments';
 import { useMatchRevealAnimation } from '../composables/useMatchRevealAnimation';
 import { useTeamTableColumns } from '../composables/useTeamTableColumns';
 import AiAnalysisPanel from './AiAnalysisPanel.vue';
@@ -16,6 +17,7 @@ import TeamCompareBoard from './TeamCompareBoard.vue';
 const props = defineProps<{
   match: MatchRecord;
   ai: ReturnType<typeof useAiAnalysis>;
+  comments: ReturnType<typeof useComments>;
 }>();
 
 const emit = defineEmits<{
@@ -151,6 +153,8 @@ watch(
     highlightedSteamId.value = null;
     resetCountdown();
     void props.ai.analyzeMatch(props.match);
+    const steamIds = teams.value.flatMap((t) => t.players.map((p) => p.steamId));
+    void props.comments.loadCounts(steamIds);
     if (prevId !== undefined && nextId !== prevId) {
       await nextTick();
       void playReveal();
@@ -289,21 +293,24 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
 
       </div>
 
-      <span
+      <button
         v-if="aiStatusCapsule"
+        type="button"
         data-match-reveal="meta"
-        class="mr-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors duration-200"
+        class="mr-1 inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors duration-200 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 focus-visible:ring-offset-1"
         :class="
           aiStatusCapsule.tone === 'loading'
             ? 'ai-status-loading bg-indigo-50 text-indigo-600 ring-1 ring-indigo-300'
             : aiStatusCapsule.tone === 'done'
-              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-              : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100/80'
+              : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100/80'
         "
+        :title="aiStatusCapsule.tone === 'done' ? '查看 AI 分析结果' : '前往 AI 分析'"
+        @click="activeTab = 'ai'"
       >
         <AiSparklesIcon size="xs" :loading="aiStatusCapsule.tone === 'loading'" />
         {{ aiStatusCapsule.text }}
-      </span>
+      </button>
 
       <div class="flex shrink-0 items-center gap-1.5">
         <button
@@ -393,15 +400,18 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
           :customizer-items="customizerItems"
           :highlighted-side="highlightedSide"
           :highlighted-steam-id="highlightedSteamId"
+          :get-comment-count="comments.getCount"
           @toggle-column="setVisible"
           @set-column-order="setColumnOrder"
           @reset-columns="resetColumns"
+          @open-comments="comments.openPlayer"
         />
         <TeamCompareBoard
           v-else-if="activeTab === 'compare'"
           key="compare"
           :teams="teams"
           :platform-id="platformId"
+          @open-comments="comments.openPlayer"
         />
         <AiAnalysisPanel
           v-else
