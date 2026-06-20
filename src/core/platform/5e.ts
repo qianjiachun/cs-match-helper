@@ -22,8 +22,12 @@ export async function launch5eWithCdp(options?: {
   });
 }
 
-export async function probe5eEnvironment(): Promise<P5eProbeResult> {
-  return invoke<P5eProbeResult>('probe_5e_cdp_active');
+export async function probe5eEnvironment(options?: {
+  clientRoot?: string;
+}): Promise<P5eProbeResult> {
+  return invoke<P5eProbeResult>('probe_5e_cdp_active', {
+    clientRoot: options?.clientRoot,
+  });
 }
 
 /** @deprecated 使用 probe5eEnvironment */

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-load-p5e-client-root"
+description = "允许读取 5E 客户端路径设置"
+commands.allow = ["load_p5e_client_root"]

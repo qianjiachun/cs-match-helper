@@ -20,6 +20,8 @@
     "allow-get-ai-settings-path",
     "allow-load-ai-settings",
     "allow-save-ai-settings",
+    "allow-load-p5e-client-root",
+    "allow-save-p5e-client-root",
     "allow-start-ai-analysis",
     "allow-cancel-ai-analysis",
     "allow-check-for-update",
@@ -33,6 +35,7 @@
     "allow-close-app-devtools",
     "allow-get-comment-client-key",
     "opener:default",
+    "dialog:default",
     "core:webview:deny-internal-toggle-devtools"
   ]
 }

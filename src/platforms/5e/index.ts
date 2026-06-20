@@ -1,6 +1,5 @@
 import type { LogLine } from '@core/log/types';
 import type { PlatformAdapter } from '../types';
-import { P5E_CLIENT_CANDIDATES } from './paths';
 import { createP5eMatchRecord, parseP5eMatchInput } from './match-parser';
 import type { P5eMatchBundle } from './types';
 
@@ -17,7 +16,7 @@ function emptyLogLine(): LogLine {
 export const p5eAdapter: PlatformAdapter = {
   id: '5e',
   label: '5E 对战平台',
-  buildLogDir: () => P5E_CLIENT_CANDIDATES[0],
+  buildLogDir: () => '',
   buildLogPath: () => '',
   parseLogLine: (raw) => ({
     ...emptyLogLine(),
@@ -50,5 +49,7 @@ export { P5eMatchAggregator } from './aggregator';
 export { classifyP5eUrl, isP5eWhitelistedUrl, parseP5eNdjsonLine, sanitizeP5eHttpEvent } from './events';
 export { buildP5eMatchDetail, createP5eMatchRecord, parseP5eMatchInput, summarizeP5eMatch } from './match-parser';
 export { buildP5ePlayer, resolveMatchMap } from './field-mapper';
+export * from './p5e-dev-overrides';
+export * from './client-root-storage';
 export * from './paths';
 export * from './types';

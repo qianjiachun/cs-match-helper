@@ -219,8 +219,9 @@ export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
     }
   }
 
-  async function launchAndCollect() {
-    const probe = await probe5eEnvironment();
+  async function launchAndCollect(options?: { clientRoot?: string }) {
+    const clientRoot = options?.clientRoot;
+    const probe = await probe5eEnvironment({ clientRoot });
     pushStatusLog('探测', probe.message, probe.externalRunning ? 'WARN' : 'INFO');
     if (!probe.installed) {
       throw new Error('NOT_INSTALLED_5E');
@@ -230,7 +231,7 @@ export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
     }
 
     lastError.value = null;
-    const launch = await launch5eWithCdp();
+    const launch = await launch5eWithCdp({ clientRoot: probe.clientRoot ?? clientRoot });
     pushStatusLog('启动', launch.message);
 
     const gateError = getP5eLaunchCollectError(launch);

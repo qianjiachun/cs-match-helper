@@ -4,6 +4,10 @@ import type { WatcherStatus } from '@core/types';
 import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
+import {
+  p5eSimulateClientNotFound,
+  toggleP5eSimulateClientNotFound,
+} from '@platforms/5e/p5e-dev-overrides';
 import type { useP5eCdp } from '../composables/useP5eCdp';
 import type { useComments } from '../composables/useComments';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
@@ -107,6 +111,11 @@ async function closeDevtoolsPanel() {
   } catch (err) {
     devtoolsError.value = String(err);
   }
+}
+
+function toggleClientNotFoundSim() {
+  p5eError.value = '';
+  toggleP5eSimulateClientNotFound();
 }
 
 async function simulateP5eMatch() {
@@ -428,6 +437,28 @@ watch(
           <p class="text-[11px] leading-relaxed text-fg-muted">
             一键模拟 5e 匹配成功，或粘贴 NDJSON 逐行回放（自动过滤 token/curl）。
           </p>
+          <div class="rounded-md border border-border bg-elevated px-3 py-2.5">
+            <p class="text-[11px] leading-relaxed text-fg-secondary">
+              启动页调试：模拟未安装 5E 时，启动页会提示填写路径且无法点击「立即启动」。
+            </p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="cursor-pointer rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors duration-200"
+                :class="
+                  p5eSimulateClientNotFound
+                    ? 'border-warning/40 bg-warning/10 text-fg hover:bg-warning/15'
+                    : 'border-border bg-surface text-fg-secondary hover:bg-base'
+                "
+                @click="toggleClientNotFoundSim"
+              >
+                {{ p5eSimulateClientNotFound ? '关闭「找不到客户端」模拟' : '模拟找不到客户端' }}
+              </button>
+              <span class="text-[10px] text-fg-muted">
+                当前：{{ p5eSimulateClientNotFound ? '已开启' : '未开启' }}
+              </span>
+            </div>
+          </div>
           <button
             type="button"
             class="w-full cursor-pointer rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover"

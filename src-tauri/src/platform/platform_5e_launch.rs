@@ -1,16 +1,19 @@
 use serde::Serialize;
+use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
 const CLIENT_EXE: &str = "5EClient.exe";
+const CLIENT_DIR: &str = "5EClient";
 
-const DEFAULT_ROOTS: &[&str] = &[
-    r"D:\Game\5E\5EClient",
-    r"C:\5E\5EClient",
-    r"D:\5E\5EClient",
-    r"E:\Game\5E\5EClient",
+const DRIVE_SUFFIXES: &[&str] = &[
+    r"5E\5EClient",
+    r"Game\5E\5EClient",
+    r"Games\5E\5EClient",
+    r"Program Files\5E\5EClient",
+    r"Program Files (x86)\5E\5EClient",
 ];
 
 const CDP_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -50,27 +53,205 @@ enum PortState {
     Occupied,
 }
 
+/// 将用户选择的路径规范为包含 5EClient.exe 的目录。
+pub fn normalize_client_root(path: &Path) -> Option<PathBuf> {
+    if path.as_os_str().is_empty() {
+        return None;
+    }
+
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if name.eq_ignore_ascii_case(CLIENT_EXE) {
+            return path.parent().filter(|p| !p.as_os_str().is_empty()).map(|p| p.to_path_buf());
+        }
+    }
+
+    if path.is_file() {
+        return None;
+    }
+
+    if is_valid_root(path) {
+        return Some(path.to_path_buf());
+    }
+
+    let nested = path.join(CLIENT_DIR);
+    if is_valid_root(&nested) {
+        return Some(nested);
+    }
+
+    None
+}
+
 pub fn detect_client_root(hint: Option<&str>) -> Result<PathBuf, String> {
     if let Some(h) = hint {
-        let path = PathBuf::from(h);
+        let trimmed = h.trim();
+        if trimmed.is_empty() {
+            return detect_client_root(None);
+        }
+        let path = PathBuf::from(trimmed);
+        if let Some(normalized) = normalize_client_root(&path) {
+            return Ok(normalized);
+        }
+        return Err(format!("指定的 5E 目录无效: {trimmed}"));
+    }
+
+    for path in auto_detect_candidates() {
         if is_valid_root(&path) {
             return Ok(path);
         }
-        return Err(format!("指定的 5E 目录无效: {h}"));
     }
 
-    for root in DEFAULT_ROOTS {
-        let path = PathBuf::from(root);
-        if is_valid_root(&path) {
-            return Ok(path);
-        }
-    }
-
-    Err("未找到 5E 客户端，请确认已正确安装".to_string())
+    Err("未找到 5E 客户端，请手动选择安装目录".to_string())
 }
 
 fn is_valid_root(root: &Path) -> bool {
     root.join(CLIENT_EXE).is_file()
+}
+
+fn push_unique(candidates: &mut Vec<PathBuf>, seen: &mut HashSet<String>, path: PathBuf) {
+    let key = path.to_string_lossy().to_lowercase();
+    if seen.insert(key) {
+        candidates.push(path);
+    }
+}
+
+fn auto_detect_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+
+    #[cfg(windows)]
+    {
+        for path in registry_client_roots() {
+            push_unique(&mut candidates, &mut seen, path);
+        }
+        if let Some(path) = running_process_client_root() {
+            push_unique(&mut candidates, &mut seen, path);
+        }
+        for path in drive_scan_roots() {
+            push_unique(&mut candidates, &mut seen, path);
+        }
+    }
+
+    candidates
+}
+
+#[cfg(windows)]
+fn registry_client_roots() -> Vec<PathBuf> {
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    use winreg::RegKey;
+
+    let mut roots = Vec::new();
+    let hives = [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER];
+    let subkeys = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ];
+
+    for hive in hives {
+        let hive_key = RegKey::predef(hive);
+        for subkey in subkeys {
+            let Ok(uninstall) = hive_key.open_subkey(subkey) else {
+                continue;
+            };
+            for key_name in uninstall.enum_keys().filter_map(|k| k.ok()) {
+                let Ok(app) = uninstall.open_subkey(&key_name) else {
+                    continue;
+                };
+                let display: String = app.get_value("DisplayName").unwrap_or_default();
+                let lower = display.to_lowercase();
+                if !lower.contains("5e") && !display.contains("5E对战") {
+                    continue;
+                }
+
+                if let Ok(loc) = app.get_value::<String, _>("InstallLocation") {
+                    let trimmed = loc.trim().trim_matches('"');
+                    if !trimmed.is_empty() {
+                        let path = PathBuf::from(trimmed);
+                        if let Some(normalized) = normalize_client_root(&path) {
+                            roots.push(normalized);
+                        }
+                    }
+                }
+
+                if let Ok(icon) = app.get_value::<String, _>("DisplayIcon") {
+                    let icon_path = icon
+                        .trim()
+                        .trim_matches('"')
+                        .split(',')
+                        .next()
+                        .unwrap_or("")
+                        .trim();
+                    if !icon_path.is_empty() {
+                        let path = PathBuf::from(icon_path);
+                        if let Some(normalized) = normalize_client_root(&path) {
+                            roots.push(normalized);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    roots
+}
+
+#[cfg(not(windows))]
+fn registry_client_roots() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+#[cfg(windows)]
+fn running_process_client_root() -> Option<PathBuf> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "(Get-Process -Name '5EClient' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Path)",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        return None;
+    }
+
+    normalize_client_root(Path::new(&path))
+}
+
+#[cfg(not(windows))]
+fn running_process_client_root() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(windows)]
+fn available_drive_letters() -> Vec<char> {
+    extern "system" {
+        fn GetLogicalDrives() -> u32;
+    }
+    let mask = unsafe { GetLogicalDrives() };
+    (0..26)
+        .filter(|i| mask & (1 << i) != 0)
+        .map(|i| (b'A' + i as u8) as char)
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn available_drive_letters() -> Vec<char> {
+    Vec::new()
+}
+
+fn drive_scan_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    for drive in available_drive_letters() {
+        for suffix in DRIVE_SUFFIXES {
+            roots.push(PathBuf::from(format!("{drive}:\\{suffix}")));
+        }
+    }
+    roots
 }
 
 fn cdp_http_client() -> reqwest::Client {
@@ -139,8 +320,8 @@ fn is_cdp_active_on_port(port: u16) -> bool {
 }
 
 /// 探测 5E 运行环境与 CDP 状态（快速路径：安装目录 + 进程 + 默认端口）。
-pub fn probe_5e_environment(preferred: u16) -> P5eProbeResult {
-    let client_root = detect_client_root(None).ok();
+pub fn probe_5e_environment(preferred: u16, client_root_hint: Option<&str>) -> P5eProbeResult {
+    let client_root = detect_client_root(client_root_hint).ok();
     let installed = client_root.is_some();
     let five_e_process_running = is_5e_process_running();
     let cdp_port = is_cdp_active_on_port(preferred).then_some(preferred);
@@ -334,11 +515,28 @@ mod tests {
         if is_5e_process_running() || is_cdp_active_on_port(P5E_DEFAULT_CDP_PORT) {
             return;
         }
-        let probe = probe_5e_environment(P5E_DEFAULT_CDP_PORT);
+        let probe = probe_5e_environment(P5E_DEFAULT_CDP_PORT, None);
         assert!(!probe.external_running);
         if probe.installed {
             assert!(probe.client_root.is_some());
         }
+    }
+
+    #[test]
+    fn normalize_accepts_client_exe_path() {
+        let root = PathBuf::from(r"X:\Apps\5E\5EClient");
+        let exe = root.join(CLIENT_EXE);
+        assert_eq!(normalize_client_root(&exe).as_ref(), Some(&root));
+    }
+
+    #[test]
+    fn normalize_accepts_parent_with_nested_client_dir() {
+        let parent = PathBuf::from(r"X:\Apps\5E");
+        let root = parent.join(CLIENT_DIR);
+        if !is_valid_root(&root) {
+            return;
+        }
+        assert_eq!(normalize_client_root(&parent).as_ref(), Some(&root));
     }
 
     #[test]
@@ -347,7 +545,7 @@ mod tests {
             return;
         }
         let start = std::time::Instant::now();
-        let _ = probe_5e_environment(P5E_DEFAULT_CDP_PORT);
+        let _ = probe_5e_environment(P5E_DEFAULT_CDP_PORT, None);
         assert!(
             start.elapsed() < Duration::from_secs(2),
             "probe took {:?}",

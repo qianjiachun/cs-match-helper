@@ -85,17 +85,19 @@ async fn start_5e_cdp_collector(
 }
 
 #[tauri::command]
-async fn probe_5e_cdp_active() -> P5eProbeResult {
-    tokio::task::spawn_blocking(|| probe_5e_environment(P5E_DEFAULT_CDP_PORT))
-        .await
-        .unwrap_or_else(|_| P5eProbeResult {
-            external_running: false,
-            five_e_process_running: false,
-            cdp_port: None,
-            installed: false,
-            client_root: None,
-            message: "探测失败".to_string(),
-        })
+async fn probe_5e_cdp_active(client_root: Option<String>) -> P5eProbeResult {
+    tokio::task::spawn_blocking(move || {
+        probe_5e_environment(P5E_DEFAULT_CDP_PORT, client_root.as_deref())
+    })
+    .await
+    .unwrap_or_else(|_| P5eProbeResult {
+        external_running: false,
+        five_e_process_running: false,
+        cdp_port: None,
+        installed: false,
+        client_root: None,
+        message: "探测失败".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -134,6 +136,7 @@ struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             watcher: Mutex::new(WatcherState::default()),
         })
@@ -163,6 +166,8 @@ pub fn run() {
             ai::get_ai_settings_path,
             ai::load_ai_settings,
             ai::save_ai_settings,
+            ai::load_p5e_client_root,
+            ai::save_p5e_client_root,
             ai::start_ai_analysis,
             ai::cancel_ai_analysis,
             update::get_app_version,

@@ -28,6 +28,8 @@ pub struct AiSettings {
     pub auto_analyze: bool,
     #[serde(default = "default_timeout_ms")]
     pub timeout_ms: u64,
+    #[serde(default)]
+    pub p5e_client_root: String,
 }
 
 fn default_analysis_enabled() -> bool {
@@ -65,6 +67,7 @@ impl Default for AiSettings {
             reasoning_effort: default_reasoning_effort(),
             auto_analyze: default_auto_analyze(),
             timeout_ms: default_timeout_ms(),
+            p5e_client_root: String::new(),
         }
     }
 }
@@ -313,6 +316,32 @@ pub fn save_ai_settings(input: SaveAiSettingsInput) -> Result<AiSettingsPublic, 
     Ok(to_public(&settings))
 }
 
+pub fn load_p5e_client_root_from_settings() -> Result<Option<String>, String> {
+    let settings = load_settings_file()?;
+    let trimmed = settings.p5e_client_root.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed.to_string()))
+    }
+}
+
+pub fn save_p5e_client_root_to_settings(root: Option<&str>) -> Result<(), String> {
+    let mut settings = load_settings_file()?;
+    settings.p5e_client_root = root.unwrap_or("").trim().to_string();
+    save_settings_file(&settings)
+}
+
+#[tauri::command]
+pub fn load_p5e_client_root() -> Result<Option<String>, String> {
+    load_p5e_client_root_from_settings()
+}
+
+#[tauri::command]
+pub fn save_p5e_client_root(client_root: Option<String>) -> Result<(), String> {
+    save_p5e_client_root_to_settings(client_root.as_deref())
+}
+
 #[tauri::command]
 pub fn cancel_ai_analysis(ai_state: State<'_, AiAnalysisState>) -> Result<(), String> {
     ai_state.cancel_all();
@@ -510,6 +539,7 @@ mod tests {
         assert_eq!(settings.reasoning_effort, "medium");
         assert!(settings.auto_analyze);
         assert_eq!(settings.timeout_ms, AI_REQUEST_TIMEOUT_MS);
+        assert!(settings.p5e_client_root.is_empty());
     }
 
     #[test]
@@ -523,6 +553,7 @@ mod tests {
             reasoning_effort: "high".to_string(),
             auto_analyze: false,
             timeout_ms: 123_456,
+            p5e_client_root: r"X:\Apps\5E\5EClient".to_string(),
         };
 
         apply_settings_patch(
@@ -542,6 +573,7 @@ mod tests {
         assert_eq!(settings.reasoning_effort, "high");
         assert!(!settings.auto_analyze);
         assert_eq!(settings.timeout_ms, 123_456);
+        assert_eq!(settings.p5e_client_root, r"X:\Apps\5E\5EClient");
     }
 
     #[test]

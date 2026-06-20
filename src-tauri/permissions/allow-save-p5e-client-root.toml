@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-save-p5e-client-root"
+description = "允许保存 5E 客户端路径设置"
+commands.allow = ["save_p5e_client_root"]
