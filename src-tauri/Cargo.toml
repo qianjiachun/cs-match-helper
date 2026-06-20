@@ -1,6 +1,6 @@
 [package]
 name = "cs-match-helper"
-version = "2.0.0"
+version = "2.1.0"
 description = "CS匹配助手 - 对战匹配分析"
 authors = ["cs-match-helper"]
 edition = "2021"
