@@ -10,5 +10,7 @@ src-tauri/target/
 *.log
 .DS_Store
 Thumbs.db
+.env
+.env.local
 source
 response.txt
