@@ -172,6 +172,8 @@ pub fn run() {
             ai::cancel_ai_analysis,
             update::get_app_version,
             update::check_for_update,
+            update::download_update,
+            update::apply_update_and_restart,
             comments::get_comment_client_key,
         ])
         .run(tauri::generate_context!())

@@ -1,4 +1,9 @@
 [[permission]]
 identifier = "allow-check-for-update"
 description = "允许检查 GitHub 发布版本"
-commands.allow = ["get_app_version", "check_for_update"]
+commands.allow = [
+  "get_app_version",
+  "check_for_update",
+  "download_update",
+  "apply_update_and_restart",
+]
