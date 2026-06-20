@@ -30,10 +30,12 @@ const {
   formattedVersion,
   dialogOpen,
   state: updateState,
+  isBusy: updateBusy,
   ensureVersion,
   check,
   openDialog,
   closeDialog,
+  retryDownload,
 } = useUpdateCheck();
 
 onMounted(() => {
@@ -160,7 +162,14 @@ function onBackFromP5e() {
       :release-notes="updateState.releaseNotes"
       :release-url="updateState.releaseUrl"
       :published-at="updateState.publishedAt"
+      :phase="updateState.phase"
+      :progress-percent="updateState.progressPercent"
+      :downloaded-bytes="updateState.downloadedBytes"
+      :total-bytes="updateState.totalBytes"
+      :download-error="updateState.downloadError"
+      :busy="updateBusy"
       @close="closeDialog()"
+      @retry="retryDownload()"
     />
   </div>
 </template>

@@ -12,7 +12,7 @@ import type {
   SaveAiSettingsInput,
   StartAiAnalysisInput,
 } from '@core/ai/types';
-import type { UpdateCheckResult } from '@core/update/types';
+import type { DownloadUpdateResult, UpdateCheckResult, UpdateProgressEvent } from '@core/update/types';
 import type { LogLinePayload, WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
 
@@ -129,6 +129,22 @@ export async function getAppVersion(): Promise<string> {
 
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
   return invoke<UpdateCheckResult>('check_for_update');
+}
+
+export async function downloadUpdate(version: string): Promise<DownloadUpdateResult> {
+  return invoke<DownloadUpdateResult>('download_update', { version });
+}
+
+export async function applyUpdateAndRestart(newExePath: string): Promise<void> {
+  await invoke('apply_update_and_restart', { newExePath });
+}
+
+export async function onUpdateProgress(
+  handler: (event: UpdateProgressEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<UpdateProgressEvent>('update-progress', (event) => {
+    handler(event.payload);
+  });
 }
 
 export async function getCommentClientKey(): Promise<string> {
