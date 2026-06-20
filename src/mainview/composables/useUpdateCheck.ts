@@ -1,3 +1,4 @@
+import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
 import type { UpdateCheckResult } from '@core/update/types';
 import { computed, reactive, ref } from 'vue';
 import { checkForUpdate, getAppVersion } from '../native';
@@ -85,7 +86,7 @@ export function useUpdateCheck() {
     return parts.join('.');
   }
 
-  async function simulateUpdate() {
+  async function simulateUpdate(releaseNotes: string = MOCK_RELEASE_NOTES) {
     await ensureVersion();
     const latestVersion = bumpPatchVersion(state.currentVersion);
 
@@ -93,13 +94,7 @@ export function useUpdateCheck() {
       currentVersion: state.currentVersion,
       hasUpdate: true,
       latestVersion,
-      releaseNotes: [
-        '【调试模拟】这是一条用于测试更新提示的 Release 说明。',
-        '',
-        '- 优化了匹配数据解析性能',
-        '- 修复 AI 分析偶发超时问题',
-        '- 改进设置页布局与交互细节',
-      ].join('\n'),
+      releaseNotes,
       releaseUrl: 'https://github.com/qianjiachun/cs-match-helper/releases/latest',
       publishedAt: new Date().toISOString(),
     });

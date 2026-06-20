@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
+import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
 import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
@@ -76,6 +77,7 @@ const expandedIds = ref<Set<string>>(new Set());
 const p5eNdjsonInput = ref('');
 const p5eError = ref('');
 const devtoolsError = ref('');
+const mockReleaseNotes = ref(MOCK_RELEASE_NOTES);
 
 const p5eLogEntries = computed(() => props.p5e?.logEntries.value ?? []);
 const activeLogEntries = computed(() =>
@@ -572,6 +574,18 @@ watch(
               </span>
             </p>
           </div>
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-medium text-fg-secondary" for="mock-release-notes">
+              模拟更新内容（Markdown）
+            </label>
+            <textarea
+              id="mock-release-notes"
+              v-model="mockReleaseNotes"
+              class="h-40 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
+              placeholder="## 更新内容&#10;&#10;- 第一条更新说明"
+              spellcheck="false"
+            />
+          </div>
           <div class="flex flex-wrap justify-end gap-2">
             <button
               type="button"
@@ -592,7 +606,7 @@ watch(
             <button
               type="button"
               class="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
-              @click="simulateUpdate"
+              @click="simulateUpdate(mockReleaseNotes)"
             >
               模拟检测到新版本
             </button>
