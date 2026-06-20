@@ -30,12 +30,22 @@ const canSubmit = computed(() => {
   return text.length > 0 && text.length <= 200 && !props.comments.submitting.value;
 });
 
-const showLoading = computed(
-  () =>
-    props.comments.listLoading.value &&
-    props.comments.list.value.length === 0 &&
-    !props.comments.listError.value,
-);
+const showLoading = computed(() => {
+  const c = props.comments;
+  if (c.listError.value || c.list.value.length > 0) return false;
+  return c.listLoading.value || c.listRefreshing.value || !c.listFetched.value;
+});
+
+const showEmptyState = computed(() => {
+  const c = props.comments;
+  return (
+    c.listFetched.value &&
+    !c.listLoading.value &&
+    !c.listRefreshing.value &&
+    c.list.value.length === 0 &&
+    !c.listError.value
+  );
+});
 
 const TEXTAREA_MIN_HEIGHT = 26;
 const TEXTAREA_MAX_HEIGHT = 132;
@@ -217,7 +227,7 @@ function onRetry() {
       >
         <button
           type="button"
-          class="comment-drawer-backdrop absolute inset-0 cursor-pointer"
+          class="comment-drawer-backdrop absolute inset-0 m-0 cursor-pointer border-0 p-0 appearance-none"
           aria-label="关闭评论"
           @click="onBackdropClick"
         />
@@ -339,7 +349,7 @@ function onRetry() {
             </div>
 
             <div
-              v-else-if="comments.listFetched.value && comments.list.value.length === 0"
+              v-else-if="showEmptyState"
               class="flex flex-col items-center justify-center py-20 text-center"
             >
               <div
@@ -480,12 +490,29 @@ function onRetry() {
 
 .comment-drawer-enter-active .comment-drawer-panel,
 .comment-drawer-leave-active .comment-drawer-panel {
+  will-change: transform;
+}
+
+.comment-drawer-enter-active .comment-drawer-panel {
+  animation: comment-drawer-panel-in 0.25s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.comment-drawer-leave-active .comment-drawer-panel {
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.comment-drawer-enter-from .comment-drawer-panel,
 .comment-drawer-leave-to .comment-drawer-panel {
   transform: translateX(100%);
+}
+
+@keyframes comment-drawer-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -494,6 +521,11 @@ function onRetry() {
   .comment-drawer-enter-active .comment-drawer-panel,
   .comment-drawer-leave-active .comment-drawer-panel {
     transition-duration: 0.01ms;
+  }
+
+  .comment-drawer-enter-active .comment-drawer-panel {
+    animation: none;
+    transform: translateX(0);
   }
 
   .comment-composer-textarea {

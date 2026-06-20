@@ -67,6 +67,7 @@ export function useComments() {
   const listCursor = ref<CommentCursor | null>(null);
   const listError = ref('');
   const listFetched = ref(false);
+  const listRefreshing = ref(false);
   const listSort = ref<'time' | 'hot'>('time');
 
   const listCache = new Map<
@@ -233,6 +234,7 @@ export function useComments() {
     if (!player || !canComment(player.steamId)) return;
 
     const steamId = player.steamId;
+    listRefreshing.value = true;
     try {
       const result = await fetchCommentList(steamId, {
         limit: 20,
@@ -248,6 +250,10 @@ export function useComments() {
       syncListCache(steamId);
     } catch {
       // 保留缓存内容，静默失败
+    } finally {
+      if (activePlayer.value?.steamId === steamId) {
+        listRefreshing.value = false;
+      }
     }
   }
 
@@ -256,6 +262,7 @@ export function useComments() {
     drawerOpen.value = false;
     activePlayer.value = null;
     listLoading.value = false;
+    listRefreshing.value = false;
     listFetched.value = false;
     listError.value = '';
     submitError.value = '';
@@ -552,6 +559,7 @@ export function useComments() {
     listMore,
     listError,
     listFetched,
+    listRefreshing,
     submitting,
     submitError,
     historyList,

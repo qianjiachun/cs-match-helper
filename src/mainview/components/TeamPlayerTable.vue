@@ -181,7 +181,7 @@ const accent = props.team.side === 'A'
                 <div class="flex min-w-0 items-center gap-1">
                   <button
                     type="button"
-                    class="group/name flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left"
+                    class="group/name flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent p-0 text-left outline-none focus-visible:outline-none"
                     :class="isValidSteamId64(player.steamId) ? '' : 'cursor-default'"
                     :title="isValidSteamId64(player.steamId) ? `查看 ${player.nickname} 的评论` : player.steamId"
                     @click="onPlayerClick(player)"
