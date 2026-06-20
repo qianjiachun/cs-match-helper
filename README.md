@@ -6,7 +6,7 @@
 
 在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析。
 
-[**下载最新版**](https://github.com/qianjiachun/cs-match-helper/releases/latest) · 当前版本 **v2.0.0**
+[**软件下载**](https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download) · [**GitHub Release 下载**](https://github.com/qianjiachun/cs-match-helper/releases/latest)
 
 </div>
 
@@ -34,7 +34,7 @@
 
 ## 使用
 
-1. 从 [Releases](https://github.com/qianjiachun/cs-match-helper/releases) 下载 `cs-match-helper.exe` 并运行
+1. 从 [软件下载](https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download) 或 [GitHub Release](https://github.com/qianjiachun/cs-match-helper/releases/latest) 下载 `cs-match-helper.exe` 并运行
 2. 启动对战平台并完成匹配
 3. 进入准备界面后，应用自动展示对局数据
 4. 可选：在设置中配置 DeepSeek API Key 以启用 AI 分析；在「我的评论」中管理历史评论
