@@ -398,7 +398,7 @@ function onLikeClick() {
         :alt="displayName ?? '用户头像'"
         size="sm"
         shape="rounded"
-        class="!h-8 !w-8"
+        class="h-8! w-8!"
       />
       <CommentPixelAvatar
         v-else

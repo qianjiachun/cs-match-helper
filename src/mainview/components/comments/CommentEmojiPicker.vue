@@ -132,7 +132,7 @@ onUnmounted(() => {
         <div
           v-if="open"
           ref="panelRef"
-          class="emoji-picker-panel fixed z-[120] rounded-xl border border-slate-200/90 bg-white p-2.5 shadow-lg shadow-slate-900/10"
+          class="emoji-picker-panel fixed z-120 rounded-xl border border-slate-200/90 bg-white p-2.5 shadow-lg shadow-slate-900/10"
           :class="placement === 'top' ? 'emoji-picker-panel--top' : 'emoji-picker-panel--bottom'"
           :style="panelStyle"
           role="dialog"
