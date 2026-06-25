@@ -172,4 +172,54 @@ describe('comments api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('posts reply with replyId', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        msg: 'success',
+        data: { id: 'reply-id' },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { addComment } = await import('./api');
+    const result = await addComment('76561198000000000', '同意', 'parent-id');
+    expect(result.id).toBe('reply-id');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      steamid: '76561198000000000',
+      text: '同意',
+      replyId: 'parent-id',
+    });
+  });
+
+  it('fetches reply list for parent comment', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        msg: 'success',
+        data: {
+          list: [
+            {
+              id: 'reply-1',
+              text: '同意',
+              likes: 1,
+              createTime: 2,
+              replyId: 'parent-id',
+            },
+          ],
+          more: false,
+          nextCursor: null,
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchCommentReplyList } = await import('./api');
+    const result = await fetchCommentReplyList('parent-id');
+    expect(result.list).toHaveLength(1);
+    expect(result.list[0]?.replyId).toBe('parent-id');
+  });
 });

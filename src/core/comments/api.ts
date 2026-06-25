@@ -6,6 +6,7 @@ import type {
   CommentItem,
   CommentLikeResult,
   CommentListResult,
+  CommentReplyListResult,
 } from './types';
 import { filterValidSteamIds } from './steam-id';
 
@@ -197,6 +198,24 @@ export async function fetchCommentList(
   return postJson<CommentListResult>('/comment/list', body, { cache: options?.cache });
 }
 
+export async function fetchCommentReplyList(
+  commentId: string,
+  options?: {
+    limit?: number;
+    cursor?: CommentCursor | null;
+    cache?: boolean | number;
+  },
+): Promise<CommentReplyListResult> {
+  const body: Record<string, unknown> = {
+    commentId,
+    limit: options?.limit ?? 20,
+  };
+  if (options?.cursor) {
+    body.cursor = options.cursor;
+  }
+  return postJson<CommentReplyListResult>('/comment/reply/list', body, { cache: options?.cache });
+}
+
 export async function fetchCommentHistory(
   options?: { limit?: number; cursor?: CommentCursor | null; cache?: boolean | number },
 ): Promise<CommentHistoryResult> {
@@ -209,8 +228,14 @@ export async function fetchCommentHistory(
   return postJson<CommentHistoryResult>('/comment/history', body, { cache: options?.cache });
 }
 
-export async function addComment(steamid: string, text: string): Promise<{ id: string }> {
-  return postJsonMutate<{ id: string }>('/comment/add', { steamid, text });
+export async function addComment(
+  steamid: string,
+  text: string,
+  replyId?: string,
+): Promise<{ id: string }> {
+  const body: Record<string, string> = { steamid, text };
+  if (replyId) body.replyId = replyId;
+  return postJsonMutate<{ id: string }>('/comment/add', body);
 }
 
 export async function updateComment(commentId: string, text: string): Promise<{ id: string }> {
