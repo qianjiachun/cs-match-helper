@@ -1,5 +1,7 @@
 import type { CommentItem, CommentPlayerTarget, HistoryCommentItem } from '@core/comments/types';
 
+export const MOCK_SELF_COMMENT_COLOR = '#5a8fd3';
+
 export const MOCK_COMMENT_STEAM_ID = '76561198000000001';
 
 export const MOCK_COMMENT_PLAYER: CommentPlayerTarget = {

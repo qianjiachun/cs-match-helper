@@ -368,6 +368,7 @@ function onRetry() {
                 v-for="item in comments.list.value"
                 :key="item.id"
                 :comment="item"
+                :self-color="comments.selfCommentColor.value"
                 :submitting="comments.submitting.value"
                 @like="comments.toggleLike(item)"
                 @save-edit="(text) => comments.editComment(item.id, text)"

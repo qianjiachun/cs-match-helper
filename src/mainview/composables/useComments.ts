@@ -18,11 +18,13 @@ import type {
 } from '@core/comments/types';
 import { filterValidSteamIds, isValidSteamId64 } from '@core/comments/steam-id';
 import { isCommentEditable } from '@core/comments/edit-policy';
+import { generateColorFromClientKey } from '@core/comments/comment-identity';
 import { getCommentClientKey } from '../native';
 import {
   MOCK_COMMENT_ITEMS,
   MOCK_COMMENT_PLAYER,
   MOCK_COMMENT_STEAM_ID,
+  MOCK_SELF_COMMENT_COLOR,
   MOCK_HISTORY_CURSOR,
   MOCK_HISTORY_ITEMS,
   MOCK_HISTORY_MORE_ITEMS,
@@ -30,11 +32,21 @@ import {
 } from './comments-mock';
 
 let clientKeyReady = false;
+let selfCommentColorPromise: Promise<string | null> | null = null;
 
 function ensureClientKeyProvider() {
   if (clientKeyReady) return;
   setCommentClientKeyProvider(() => getCommentClientKey());
   clientKeyReady = true;
+}
+
+async function resolveSelfCommentColor(): Promise<string | null> {
+  if (!selfCommentColorPromise) {
+    selfCommentColorPromise = getCommentClientKey()
+      .then((key) => generateColorFromClientKey(key))
+      .catch(() => null);
+  }
+  return selfCommentColorPromise;
 }
 
 function formatCommentError(err: unknown): string {
@@ -78,6 +90,11 @@ export function useComments() {
   const submitting = ref(false);
   const submitError = ref('');
   const mockMode = ref(false);
+  const selfCommentColor = ref<string | null>(null);
+
+  void resolveSelfCommentColor().then((color) => {
+    selfCommentColor.value = color;
+  });
 
   const historyList = ref<HistoryCommentItem[]>([]);
   const historyLoading = ref(false);
@@ -190,6 +207,7 @@ export function useComments() {
 
   function openMockDrawer(scenario: MockCommentScenario = 'list') {
     mockMode.value = true;
+    selfCommentColor.value = MOCK_SELF_COMMENT_COLOR;
     applyMockScenario(scenario);
     drawerOpen.value = true;
   }
@@ -345,6 +363,7 @@ export function useComments() {
     submitError.value = '';
     try {
       if (mockMode.value) {
+        const color = selfCommentColor.value ?? (await resolveSelfCommentColor());
         const item: CommentItem = {
           id: `mock-${Date.now()}`,
           text: trimmed,
@@ -352,7 +371,7 @@ export function useComments() {
           createTime: Date.now(),
           liked: false,
           self: true,
-          color: '',
+          color: color ?? undefined,
         };
         list.value = [item, ...list.value];
         bumpCount(player.steamId, 1);
@@ -360,6 +379,7 @@ export function useComments() {
       }
 
       const { id } = await addComment(player.steamId, trimmed);
+      const color = selfCommentColor.value ?? (await resolveSelfCommentColor());
       const item: CommentItem = {
         id,
         text: trimmed,
@@ -367,6 +387,7 @@ export function useComments() {
         createTime: Date.now(),
         liked: false,
         self: true,
+        color: color ?? undefined,
       };
       list.value = [item, ...list.value];
       bumpCount(player.steamId, 1);
@@ -473,6 +494,7 @@ export function useComments() {
 
   function fillMockHistory() {
     historyMockMode.value = true;
+    selfCommentColor.value = MOCK_SELF_COMMENT_COLOR;
     historyLoading.value = false;
     historyLoadingMore.value = false;
     historyError.value = '';
@@ -562,6 +584,7 @@ export function useComments() {
     listRefreshing,
     submitting,
     submitError,
+    selfCommentColor,
     historyList,
     historyLoading,
     historyLoadingMore,

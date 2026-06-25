@@ -213,6 +213,7 @@ async function copySteamId(steamid: string) {
             <div class="p-1.5">
               <CommentListItem
                 :comment="item"
+                :self-color="comments.selfCommentColor.value"
                 :submitting="comments.submitting.value"
                 :show-like="false"
                 embedded
