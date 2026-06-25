@@ -9,11 +9,11 @@ export type TeamTableSortKey = TeamTableColumnKey;
 
 export type SortDir = 'asc' | 'desc';
 
-/** 近 5 场胜负：从 recent_10_stats.win_stats 取最后 5 条，左→右，最右为最近一场 */
+/** 近 5 场胜负：取最近 5 条，左→右，最左为最近一场 */
 export function getRecentFiveResults(
   results: Array<'win' | 'lose' | 'draw'> = [],
 ): Array<'win' | 'lose' | 'draw'> {
-  return results.slice(-5);
+  return results.slice(-5).reverse();
 }
 
 export function getRecentWinCount(player: MatchPlayer): number {
