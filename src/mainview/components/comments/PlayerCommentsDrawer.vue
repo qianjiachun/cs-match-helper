@@ -214,13 +214,13 @@ async function onCopySteamId() {
 }
 
 function onRetry() {
-  void props.comments.loadComments(true);
+  void props.comments.loadComments(true, { bypassCache: true });
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="comment-drawer">
+    <Transition name="comment-drawer" :duration="{ enter: 300, leave: 300 }">
       <div
         v-if="comments.drawerOpen.value && comments.activePlayer.value"
         class="fixed inset-0 z-50 flex justify-end"
@@ -370,8 +370,20 @@ function onRetry() {
                 :comment="item"
                 :self-color="comments.selfCommentColor.value"
                 :submitting="comments.submitting.value"
+                :reply-expanded="comments.isReplyExpanded(item.id)"
+                :reply-loading="comments.replyLoading.value[item.id] ?? false"
+                :reply-loading-more="comments.replyLoadingMore.value[item.id] ?? false"
+                :reply-more="comments.replyMore.value[item.id] ?? false"
+                :replying="comments.replyingToId.value === item.id"
                 @like="comments.toggleLike(item)"
                 @save-edit="(text) => comments.editComment(item.id, text)"
+                @toggle-replies="comments.toggleReplies(item.id)"
+                @start-reply="comments.startReply(item.id)"
+                @cancel-reply="comments.cancelReply()"
+                @submit-reply="(text) => comments.submitReply(item.id, text)"
+                @load-more-replies="comments.loadReplies(item.id, false)"
+                @like-reply="comments.toggleLike"
+                @save-reply-edit="(replyId, text) => comments.editComment(replyId, text)"
               />
             </div>
 
@@ -477,9 +489,9 @@ function onRetry() {
 .comment-drawer-enter-active .comment-drawer-backdrop,
 .comment-drawer-leave-active .comment-drawer-backdrop {
   transition:
-    background-color 0.25s ease,
-    backdrop-filter 0.25s ease,
-    -webkit-backdrop-filter 0.25s ease;
+    background-color 0.3s ease,
+    backdrop-filter 0.3s ease,
+    -webkit-backdrop-filter 0.3s ease;
 }
 
 .comment-drawer-enter-from .comment-drawer-backdrop,
@@ -492,28 +504,12 @@ function onRetry() {
 .comment-drawer-enter-active .comment-drawer-panel,
 .comment-drawer-leave-active .comment-drawer-panel {
   will-change: transform;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.comment-drawer-enter-active .comment-drawer-panel {
-  animation: comment-drawer-panel-in 0.25s cubic-bezier(0.32, 0.72, 0, 1) both;
-}
-
-.comment-drawer-leave-active .comment-drawer-panel {
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
+.comment-drawer-enter-from .comment-drawer-panel,
 .comment-drawer-leave-to .comment-drawer-panel {
   transform: translateX(100%);
-}
-
-@keyframes comment-drawer-panel-in {
-  from {
-    transform: translateX(100%);
-  }
-
-  to {
-    transform: translateX(0);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -524,8 +520,8 @@ function onRetry() {
     transition-duration: 0.01ms;
   }
 
-  .comment-drawer-enter-active .comment-drawer-panel {
-    animation: none;
+  .comment-drawer-enter-from .comment-drawer-panel,
+  .comment-drawer-leave-to .comment-drawer-panel {
     transform: translateX(0);
   }
 

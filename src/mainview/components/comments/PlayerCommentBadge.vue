@@ -6,6 +6,7 @@ import { isValidSteamId64 } from '@core/comments/steam-id';
 const props = defineProps<{
   steamId: string;
   count?: number;
+  countHasMore?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,12 +17,17 @@ const enabled = computed(() => isValidSteamId64(props.steamId));
 const displayCount = computed(() => props.count ?? 0);
 const hasComments = computed(() => displayCount.value > 0);
 
-const countLabel = computed(() =>
-  displayCount.value > 99 ? '99+' : String(displayCount.value),
-);
+const countLabel = computed(() => {
+  const n = displayCount.value;
+  if (n <= 0) return '';
+  if (n > 99) return '99+';
+  return props.countHasMore ? `${n}+` : String(n);
+});
 
 const label = computed(() =>
-  hasComments.value ? `查看 ${displayCount.value} 条评论` : '查看或发表评论',
+  hasComments.value
+    ? `查看 ${countLabel.value} 条评论`
+    : '查看或发表评论',
 );
 
 function onClick() {

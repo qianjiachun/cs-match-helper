@@ -6,7 +6,7 @@ import { getPlatformLogo } from '../utils/platform-logos';
 const props = withDefaults(
   defineProps<{
     platformId?: MatchPlatformId;
-    size?: 'sm' | 'md';
+    size?: 'xs' | 'sm' | 'md';
   }>(),
   {
     platformId: 'perfect',
@@ -16,7 +16,11 @@ const props = withDefaults(
 
 const logo = computed(() => getPlatformLogo(props.platformId));
 
-const sizeClass = computed(() => (props.size === 'md' ? 'h-6 w-6' : 'h-5 w-5'));
+const sizeClass = computed(() => {
+  if (props.size === 'md') return 'h-6 w-6';
+  if (props.size === 'xs') return 'h-4 w-4';
+  return 'h-5 w-5';
+});
 </script>
 
 <template>

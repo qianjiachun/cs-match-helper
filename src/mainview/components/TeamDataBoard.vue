@@ -13,6 +13,7 @@ const props = defineProps<{
   highlightedSide?: 'A' | 'B' | null;
   highlightedSteamId?: string | null;
   getCommentCount?: (steamId: string) => number;
+  getCommentCountHasMore?: (steamId: string) => boolean;
 }>();
 
 const customizerOpen = defineModel<boolean>('customizerOpen', { default: false });
@@ -37,6 +38,7 @@ const teamB = computed(() => props.teams.find((t) => t.side === 'B'));
       :highlighted="highlightedSide === 'A'"
       :highlighted-steam-id="highlightedSteamId"
       :get-comment-count="getCommentCount"
+      :get-comment-count-has-more="getCommentCountHasMore"
       @open-comments="(player) => emit('openComments', player)"
     />
     <TeamPlayerTable
@@ -46,6 +48,7 @@ const teamB = computed(() => props.teams.find((t) => t.side === 'B'));
       :highlighted="highlightedSide === 'B'"
       :highlighted-steam-id="highlightedSteamId"
       :get-comment-count="getCommentCount"
+      :get-comment-count-has-more="getCommentCountHasMore"
       @open-comments="(player) => emit('openComments', player)"
     />
 

@@ -29,6 +29,7 @@ const props = defineProps<{
   highlighted?: boolean;
   highlightedSteamId?: string | null;
   getCommentCount?: (steamId: string) => number;
+  getCommentCountHasMore?: (steamId: string) => boolean;
 }>();
 
 const emit = defineEmits<{
@@ -195,6 +196,7 @@ const accent = props.team.side === 'A'
                   <PlayerCommentBadge
                     :steam-id="player.steamId"
                     :count="getCommentCount?.(player.steamId) ?? 0"
+                    :count-has-more="getCommentCountHasMore?.(player.steamId) ?? false"
                     @open="emit('openComments', player)"
                   />
                 </div>

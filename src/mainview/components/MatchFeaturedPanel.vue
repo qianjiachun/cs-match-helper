@@ -153,8 +153,8 @@ watch(
     highlightedSteamId.value = null;
     resetCountdown();
     void props.ai.analyzeMatch(props.match);
-    const steamIds = teams.value.flatMap((t) => t.players.map((p) => p.steamId));
-    void props.comments.loadCounts(steamIds);
+    const players = teams.value.flatMap((t) => t.players);
+    void props.comments.loadCounts(players, platformId.value);
     if (prevId !== undefined && nextId !== prevId) {
       await nextTick();
       void playReveal();
@@ -401,17 +401,18 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
           :highlighted-side="highlightedSide"
           :highlighted-steam-id="highlightedSteamId"
           :get-comment-count="comments.getCount"
+          :get-comment-count-has-more="comments.getCountHasMore"
           @toggle-column="setVisible"
           @set-column-order="setColumnOrder"
           @reset-columns="resetColumns"
-          @open-comments="comments.openPlayer"
+          @open-comments="(player) => comments.openPlayer(player, platformId)"
         />
         <TeamCompareBoard
           v-else-if="activeTab === 'compare'"
           key="compare"
           :teams="teams"
           :platform-id="platformId"
-          @open-comments="comments.openPlayer"
+          @open-comments="(player) => comments.openPlayer(player, platformId)"
         />
         <AiAnalysisPanel
           v-else
