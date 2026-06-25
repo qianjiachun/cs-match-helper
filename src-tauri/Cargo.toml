@@ -26,6 +26,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 sha2 = "0.10"
 hex = "0.4"
+base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]

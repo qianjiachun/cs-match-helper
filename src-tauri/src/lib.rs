@@ -7,9 +7,9 @@ mod update;
 use ai::AiAnalysisState;
 use log_watcher::WatcherState;
 use platform::{
-    fetch_5e_match_detail, launch_with_cdp, probe_5e_environment, wait_for_cdp_port,
-    P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
-    get_cdp_status, start_cdp_collector, stop_cdp_collector,
+    fetch_5e_match_detail, fetch_http_json, fetch_proxied_image, launch_with_cdp,
+    probe_5e_environment, wait_for_cdp_port, P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus,
+    P5eLaunchResult, P5eProbeResult, get_cdp_status, start_cdp_collector, stop_cdp_collector,
 };
 use std::sync::Mutex;
 use std::time::Duration;
@@ -161,6 +161,8 @@ pub fn run() {
             get_5e_cdp_status,
             probe_5e_cdp_active,
             fetch_5e_match_detail,
+            fetch_http_json,
+            fetch_proxied_image,
             open_app_devtools,
             close_app_devtools,
             ai::get_ai_settings_path,

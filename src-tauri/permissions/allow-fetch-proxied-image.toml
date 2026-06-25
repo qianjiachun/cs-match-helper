@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-proxied-image"
+description = "允许代理拉取需 Referer 的远程图片（完美留言板头像/附图）"
+commands.allow = ["fetch_proxied_image"]

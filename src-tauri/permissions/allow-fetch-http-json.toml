@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-http-json"
+description = "允许通过 Rust 后端代理 HTTPS JSON 请求（平台留言板等）"
+commands.allow = ["fetch_http_json"]

@@ -31,6 +31,8 @@
     "allow-get-5e-cdp-status",
     "allow-probe-5e-cdp-active",
     "allow-fetch-5e-match-detail",
+    "allow-fetch-http-json",
+    "allow-fetch-proxied-image",
     "allow-open-app-devtools",
     "allow-close-app-devtools",
     "allow-get-comment-client-key",

@@ -3,6 +3,7 @@ mod platform_5e_cdp;
 mod platform_5e_launch;
 mod platform_5e_match;
 mod platform_5e_sink;
+mod platform_board;
 
 pub use platform_5e_cdp::{get_cdp_status, start_cdp_collector, stop_cdp_collector, P5eCdpRuntime, P5eCdpStatus};
 pub use platform_5e_launch::{
@@ -10,6 +11,7 @@ pub use platform_5e_launch::{
     P5eLaunchResult, P5eProbeResult,
 };
 pub use platform_5e_match::fetch_5e_match_detail;
+pub use platform_board::{fetch_http_json, fetch_proxied_image};
 
 pub fn find_watchable_parent(target: &std::path::Path) -> std::path::PathBuf {
     perfect::find_watchable_parent(target)

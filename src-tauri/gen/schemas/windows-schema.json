@@ -369,6 +369,18 @@
           "markdownDescription": "允许通过 match_code 拉取 5E 对局详情（地图等）"
         },
         {
+          "description": "允许通过 Rust 后端代理 HTTPS JSON 请求（平台留言板等）",
+          "type": "string",
+          "const": "allow-fetch-http-json",
+          "markdownDescription": "允许通过 Rust 后端代理 HTTPS JSON 请求（平台留言板等）"
+        },
+        {
+          "description": "允许代理拉取需 Referer 的远程图片（完美留言板头像/附图）",
+          "type": "string",
+          "const": "allow-fetch-proxied-image",
+          "markdownDescription": "允许代理拉取需 Referer 的远程图片（完美留言板头像/附图）"
+        },
+        {
           "description": "允许查询 5E CDP 采集状态",
           "type": "string",
           "const": "allow-get-5e-cdp-status",
