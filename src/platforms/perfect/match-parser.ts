@@ -255,6 +255,8 @@ function mergePlayer(
     rankDesc = pickString(achieved[0] as Record<string, unknown>, ['rankDesc']);
   }
 
+  const zqId = pickString(extra, ['zq_id']);
+
   return {
     steamId,
     nickname: pickString(extra, ['nickname', 'nick_name', 'name'])
@@ -297,6 +299,7 @@ function mergePlayer(
     recentResults: recent.results.slice(-5),
     recentRatings: recent.ratings,
     tags: buildTags(raw, extra, recent),
+    platformBoardId: zqId || undefined,
   };
 }
 

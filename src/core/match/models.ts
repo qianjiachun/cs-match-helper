@@ -51,6 +51,8 @@ export interface MatchPlayer {
   recentResults: Array<'win' | 'lose' | 'draw'>;
   recentRatings: number[];
   tags: string[];
+  /** 平台留言板 ID：完美为 zq_id，5E 为 domain */
+  platformBoardId?: string;
 }
 
 export type MatchPlatformId = 'perfect' | '5e';

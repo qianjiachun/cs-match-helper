@@ -371,6 +371,10 @@ export function buildP5ePlayer(
 
   const matchAvatar = extractAvatarFromMatchEntry(matchEntry ?? {});
 
+  const domainRaw = userData?.domain;
+  const platformBoardId =
+    typeof domainRaw === 'string' && domainRaw.trim() ? domainRaw.trim().toLowerCase() : undefined;
+
   return {
     steamId: steamId || `5e-${uuid.slice(0, 8)}`,
     nickname,
@@ -404,5 +408,6 @@ export function buildP5ePlayer(
     recentResults: special.recentResults,
     recentRatings: special.recentRatings,
     tags,
+    platformBoardId,
   };
 }
