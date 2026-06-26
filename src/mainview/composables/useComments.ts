@@ -489,13 +489,16 @@ export function useComments() {
   function closeDrawer() {
     mockMode.value = false;
     drawerOpen.value = false;
-    activePlayer.value = null;
     listLoading.value = false;
     listRefreshing.value = false;
     listFetched.value = false;
     listError.value = '';
     submitError.value = '';
     resetReplyState();
+  }
+
+  function finalizeDrawerClose() {
+    activePlayer.value = null;
   }
 
   async function changeSort(sort: 'time' | 'hot') {
@@ -1035,6 +1038,7 @@ export function useComments() {
     openPlayer,
     openMockDrawer,
     closeDrawer,
+    finalizeDrawerClose,
     loadComments,
     submitComment,
     editComment,

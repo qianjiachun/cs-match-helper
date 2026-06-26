@@ -283,24 +283,92 @@ pub async fn apply_update_and_restart(
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
         let script_path = std::env::temp_dir().join(format!(
             "cs-match-helper-update-{}.ps1",
             uuid::Uuid::new_v4()
         ));
 
+        let log_path = std::env::temp_dir().join("cs-match-helper-update.log");
+
         let script = format!(
             r#"$ErrorActionPreference = 'Stop'
-$targetExe = '{target}'
-$newExe = '{new_exe}'
-$pidToWait = {pid}
-while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) {{
-    Start-Sleep -Milliseconds 400
+$logPath = '{log}'
+function Write-Log([string]$Message) {{
+    $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Message"
+    Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
 }}
-Copy-Item -LiteralPath $newExe -Destination $targetExe -Force
-Start-Process -FilePath $targetExe
-Remove-Item -LiteralPath $newExe -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath '{script}' -Force -ErrorAction SilentlyContinue
+
+try {{
+    Write-Log 'Update started'
+    $targetExe = '{target}'
+    $newExe = '{new_exe}'
+    $pidToWait = {pid}
+    $scriptPath = '{script}'
+    $oldExe = "$targetExe.old"
+
+    Write-Log "Target: $targetExe"
+    Write-Log "New: $newExe"
+    Write-Log "Waiting for PID $pidToWait"
+
+    $waitedMs = 0
+    while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) {{
+        Start-Sleep -Milliseconds 400
+        $waitedMs += 400
+        if ($waitedMs -gt 120000) {{
+            throw "Timed out waiting for process $pidToWait to exit"
+        }}
+    }}
+    Write-Log 'Process exited'
+
+    if (Test-Path -LiteralPath $oldExe) {{
+        Remove-Item -LiteralPath $oldExe -Force -ErrorAction SilentlyContinue
+    }}
+
+    $maxRetries = 60
+    $retryDelayMs = 500
+    $copied = $false
+
+    for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {{
+        try {{
+            if (Test-Path -LiteralPath $targetExe) {{
+                Move-Item -LiteralPath $targetExe -Destination $oldExe -Force
+                Write-Log 'Moved old exe to .old'
+            }}
+            Copy-Item -LiteralPath $newExe -Destination $targetExe -Force
+            Write-Log "Copied new exe on attempt $attempt"
+            $copied = $true
+            break
+        }} catch {{
+            Write-Log "Copy attempt $attempt failed: $($_.Exception.Message)"
+            if ((Test-Path -LiteralPath $oldExe) -and -not (Test-Path -LiteralPath $targetExe)) {{
+                Move-Item -LiteralPath $oldExe -Destination $targetExe -Force -ErrorAction SilentlyContinue
+                Write-Log 'Restored old exe after failed copy'
+            }}
+            Start-Sleep -Milliseconds $retryDelayMs
+        }}
+    }}
+
+    if (-not $copied) {{
+        throw 'Could not replace executable after retries'
+    }}
+
+    Start-Process -FilePath $targetExe
+    Write-Log 'Started updated executable'
+
+    Remove-Item -LiteralPath $newExe -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $oldExe -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+    Write-Log 'Update completed successfully'
+}} catch {{
+    Write-Log "Fatal error: $($_.Exception.Message)"
+    exit 1
+}}
 "#,
+            log = escape_ps_single_quoted(&log_path.to_string_lossy()),
             target = escape_ps_single_quoted(&current_exe.to_string_lossy()),
             new_exe = escape_ps_single_quoted(&new_exe.to_string_lossy()),
             pid = pid,
@@ -320,6 +388,7 @@ Remove-Item -LiteralPath '{script}' -Force -ErrorAction SilentlyContinue
                 "-File",
             ])
             .arg(&script_path)
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|error| format!("启动更新脚本失败: {error}"))?;
 

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Copy, Check, Loader2, MessageSquare, RefreshCw, Send, X, Clock, Flame } from 'lucide-vue-next';
 import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
+import type { CommentPlayerTarget } from '@core/comments/types';
 import type { useComments } from '../../composables/useComments';
 import { useCopyFeedback } from '../../composables/useCopyFeedback';
 import PlayerAvatar from '../PlayerAvatar.vue';
@@ -22,8 +23,28 @@ const steamIdCopyIconRef = ref<HTMLElement | null>(null);
 const copyCheckTemplateRef = ref<HTMLElement | null>(null);
 const copyJustSucceeded = ref(false);
 const copyIconHighlighted = ref(false);
+const displayPlayer = ref<CommentPlayerTarget | null>(null);
+const drawerVisible = ref(false);
 
 let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(
+  () => [props.comments.drawerOpen.value, props.comments.activePlayer.value] as const,
+  ([open, player]) => {
+    if (open && player) {
+      displayPlayer.value = player;
+      drawerVisible.value = true;
+    } else if (!open) {
+      drawerVisible.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+function onDrawerAfterLeave() {
+  displayPlayer.value = null;
+  props.comments.finalizeDrawerClose();
+}
 
 const canSubmit = computed(() => {
   const text = draft.value.trim();
@@ -204,7 +225,7 @@ function playCopySuccessAnimation() {
 }
 
 async function onCopySteamId() {
-  const player = props.comments.activePlayer.value;
+  const player = displayPlayer.value;
   if (!player) return;
 
   const ok = await copyText(player.steamId, { showToast: false });
@@ -220,9 +241,13 @@ function onRetry() {
 
 <template>
   <Teleport to="body">
-    <Transition name="comment-drawer" :duration="{ enter: 300, leave: 300 }">
+    <Transition
+      name="comment-drawer"
+      :duration="{ enter: 300, leave: 300 }"
+      @after-leave="onDrawerAfterLeave"
+    >
       <div
-        v-if="comments.drawerOpen.value && comments.activePlayer.value"
+        v-if="drawerVisible && displayPlayer"
         class="fixed inset-0 z-50 flex justify-end"
       >
         <button
@@ -236,7 +261,7 @@ function onRetry() {
           class="comment-drawer-panel relative flex h-full w-full max-w-[460px] flex-col border-l border-slate-200/80 bg-white shadow-2xl"
           role="dialog"
           aria-modal="true"
-          :aria-label="`${comments.activePlayer.value.nickname} 的评论`"
+          :aria-label="`${displayPlayer.nickname} 的评论`"
         >
           <!-- 玩家头部 -->
           <header class="relative z-10 shrink-0 border-b border-slate-100 bg-linear-to-b from-slate-50 to-white pt-5">
@@ -252,15 +277,15 @@ function onRetry() {
 
               <div class="flex items-center gap-3 pr-9">
                 <PlayerAvatar
-                  :src="comments.activePlayer.value.avatar"
-                  :alt="comments.activePlayer.value.nickname"
+                  :src="displayPlayer.avatar"
+                  :alt="displayPlayer.nickname"
                   size="lg"
                   shape="rounded"
                   class="shrink-0 ring-2 ring-white shadow-sm"
                 />
                 <div class="flex min-w-0 flex-1 flex-col gap-1.5">
                   <h2 class="truncate text-[15px] font-semibold leading-5 tracking-tight text-slate-900">
-                    {{ comments.activePlayer.value.nickname }}
+                    {{ displayPlayer.nickname }}
                   </h2>
                   <button
                     type="button"
@@ -268,7 +293,7 @@ function onRetry() {
                     title="点击复制 Steam ID"
                     @click="onCopySteamId"
                   >
-                    <span class="truncate tabular-nums">{{ comments.activePlayer.value.steamId }}</span>
+                    <span class="truncate tabular-nums">{{ displayPlayer.steamId }}</span>
                     <span ref="steamIdCopyWrapRef" class="relative inline-flex shrink-0 overflow-visible">
                       <span ref="steamIdCopyIconRef" class="inline-flex origin-center">
                         <Copy
@@ -486,19 +511,25 @@ function onRetry() {
   -webkit-backdrop-filter: blur(4px);
 }
 
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .comment-drawer-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: rgb(15 23 42 / 0.48);
+  }
+}
+
 .comment-drawer-enter-active .comment-drawer-backdrop,
 .comment-drawer-leave-active .comment-drawer-backdrop {
   transition:
-    background-color 0.3s ease,
-    backdrop-filter 0.3s ease,
-    -webkit-backdrop-filter 0.3s ease;
+    opacity 0.3s ease,
+    background-color 0.3s ease;
 }
 
 .comment-drawer-enter-from .comment-drawer-backdrop,
 .comment-drawer-leave-to .comment-drawer-backdrop {
+  opacity: 0;
   background-color: rgb(15 23 42 / 0);
-  backdrop-filter: blur(0);
-  -webkit-backdrop-filter: blur(0);
 }
 
 .comment-drawer-enter-active .comment-drawer-panel,
@@ -509,7 +540,7 @@ function onRetry() {
 
 .comment-drawer-enter-from .comment-drawer-panel,
 .comment-drawer-leave-to .comment-drawer-panel {
-  transform: translateX(100%);
+  transform: translate3d(100%, 0, 0);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -518,11 +549,6 @@ function onRetry() {
   .comment-drawer-enter-active .comment-drawer-panel,
   .comment-drawer-leave-active .comment-drawer-panel {
     transition-duration: 0.01ms;
-  }
-
-  .comment-drawer-enter-from .comment-drawer-panel,
-  .comment-drawer-leave-to .comment-drawer-panel {
-    transform: translateX(0);
   }
 
   .comment-composer-textarea {
