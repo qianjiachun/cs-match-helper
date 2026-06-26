@@ -65,7 +65,7 @@ async fn launch_5e_with_cdp(
             format!("5E 已启动，端口 {} 已就绪", result.port)
         } else {
             format!(
-                "5E 已启动，但端口 {} 在 60 秒内未就绪；请完全退出 5E 后重试",
+                "无法启动 5E。请右键「CS 匹配助手」→「以管理员身份运行」后重试。（端口 {} 在 60 秒内未就绪）",
                 result.port
             )
         };

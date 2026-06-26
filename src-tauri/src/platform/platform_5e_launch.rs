@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+#[cfg(not(windows))]
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -434,36 +435,96 @@ pub async fn wait_for_cdp_port(port: u16, max_wait: Duration) -> bool {
     false
 }
 
+#[cfg(windows)]
+fn launch_5e_elevated(exe: &Path, root: &Path, port: u16) -> Result<Option<u32>, String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{CloseHandle, GetLastError, HWND};
+    use windows::Win32::System::Threading::GetProcessId;
+    use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWDEFAULT;
+
+    fn wide(value: &OsStr) -> Vec<u16> {
+        OsStrExt::encode_wide(value)
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    const ERROR_CANCELLED: u32 = 1223;
+
+    let verb = wide(OsStr::new("runas"));
+    let file = wide(exe.as_os_str());
+    let params_str = format!("--remote-debugging-port={port}");
+    let params = wide(OsStr::new(&params_str));
+    let directory = wide(root.as_os_str());
+
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS,
+        hwnd: HWND::default(),
+        lpVerb: PCWSTR(verb.as_ptr()),
+        lpFile: PCWSTR(file.as_ptr()),
+        lpParameters: PCWSTR(params.as_ptr()),
+        lpDirectory: PCWSTR(directory.as_ptr()),
+        nShow: SW_SHOWDEFAULT.0,
+        ..Default::default()
+    };
+
+    let shell_ok = unsafe { ShellExecuteExW(&mut info).is_ok() };
+    let inst = info.hInstApp.0 as isize;
+    if !shell_ok || inst <= 32 {
+        let code = unsafe { GetLastError().0 };
+        if code == ERROR_CANCELLED {
+            return Err(
+                "启动 5E 需要管理员权限，请点击「允许」；若已取消，请重新启动并允许 UAC 提示。"
+                    .to_string(),
+            );
+        }
+        return Err(format!(
+            "无法启动 5E。请右键「CS 匹配助手」→「以管理员身份运行」后重试。（错误码 {code}）"
+        ));
+    }
+
+    let mut pid = None;
+    if !info.hProcess.is_invalid() {
+        pid = Some(unsafe { GetProcessId(info.hProcess) });
+        let _ = unsafe { CloseHandle(info.hProcess) };
+    }
+
+    Ok(pid)
+}
+
+#[cfg(not(windows))]
+fn launch_5e_standard(exe: &Path, root: &Path, port: u16) -> Result<u32, String> {
+    let child = std::process::Command::new(exe)
+        .current_dir(root)
+        .arg(format!("--remote-debugging-port={port}"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("启动 5E 失败: {e}"))?;
+
+    Ok(child.id())
+}
+
 pub fn launch_with_cdp(client_root: Option<&str>, preferred_port: u16) -> Result<P5eLaunchResult, String> {
     let root = detect_client_root(client_root)?;
     let exe = root.join(CLIENT_EXE);
     let port = resolve_cdp_launch_port(preferred_port)?;
 
-    let mut command = std::process::Command::new(&exe);
-    command
-        .current_dir(&root)
-        .arg(format!("--remote-debugging-port={port}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
     #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        command.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
-    }
+    let pid = launch_5e_elevated(&exe, &root, port)?;
 
-    let child = command
-        .spawn()
-        .map_err(|e| format!("启动 5E 失败: {e}"))?;
+    #[cfg(not(windows))]
+    let pid = Some(launch_5e_standard(&exe, &root, port)?);
 
     Ok(P5eLaunchResult {
         launched: true,
         port,
         client_root: Some(root.display().to_string()),
-        pid: Some(child.id()),
+        pid,
         cdp_ready: false,
         message: format!("已启动 5E 客户端，等待端口 {port} 就绪…"),
     })
