@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { ArrowLeft, Gauge, Minus, Settings, Square, X } from 'lucide-vue-next';
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from '../native';
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
@@ -12,7 +12,7 @@ import UpdateBadge from './UpdateBadge.vue';
 const { debugEnabled } = useDebugUnlock();
 
 defineProps<{
-  view: 'main' | 'settings';
+  view: 'main' | 'settings' | 'counter-strafing';
   injectMatch: (data: Record<string, unknown>) => void;
   injectAiResult: (raw: string) => Promise<string | null>;
   p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
@@ -26,6 +26,7 @@ defineProps<{
 const emit = defineEmits<{
   clearLogs: [];
   openSettings: [];
+  openCounterStrafing: [];
   goMain: [];
   openUpdateDialog: [];
 }>();
@@ -69,6 +70,23 @@ const emit = defineEmits<{
         @clear-logs="emit('clearLogs')"
       />
       <button
+        v-if="view === 'main' || view === 'counter-strafing'"
+        type="button"
+        class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] transition-colors duration-200"
+        :class="
+          view === 'counter-strafing'
+            ? 'bg-elevated text-fg'
+            : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
+        "
+        :aria-label="view === 'counter-strafing' ? '急停（当前）' : '打开急停'"
+        :aria-current="view === 'counter-strafing' ? 'page' : undefined"
+        title="急停"
+        @click="view === 'main' && emit('openCounterStrafing')"
+      >
+        <Gauge class="h-4 w-4" />
+        <span class="hidden sm:inline">急停</span>
+      </button>
+      <button
         v-if="view === 'main'"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
@@ -80,7 +98,7 @@ const emit = defineEmits<{
         <span class="hidden sm:inline">设置</span>
       </button>
       <button
-        v-else
+        v-if="view !== 'main'"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
         aria-label="返回主页"

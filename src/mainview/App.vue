@@ -13,6 +13,7 @@ import { useUpdateCheck } from './composables/useUpdateCheck';
 import MatchAssistantView from './views/MatchAssistantView.vue';
 import P5eLaunchView from './views/P5eLaunchView.vue';
 import PlatformSelectView from './views/PlatformSelectView.vue';
+import CounterStrafingView from './views/CounterStrafingView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
 import type { PlatformId } from '@platforms/types';
 
@@ -49,7 +50,7 @@ async function injectAiResult(raw: string): Promise<string | null> {
   return ai.injectResult(match.id, raw);
 }
 
-type AppView = 'main' | 'settings';
+type AppView = 'main' | 'settings' | 'counter-strafing';
 
 const currentView = ref<AppView>('main');
 const settingsTab = ref<SettingsTab>('ai');
@@ -57,6 +58,10 @@ const settingsTab = ref<SettingsTab>('ai');
 function openSettings(tab: SettingsTab = 'ai') {
   settingsTab.value = tab;
   currentView.value = 'settings';
+}
+
+function openCounterStrafing() {
+  currentView.value = 'counter-strafing';
 }
 
 function goMain() {
@@ -101,6 +106,7 @@ function onBackFromP5e() {
       :comments="comments"
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
+      @open-counter-strafing="openCounterStrafing()"
       @go-main="goMain"
       @open-update-dialog="openDialog()"
     />
@@ -151,6 +157,13 @@ function onBackFromP5e() {
           :initial-tab="settingsTab"
           :visible="currentView === 'settings'"
         />
+      </div>
+      <div
+        class="view-shell"
+        :class="currentView === 'counter-strafing' ? 'view-shell--active' : 'view-shell--exit-right'"
+        :aria-hidden="currentView !== 'counter-strafing'"
+      >
+        <CounterStrafingView class="h-full" :visible="currentView === 'counter-strafing'" />
       </div>
     </main>
     <CopyToast />
