@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "counter-strafing-assessment-hud",
+  "description": "急停评估折线 HUD 窗口权限",
+  "windows": ["counter-strafing-assessment-hud"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-is-visible",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-inner-size",
+    "core:window:allow-inner-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-min-size",
+    "allow-get-counter-strafing-assessment-snapshot",
+    "allow-save-counter-strafing-assessment-hud-bounds"
+  ]
+}

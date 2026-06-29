@@ -588,6 +588,7 @@ name = "cs-match-helper"
 version = "2.2.0"
 dependencies = [
  "base64 0.22.1",
+ "crossbeam-channel",
  "dirs",
  "futures-util",
  "hex",

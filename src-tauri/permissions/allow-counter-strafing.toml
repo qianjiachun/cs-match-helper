@@ -1,0 +1,89 @@
+[[permission]]
+identifier = "allow-load-counter-strafing-settings"
+description = "允许读取急停设置"
+commands.allow = ["load_counter_strafing_settings_cmd"]
+
+[[permission]]
+identifier = "allow-save-counter-strafing-settings"
+description = "允许保存急停设置"
+commands.allow = ["save_counter_strafing_settings_cmd"]
+
+[[permission]]
+identifier = "allow-reset-counter-strafing-settings"
+description = "允许恢复急停默认设置"
+commands.allow = ["reset_counter_strafing_settings_cmd"]
+
+[[permission]]
+identifier = "allow-get-counter-strafing-snapshot"
+description = "允许获取急停快照"
+commands.allow = ["get_counter_strafing_snapshot"]
+
+[[permission]]
+identifier = "allow-clear-counter-strafing-records"
+description = "允许清空急停记录"
+commands.allow = ["clear_counter_strafing_records"]
+
+[[permission]]
+identifier = "allow-start-counter-strafing"
+description = "允许启动急停采集"
+commands.allow = ["start_counter_strafing"]
+
+[[permission]]
+identifier = "allow-stop-counter-strafing"
+description = "允许停止急停采集"
+commands.allow = ["stop_counter_strafing"]
+
+[[permission]]
+identifier = "allow-show-counter-strafing-hud"
+description = "允许显示急停 HUD"
+commands.allow = ["show_counter_strafing_hud"]
+
+[[permission]]
+identifier = "allow-hide-counter-strafing-hud"
+description = "允许隐藏急停 HUD"
+commands.allow = ["hide_counter_strafing_hud"]
+
+[[permission]]
+identifier = "allow-save-hud-bounds"
+description = "允许保存急停 HUD 位置与尺寸"
+commands.allow = ["save_hud_bounds"]
+
+[[permission]]
+identifier = "allow-start-binding-capture"
+description = "允许开始按键映射捕获"
+commands.allow = ["start_binding_capture"]
+
+[[permission]]
+identifier = "allow-cancel-binding-capture"
+description = "允许取消按键映射捕获"
+commands.allow = ["cancel_binding_capture"]
+
+[[permission]]
+identifier = "allow-reset-key-map"
+description = "允许重置按键映射"
+commands.allow = ["reset_key_map"]
+
+[[permission]]
+identifier = "allow-get-counter-strafing-assessment-snapshot"
+description = "允许获取急停评估快照"
+commands.allow = ["get_counter_strafing_assessment_snapshot"]
+
+[[permission]]
+identifier = "allow-clear-counter-strafing-assessment-records"
+description = "允许清空急停评估记录"
+commands.allow = ["clear_counter_strafing_assessment_records"]
+
+[[permission]]
+identifier = "allow-show-counter-strafing-assessment-hud"
+description = "允许显示急停评估 HUD"
+commands.allow = ["show_counter_strafing_assessment_hud"]
+
+[[permission]]
+identifier = "allow-hide-counter-strafing-assessment-hud"
+description = "允许隐藏急停评估 HUD"
+commands.allow = ["hide_counter_strafing_assessment_hud"]
+
+[[permission]]
+identifier = "allow-save-counter-strafing-assessment-hud-bounds"
+description = "允许保存急停评估 HUD 位置与尺寸"
+commands.allow = ["save_counter_strafing_assessment_hud_bounds"]

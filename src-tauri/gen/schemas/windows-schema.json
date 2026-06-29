@@ -351,10 +351,28 @@
           "markdownDescription": "允许取消 AI 分析"
         },
         {
+          "description": "允许取消按键映射捕获",
+          "type": "string",
+          "const": "allow-cancel-binding-capture",
+          "markdownDescription": "允许取消按键映射捕获"
+        },
+        {
           "description": "允许检查 GitHub 发布版本",
           "type": "string",
           "const": "allow-check-for-update",
           "markdownDescription": "允许检查 GitHub 发布版本"
+        },
+        {
+          "description": "允许清空急停评估记录",
+          "type": "string",
+          "const": "allow-clear-counter-strafing-assessment-records",
+          "markdownDescription": "允许清空急停评估记录"
+        },
+        {
+          "description": "允许清空急停记录",
+          "type": "string",
+          "const": "allow-clear-counter-strafing-records",
+          "markdownDescription": "允许清空急停记录"
         },
         {
           "description": "允许关闭应用内 WebView 开发者工具",
@@ -399,10 +417,34 @@
           "markdownDescription": "允许获取评论客户端身份"
         },
         {
+          "description": "允许获取急停评估快照",
+          "type": "string",
+          "const": "allow-get-counter-strafing-assessment-snapshot",
+          "markdownDescription": "允许获取急停评估快照"
+        },
+        {
+          "description": "允许获取急停快照",
+          "type": "string",
+          "const": "allow-get-counter-strafing-snapshot",
+          "markdownDescription": "允许获取急停快照"
+        },
+        {
           "description": "允许查询日志监听状态",
           "type": "string",
           "const": "allow-get-log-status",
           "markdownDescription": "允许查询日志监听状态"
+        },
+        {
+          "description": "允许隐藏急停评估 HUD",
+          "type": "string",
+          "const": "allow-hide-counter-strafing-assessment-hud",
+          "markdownDescription": "允许隐藏急停评估 HUD"
+        },
+        {
+          "description": "允许隐藏急停 HUD",
+          "type": "string",
+          "const": "allow-hide-counter-strafing-hud",
+          "markdownDescription": "允许隐藏急停 HUD"
         },
         {
           "description": "允许带 CDP 端口启动 5E 客户端",
@@ -415,6 +457,12 @@
           "type": "string",
           "const": "allow-load-ai-settings",
           "markdownDescription": "允许读取 AI 设置"
+        },
+        {
+          "description": "允许读取急停设置",
+          "type": "string",
+          "const": "allow-load-counter-strafing-settings",
+          "markdownDescription": "允许读取急停设置"
         },
         {
           "description": "允许读取 5E 客户端路径设置",
@@ -441,16 +489,58 @@
           "markdownDescription": "允许读取最新日志文件以恢复对局数据"
         },
         {
+          "description": "允许恢复急停默认设置",
+          "type": "string",
+          "const": "allow-reset-counter-strafing-settings",
+          "markdownDescription": "允许恢复急停默认设置"
+        },
+        {
+          "description": "允许重置按键映射",
+          "type": "string",
+          "const": "allow-reset-key-map",
+          "markdownDescription": "允许重置按键映射"
+        },
+        {
           "description": "允许保存 AI 设置",
           "type": "string",
           "const": "allow-save-ai-settings",
           "markdownDescription": "允许保存 AI 设置"
         },
         {
+          "description": "允许保存急停评估 HUD 位置与尺寸",
+          "type": "string",
+          "const": "allow-save-counter-strafing-assessment-hud-bounds",
+          "markdownDescription": "允许保存急停评估 HUD 位置与尺寸"
+        },
+        {
+          "description": "允许保存急停设置",
+          "type": "string",
+          "const": "allow-save-counter-strafing-settings",
+          "markdownDescription": "允许保存急停设置"
+        },
+        {
+          "description": "允许保存急停 HUD 位置与尺寸",
+          "type": "string",
+          "const": "allow-save-hud-bounds",
+          "markdownDescription": "允许保存急停 HUD 位置与尺寸"
+        },
+        {
           "description": "允许保存 5E 客户端路径设置",
           "type": "string",
           "const": "allow-save-p5e-client-root",
           "markdownDescription": "允许保存 5E 客户端路径设置"
+        },
+        {
+          "description": "允许显示急停评估 HUD",
+          "type": "string",
+          "const": "allow-show-counter-strafing-assessment-hud",
+          "markdownDescription": "允许显示急停评估 HUD"
+        },
+        {
+          "description": "允许显示急停 HUD",
+          "type": "string",
+          "const": "allow-show-counter-strafing-hud",
+          "markdownDescription": "允许显示急停 HUD"
         },
         {
           "description": "允许启动 5E CDP 采集器",
@@ -465,6 +555,18 @@
           "markdownDescription": "允许启动 AI 分析"
         },
         {
+          "description": "允许开始按键映射捕获",
+          "type": "string",
+          "const": "allow-start-binding-capture",
+          "markdownDescription": "允许开始按键映射捕获"
+        },
+        {
+          "description": "允许启动急停采集",
+          "type": "string",
+          "const": "allow-start-counter-strafing",
+          "markdownDescription": "允许启动急停采集"
+        },
+        {
           "description": "允许启动日志监听",
           "type": "string",
           "const": "allow-start-log-watch",
@@ -475,6 +577,12 @@
           "type": "string",
           "const": "allow-stop-5e-cdp-collector",
           "markdownDescription": "允许停止 5E CDP 采集器"
+        },
+        {
+          "description": "允许停止急停采集",
+          "type": "string",
+          "const": "allow-stop-counter-strafing",
+          "markdownDescription": "允许停止急停采集"
         },
         {
           "description": "允许停止日志监听",
