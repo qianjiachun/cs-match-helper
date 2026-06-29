@@ -1,10 +1,15 @@
 mod ai;
 mod comments;
+mod counter_strafing;
 mod log_watcher;
 mod platform;
 mod update;
 
 use ai::AiAnalysisState;
+use counter_strafing::{
+    init_assessment_hud_window, init_hud_window, CounterStrafingRuntime, ASSESSMENT_HUD_WINDOW_LABEL,
+    HUD_WINDOW_LABEL,
+};
 use log_watcher::WatcherState;
 use platform::{
     fetch_5e_match_detail, fetch_http_json, fetch_proxied_image, launch_with_cdp,
@@ -13,7 +18,7 @@ use platform::{
 };
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Manager, RunEvent, WindowEvent};
 
 #[tauri::command]
 fn get_log_status(state: tauri::State<'_, AppState>) -> log_watcher::WatcherStatus {
@@ -141,12 +146,15 @@ pub fn run() {
             watcher: Mutex::new(WatcherState::default()),
         })
         .manage(AiAnalysisState::default())
+        .manage(CounterStrafingRuntime::default())
         .manage(P5eCdpRuntime::default())
         .setup(|app| {
             let version = env!("CARGO_PKG_VERSION");
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
             }
+            init_hud_window(app.handle())?;
+            init_assessment_hud_window(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -177,7 +185,64 @@ pub fn run() {
             update::download_update,
             update::apply_update_and_restart,
             comments::get_comment_client_key,
+            counter_strafing::runtime::load_counter_strafing_settings_cmd,
+            counter_strafing::runtime::save_counter_strafing_settings_cmd,
+            counter_strafing::runtime::reset_counter_strafing_settings_cmd,
+            counter_strafing::runtime::get_counter_strafing_snapshot,
+            counter_strafing::runtime::clear_counter_strafing_records,
+            counter_strafing::runtime::start_counter_strafing,
+            counter_strafing::runtime::stop_counter_strafing,
+            counter_strafing::runtime::show_counter_strafing_hud,
+            counter_strafing::runtime::hide_counter_strafing_hud,
+            counter_strafing::runtime::save_hud_bounds,
+            counter_strafing::runtime::get_counter_strafing_assessment_snapshot,
+            counter_strafing::runtime::clear_counter_strafing_assessment_records,
+            counter_strafing::runtime::show_counter_strafing_assessment_hud,
+            counter_strafing::runtime::hide_counter_strafing_assessment_hud,
+            counter_strafing::runtime::save_counter_strafing_assessment_hud_bounds,
+            counter_strafing::runtime::start_binding_capture,
+            counter_strafing::runtime::cancel_binding_capture,
+            counter_strafing::runtime::reset_key_map,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            match event {
+                RunEvent::ExitRequested { .. } => {
+                    app_handle
+                        .state::<CounterStrafingRuntime>()
+                        .request_shutdown(app_handle);
+                }
+                RunEvent::WindowEvent { label, event, .. } if label == HUD_WINDOW_LABEL => {
+                    if matches!(
+                        event,
+                        WindowEvent::Moved(_) | WindowEvent::Resized(_)
+                    ) {
+                        let _ = app_handle
+                            .state::<CounterStrafingRuntime>()
+                            .save_hud_bounds_from_window(app_handle);
+                    }
+                }
+                RunEvent::WindowEvent { label, event, .. }
+                    if label == ASSESSMENT_HUD_WINDOW_LABEL =>
+                {
+                    if matches!(
+                        event,
+                        WindowEvent::Moved(_) | WindowEvent::Resized(_)
+                    ) {
+                        let _ = app_handle
+                            .state::<CounterStrafingRuntime>()
+                            .save_assessment_hud_bounds_from_window(app_handle);
+                    }
+                }
+                RunEvent::WindowEvent { label, event, .. } if label == "main" => {
+                    if matches!(event, WindowEvent::CloseRequested { .. }) {
+                        app_handle
+                            .state::<CounterStrafingRuntime>()
+                            .request_shutdown(app_handle);
+                    }
+                }
+                _ => {}
+            }
+        });
 }
