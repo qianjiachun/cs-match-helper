@@ -168,10 +168,12 @@ function onBackFromP5e() {
         :class="currentView === 'counter-strafing' ? 'view-shell--active' : 'view-shell--exit-right'"
         :aria-hidden="currentView !== 'counter-strafing'"
       >
-        <CounterStrafingView
-          v-if="currentView === 'counter-strafing'"
-          class="h-full"
-        />
+        <KeepAlive>
+          <CounterStrafingView
+            v-if="currentView === 'counter-strafing'"
+            class="h-full"
+          />
+        </KeepAlive>
       </div>
     </main>
     <CopyToast />
