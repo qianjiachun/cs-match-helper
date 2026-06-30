@@ -105,7 +105,7 @@ onMounted(() => {
     <Transition name="comment-image-preview">
       <div
         v-if="previewOpen"
-        class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+        class="fixed inset-0 z-70 flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
         :aria-label="alt"
