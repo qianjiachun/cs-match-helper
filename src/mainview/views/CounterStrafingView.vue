@@ -73,6 +73,7 @@ const {
   toggleAssessmentHud,
   clearAllRecords,
   patchNumberSetting,
+  patchStatisticsHistoryLimit,
   restoreMovementModelDefaults,
   restoreAllDefaults,
   beginCapture,
@@ -114,6 +115,17 @@ function isCapturing(role: BindingRole): boolean {
 function selectTab(tab: CounterStrafingTab) {
   activeTab.value = tab;
 }
+
+const compactNumberInputClass =
+  'input-no-spin w-[4.75rem] shrink-0 rounded-lg border border-border bg-base px-2 py-1.5 text-right text-[13px] font-medium tabular-nums text-fg outline-none transition-[border-color,box-shadow] duration-200 focus:border-accent focus:ring-2 focus:ring-accent/15';
+
+const settingValueColumnClass =
+  'flex w-[8.25rem] shrink-0 items-center justify-end gap-1';
+
+const settingUnitClass = 'w-5 shrink-0 text-right text-[11px] leading-none text-fg-muted';
+
+const switchTrackClass =
+  'relative inline-block h-6 w-11 shrink-0 rounded-full bg-slate-300 transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:bg-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 peer-disabled:opacity-60';
 </script>
 
 <template>
@@ -450,6 +462,250 @@ function selectTab(tab: CounterStrafingTab) {
 
           <!-- 高级设置 -->
           <div v-else key="advanced" class="space-y-5">
+            <SettingsCard title="判定与显示" description="调整稳定判定、急停评估与统计窗口" :icon="Settings2">
+              <div class="space-y-4">
+                <div
+                  class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/20 bg-accent/4 px-4 py-3.5"
+                >
+                  <div class="flex min-w-0 items-start gap-3">
+                    <div
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"
+                    >
+                      <Gauge class="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-[13px] font-semibold text-fg">统计数据条数</p>
+                      <p class="mt-0.5 text-[11px] leading-relaxed text-fg-muted">
+                        开枪柱状图与急停折线图共用，影响平均误差、稳定率、标准差等统计
+                      </p>
+                    </div>
+                  </div>
+                  <div :class="settingValueColumnClass">
+                    <input
+                      :value="settings.historyLimit"
+                      type="number"
+                      min="20"
+                      max="500"
+                      step="10"
+                      aria-label="统计数据条数"
+                      :class="compactNumberInputClass"
+                      @input="patchStatisticsHistoryLimit(($event.target as HTMLInputElement).value)"
+                      @change="patchStatisticsHistoryLimit(($event.target as HTMLInputElement).value, 0)"
+                    />
+                    <span :class="settingUnitClass">条</span>
+                  </div>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div class="overflow-hidden rounded-xl border border-border bg-elevated/25">
+                    <div class="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
+                      <div
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <Target class="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-[13px] font-semibold text-fg">开枪稳定</p>
+                        <p class="text-[11px] text-fg-muted">速度达标与误差判定</p>
+                      </div>
+                    </div>
+                    <div class="divide-y divide-border-subtle">
+                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">起步低速窗口</span>
+                        <div :class="settingValueColumnClass">
+                          <input
+                            :value="settings.lowSpeedMovementWindowMs"
+                            type="number"
+                            min="60"
+                            max="400"
+                            step="10"
+                            aria-label="起步低速窗口"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass">ms</span>
+                        </div>
+                      </label>
+                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
+                        <div :class="settingValueColumnClass">
+                          <input
+                            :value="settings.successErrorThreshold"
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            aria-label="稳定误差阈值"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass" aria-hidden="true">&nbsp;</span>
+                        </div>
+                      </label>
+                    </div>
+                    <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
+                      低速窗口默认 180ms；误差阈值默认 0.35，越低越难判绿
+                    </p>
+                  </div>
+
+                  <div class="overflow-hidden rounded-xl border border-border bg-elevated/25">
+                    <div class="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
+                      <div
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"
+                      >
+                        <LineChart class="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[13px] font-semibold text-fg">急停评估</p>
+                        <p class="text-[11px] text-fg-muted">反向切换时机与分级</p>
+                      </div>
+                    </div>
+                    <div class="divide-y divide-border-subtle border-b border-border-subtle">
+                      <label
+                        class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/40"
+                      >
+                        <span class="text-[12px] font-medium text-fg-secondary">
+                          横向急停
+                          <span class="ml-1 font-normal text-fg-muted">A / D</span>
+                        </span>
+                        <span class="relative inline-flex shrink-0 items-center">
+                          <input
+                            type="checkbox"
+                            class="peer sr-only"
+                            :checked="settings.assessmentHorizontalEnabled"
+                            aria-label="横向急停 A / D"
+                            @change="
+                              applySettings({
+                                assessmentHorizontalEnabled: ($event.target as HTMLInputElement).checked,
+                              })
+                            "
+                          />
+                          <span :class="switchTrackClass" aria-hidden="true" />
+                        </span>
+                      </label>
+                      <label
+                        class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/40"
+                      >
+                        <span class="text-[12px] font-medium text-fg-secondary">
+                          纵向急停
+                          <span class="ml-1 font-normal text-fg-muted">W / S</span>
+                        </span>
+                        <span class="relative inline-flex shrink-0 items-center">
+                          <input
+                            type="checkbox"
+                            class="peer sr-only"
+                            :checked="settings.assessmentVerticalEnabled"
+                            aria-label="纵向急停 W / S"
+                            @change="
+                              applySettings({
+                                assessmentVerticalEnabled: ($event.target as HTMLInputElement).checked,
+                              })
+                            "
+                          />
+                          <span :class="switchTrackClass" aria-hidden="true" />
+                        </span>
+                      </label>
+                    </div>
+                    <div class="divide-y divide-border-subtle">
+                      <label class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex min-w-0 items-center gap-2">
+                          <span
+                            class="h-2 w-2 shrink-0 rounded-full bg-violet-500"
+                            aria-hidden="true"
+                          />
+                          <span class="text-[12px] font-medium text-fg-secondary">完美</span>
+                        </div>
+                        <div :class="settingValueColumnClass">
+                          <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
+                          <input
+                            :value="settings.assessmentPerfectThresholdMs"
+                            type="number"
+                            min="0"
+                            max="20"
+                            step="0.5"
+                            aria-label="完美阈值"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('assessmentPerfectThresholdMs', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('assessmentPerfectThresholdMs', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass">ms</span>
+                        </div>
+                      </label>
+                      <label class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex min-w-0 items-center gap-2">
+                          <span
+                            class="h-2 w-2 shrink-0 rounded-full bg-sky-500"
+                            aria-hidden="true"
+                          />
+                          <span class="text-[12px] font-medium text-fg-secondary">优秀</span>
+                        </div>
+                        <div :class="settingValueColumnClass">
+                          <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
+                          <input
+                            :value="settings.assessmentSuccessThresholdMs"
+                            type="number"
+                            min="1"
+                            max="50"
+                            step="0.5"
+                            aria-label="优秀阈值"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('assessmentSuccessThresholdMs', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('assessmentSuccessThresholdMs', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass">ms</span>
+                        </div>
+                      </label>
+                      <label class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex min-w-0 items-center gap-2">
+                          <span
+                            class="h-2 w-2 shrink-0 rounded-full bg-amber-500"
+                            aria-hidden="true"
+                          />
+                          <span class="text-[12px] font-medium text-fg-secondary">有效窗口</span>
+                        </div>
+                        <div :class="settingValueColumnClass">
+                          <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
+                          <input
+                            :value="settings.assessmentMaxDiffMs"
+                            type="number"
+                            min="50"
+                            max="500"
+                            step="10"
+                            aria-label="有效切换窗口"
+                            :class="compactNumberInputClass"
+                            @input="patchNumberSetting('assessmentMaxDiffMs', ($event.target as HTMLInputElement).value)"
+                            @change="patchNumberSetting('assessmentMaxDiffMs', ($event.target as HTMLInputElement).value, 0)"
+                          />
+                          <span :class="settingUnitClass">ms</span>
+                        </div>
+                      </label>
+                    </div>
+                    <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
+                      偏差分级自上而下收紧；超出有效窗口的切换不计入评估
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </SettingsCard>
+
             <SettingsCard title="移速模型" description="调整加速度、急停制动与自然减速" :icon="Zap">
               <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block space-y-1.5">
@@ -642,105 +898,6 @@ function selectTab(tab: CounterStrafingTab) {
                   <span class="text-[10px] leading-relaxed text-fg-muted">
                     默认 90ms。蹲起宽限过后，误差慢慢恢复正常的过渡时间。偏长=蹲后更久仍偏宽容。
                   </span>
-                </label>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title="判定与显示" description="稳定判定阈值、历史记录与急停评估参数" :icon="Settings2">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">起步低速窗口 (ms)</span>
-                  <input
-                    :value="settings.lowSpeedMovementWindowMs"
-                    type="number"
-                    min="60"
-                    max="400"
-                    step="10"
-                    class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[13px] tabular-nums text-fg outline-none transition-colors duration-200 focus:border-accent"
-                    @input="
-                      patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value)
-                    "
-                    @change="
-                      patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value, 0)
-                    "
-                  />
-                  <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 180ms。刚起步或 AD 小摆时，低速开枪的解释窗口。偏大=这类情况更容易绿；偏小=更严格。
-                  </span>
-                </label>
-                <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
-                  <input
-                    :value="settings.successErrorThreshold"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[13px] tabular-nums text-fg outline-none transition-colors duration-200 focus:border-accent"
-                    @input="
-                      patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value)
-                    "
-                    @change="
-                      patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value, 0)
-                    "
-                  />
-                  <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 0.35。速度达标后，误差还要低于这个值才算稳定。偏低=更难绿；偏高=微动也可能算稳定。
-                  </span>
-                </label>
-                <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">历史记录条数</span>
-                  <input
-                    :value="settings.historyLimit"
-                    type="number"
-                    min="20"
-                    max="500"
-                    step="10"
-                    class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[13px] tabular-nums text-fg outline-none transition-colors duration-200 focus:border-accent"
-                    @input="patchNumberSetting('historyLimit', ($event.target as HTMLInputElement).value)"
-                    @change="patchNumberSetting('historyLimit', ($event.target as HTMLInputElement).value, 0)"
-                  />
-                  <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 100 条。仪表条和统计保留最近多少次射击。只影响显示，不影响判定。
-                  </span>
-                </label>
-                <SettingsToggle
-                  :model-value="settings.assessmentHorizontalEnabled"
-                  label="横向急停 (A/D)"
-                  description="记录左右反向切换"
-                  @update:model-value="applySettings({ assessmentHorizontalEnabled: $event })"
-                />
-                <SettingsToggle
-                  :model-value="settings.assessmentVerticalEnabled"
-                  label="纵向急停 (W/S)"
-                  description="记录前后反向切换"
-                  @update:model-value="applySettings({ assessmentVerticalEnabled: $event })"
-                />
-                <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">完美阈值 (ms)</span>
-                  <input
-                    :value="settings.assessmentPerfectThresholdMs"
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[13px] tabular-nums text-fg outline-none transition-colors duration-200 focus:border-accent"
-                    @input="patchNumberSetting('assessmentPerfectThresholdMs', ($event.target as HTMLInputElement).value)"
-                    @change="patchNumberSetting('assessmentPerfectThresholdMs', ($event.target as HTMLInputElement).value, 0)"
-                  />
-                </label>
-                <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">优秀阈值 (ms)</span>
-                  <input
-                    :value="settings.assessmentSuccessThresholdMs"
-                    type="number"
-                    min="1"
-                    max="50"
-                    step="0.5"
-                    class="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[13px] tabular-nums text-fg outline-none transition-colors duration-200 focus:border-accent"
-                    @input="patchNumberSetting('assessmentSuccessThresholdMs', ($event.target as HTMLInputElement).value)"
-                    @change="patchNumberSetting('assessmentSuccessThresholdMs', ($event.target as HTMLInputElement).value, 0)"
-                  />
                 </label>
               </div>
             </SettingsCard>

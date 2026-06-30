@@ -128,6 +128,12 @@ export function useCounterStrafing() {
     void applySettings({ [key]: value } as Partial<CounterStrafingSettings>, { debounceMs });
   }
 
+  function patchStatisticsHistoryLimit(raw: string, debounceMs = 200) {
+    const value = Math.round(Number(raw));
+    if (!Number.isFinite(value)) return;
+    void applySettings({ historyLimit: value, assessmentHistoryLimit: value }, { debounceMs });
+  }
+
   function setInputListenError(e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     error.value = msg;
@@ -332,6 +338,7 @@ export function useCounterStrafing() {
     loadSettings,
     applySettings,
     patchNumberSetting,
+    patchStatisticsHistoryLimit,
     restoreMovementModelDefaults,
     restoreAllDefaults,
     toggleListening,

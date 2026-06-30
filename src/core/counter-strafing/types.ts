@@ -148,6 +148,7 @@ export interface CounterStrafingSettings {
   assessmentVerticalEnabled: boolean;
   assessmentPerfectThresholdMs: number;
   assessmentSuccessThresholdMs: number;
+  assessmentMaxDiffMs: number;
   assessmentHistoryLimit: number;
   assessmentHudVisible: boolean;
   assessmentHudLocked?: boolean;
@@ -188,16 +189,21 @@ export const MOVEMENT_MODEL_DEFAULTS: Pick<
 export function mergeCounterStrafingSettings(
   loaded: Partial<CounterStrafingSettings>,
 ): CounterStrafingSettings {
+  const historyLimit =
+    loaded.historyLimit ?? loaded.assessmentHistoryLimit ?? DEFAULT_COUNTER_STRAFING_SETTINGS.historyLimit;
+
   return {
     ...DEFAULT_COUNTER_STRAFING_SETTINGS,
     ...loaded,
+    historyLimit,
+    assessmentHistoryLimit: historyLimit,
     hudShowStableBars: loaded.hudShowStableBars ?? true,
     assessmentEnabled: loaded.assessmentEnabled ?? true,
     assessmentHorizontalEnabled: loaded.assessmentHorizontalEnabled ?? true,
     assessmentVerticalEnabled: loaded.assessmentVerticalEnabled ?? true,
     assessmentPerfectThresholdMs: loaded.assessmentPerfectThresholdMs ?? 2,
     assessmentSuccessThresholdMs: loaded.assessmentSuccessThresholdMs ?? 10,
-    assessmentHistoryLimit: loaded.assessmentHistoryLimit ?? 100,
+    assessmentMaxDiffMs: loaded.assessmentMaxDiffMs ?? 150,
     assessmentHudVisible: loaded.assessmentHudVisible ?? true,
     assessmentHudLocked: loaded.assessmentHudLocked ?? false,
     assessmentHudAnchor: loaded.assessmentHudAnchor ?? 'bottomCenter',
@@ -226,7 +232,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   lowSpeedMovementWindowMs: 180,
   excellentErrorThreshold: 0.15,
   successErrorThreshold: 0.35,
-  historyLimit: 100,
+  historyLimit: 300,
   hudVisible: true,
   hudLocked: false,
   hudShowStableBars: true,
@@ -240,7 +246,8 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   assessmentVerticalEnabled: true,
   assessmentPerfectThresholdMs: 2,
   assessmentSuccessThresholdMs: 10,
-  assessmentHistoryLimit: 100,
+  assessmentMaxDiffMs: 150,
+  assessmentHistoryLimit: 300,
   assessmentHudVisible: true,
   assessmentHudLocked: false,
   assessmentHudAnchor: 'bottomCenter',

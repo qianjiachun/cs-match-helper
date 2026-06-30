@@ -353,6 +353,8 @@ pub struct CounterStrafingSettings {
     pub assessment_perfect_threshold_ms: f64,
     #[serde(default = "default_assessment_success_threshold_ms")]
     pub assessment_success_threshold_ms: f64,
+    #[serde(default = "default_assessment_max_diff_ms")]
+    pub assessment_max_diff_ms: f64,
     #[serde(default = "default_assessment_history_limit")]
     pub assessment_history_limit: usize,
     #[serde(default = "default_true")]
@@ -423,7 +425,7 @@ fn default_success_error_threshold() -> f64 {
     0.35
 }
 fn default_history_limit() -> usize {
-    100
+    300
 }
 fn default_assessment_perfect_threshold_ms() -> f64 {
     2.0
@@ -431,8 +433,11 @@ fn default_assessment_perfect_threshold_ms() -> f64 {
 fn default_assessment_success_threshold_ms() -> f64 {
     10.0
 }
+fn default_assessment_max_diff_ms() -> f64 {
+    150.0
+}
 fn default_assessment_history_limit() -> usize {
-    100
+    300
 }
 
 impl Default for CounterStrafingSettings {
@@ -469,6 +474,7 @@ impl Default for CounterStrafingSettings {
             assessment_vertical_enabled: default_true(),
             assessment_perfect_threshold_ms: default_assessment_perfect_threshold_ms(),
             assessment_success_threshold_ms: default_assessment_success_threshold_ms(),
+            assessment_max_diff_ms: default_assessment_max_diff_ms(),
             assessment_history_limit: default_assessment_history_limit(),
             assessment_hud_visible: default_true(),
             assessment_hud_locked: false,

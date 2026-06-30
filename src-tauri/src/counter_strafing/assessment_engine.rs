@@ -3,7 +3,6 @@ use crate::counter_strafing::types::{
     CounterStrafingSettings, AssessmentAxis, AssessmentTiming, InputBinding,
 };
 
-const MAX_DIFF_SECS: f64 = 0.15;
 const MIN_RECORD_INTERVAL_SECS: f64 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,6 +98,10 @@ impl CounterStrafingAssessmentEngine {
 
     pub fn update_settings(&mut self, settings: CounterStrafingSettings) {
         self.settings = settings;
+        let limit = self.settings.assessment_history_limit;
+        if self.records.len() > limit {
+            self.records.drain(0..self.records.len() - limit);
+        }
     }
 
     pub fn clear_records(&mut self) {
@@ -183,7 +186,8 @@ impl CounterStrafingAssessmentEngine {
             return None;
         }
 
-        if diff_secs.abs() > MAX_DIFF_SECS {
+        let max_diff_secs = self.settings.assessment_max_diff_ms / 1000.0;
+        if diff_secs.abs() > max_diff_secs {
             return None;
         }
 

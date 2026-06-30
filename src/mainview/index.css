@@ -109,3 +109,14 @@ svg {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-fg-muted);
 }
+
+.input-no-spin::-webkit-outer-spin-button,
+.input-no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
