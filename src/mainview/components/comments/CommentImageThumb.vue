@@ -159,13 +159,4 @@ onMounted(() => {
   opacity: 0;
   transform: scale(0.96);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .comment-image-preview-enter-active,
-  .comment-image-preview-leave-active,
-  .comment-image-preview-enter-active img,
-  .comment-image-preview-leave-active img {
-    transition: none;
-  }
-}
 </style>

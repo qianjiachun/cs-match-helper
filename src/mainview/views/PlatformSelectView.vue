@@ -120,17 +120,4 @@ onMounted(() => {
   animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, opacity;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .platform-card, .animate-\[float_10s_ease-in-out_infinite_alternate\] {
-    transition: none !important;
-    animation: none !important;
-    transform: none !important;
-  }
-  .animate-slide-up-fade {
-    animation: none !important;
-    opacity: 1;
-    transform: none;
-  }
-}
 </style>

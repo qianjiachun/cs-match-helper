@@ -94,33 +94,3 @@
 .tab-fade-leave-from {
   opacity: 1;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .view-shell,
-  .phase-cross-enter-active,
-  .phase-cross-leave-active,
-  .settings-tab-enter-active,
-  .settings-tab-leave-active,
-  .tab-fade-enter-active,
-  .tab-fade-leave-active {
-    transition: none !important;
-  }
-
-  .view-shell--exit-left,
-  .view-shell--exit-right {
-    transform: none;
-  }
-
-  .phase-cross-enter-from,
-  .phase-cross-leave-to,
-  .settings-tab-enter-from,
-  .settings-tab-leave-to {
-    transform: none;
-    opacity: 1;
-  }
-
-  .tab-fade-enter-from,
-  .tab-fade-leave-to {
-    opacity: 1;
-  }
-}

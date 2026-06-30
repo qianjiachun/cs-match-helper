@@ -482,12 +482,3 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-@media (prefers-reduced-motion: reduce) {
-  .animate-\[spin_4s_linear_infinite\],
-  .animate-\[spin_3s_linear_infinite_reverse\] {
-    animation: none !important;
-  }
-}
-</style>

@@ -361,18 +361,4 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateY(8px) scale(0.98);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .update-dialog-enter-active,
-  .update-dialog-leave-active,
-  .update-dialog-enter-active > div,
-  .update-dialog-leave-active > div {
-    transition: none;
-  }
-
-  .update-dialog-enter-from > div,
-  .update-dialog-leave-to > div {
-    transform: none;
-  }
-}
 </style>

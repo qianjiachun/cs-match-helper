@@ -54,7 +54,7 @@ export function collectRuntimeDiagnostics(): RuntimeDiagnostics {
 export function formatRuntimeDiagnostics(info: RuntimeDiagnostics): string {
   const lines = [
     `User-Agent: ${info.userAgent}`,
-    `系统减少动态效果: ${info.prefersReducedMotion ? '是（抽屉等动画会缩短）' : '否'}`,
+    `系统减少动态效果: ${info.prefersReducedMotion ? '是（应用动画仍保持开启）' : '否'}`,
     `Chromium: ${info.chromiumVersion ?? '未知'}`,
     `WebView2: ${info.webview2Hint ?? '未检测到 Edge 标识'}`,
     `CSS 动画: ${info.cssAnimationSupported ? '支持' : '不支持'}`,

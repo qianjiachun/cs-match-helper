@@ -81,14 +81,6 @@ watch(
     opacity 150ms ease-in,
     transform 150ms ease-in;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .combo-pop-enter-active,
-  .combo-pop-leave-active {
-    transition: none;
-  }
-}
-
 .combo-pop-enter-from {
   opacity: 0;
   transform: scale(1.35) translateY(4px);

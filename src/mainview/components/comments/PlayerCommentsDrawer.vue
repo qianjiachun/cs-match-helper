@@ -147,13 +147,9 @@ function onBackdropClick() {
   props.comments.closeDrawer();
 }
 
-function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function playCopyIconPop() {
   const el = steamIdCopyIconRef.value;
-  if (!el || prefersReducedMotion()) return;
+  if (!el) return;
 
   animate(el, {
     scale: [1, 1.15, 1],
@@ -170,25 +166,10 @@ function flashCopyIcon() {
   }, 900);
 }
 
-function showCopySuccessFallback() {
-  copyJustSucceeded.value = true;
-  copyIconHighlighted.value = true;
-  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
-  copyFeedbackTimer = setTimeout(() => {
-    copyJustSucceeded.value = false;
-    copyIconHighlighted.value = false;
-  }, 1500);
-}
-
 function playCopySuccessAnimation() {
   const wrap = steamIdCopyWrapRef.value;
   const source = copyCheckTemplateRef.value?.querySelector('svg');
   if (!wrap || !source) return;
-
-  if (prefersReducedMotion()) {
-    showCopySuccessFallback();
-    return;
-  }
 
   const ghost = document.createElement('span');
   ghost.setAttribute('aria-hidden', 'true');
@@ -542,20 +523,6 @@ function onRetry() {
 .comment-drawer-leave-to .comment-drawer-panel {
   transform: translate3d(100%, 0, 0);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .comment-drawer-enter-active .comment-drawer-backdrop,
-  .comment-drawer-leave-active .comment-drawer-backdrop,
-  .comment-drawer-enter-active .comment-drawer-panel,
-  .comment-drawer-leave-active .comment-drawer-panel {
-    transition-duration: 0.01ms;
-  }
-
-  .comment-composer-textarea {
-    transition: none;
-  }
-}
-
 .comment-composer-textarea {
   overflow: hidden;
   scrollbar-width: none;
@@ -574,11 +541,5 @@ function onRetry() {
   width: 12px;
   height: 12px;
   stroke: currentColor;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .copy-steamid-ghost {
-    display: none;
-  }
 }
 </style>

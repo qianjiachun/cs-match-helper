@@ -347,22 +347,4 @@ async function copySteamId(steamid: string) {
 .history-pending {
   min-height: 132px;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .history-state-enter-active,
-  .history-state-leave-active,
-  .history-alert-enter-active,
-  .history-alert-leave-active,
-  .history-item-enter-active,
-  .history-item-leave-active,
-  .history-item-move {
-    transition-duration: 0.01ms;
-  }
-
-  .history-skeleton-card,
-  .history-skeleton-card > div > div,
-  .history-empty-icon {
-    animation: none;
-  }
-}
 </style>

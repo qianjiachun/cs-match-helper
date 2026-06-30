@@ -184,11 +184,3 @@ body {
   color: rgba(167, 139, 250, 0.92);
   text-shadow: 0 0 10px var(--hud-glow-purple);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .hud-chrome,
-  .combo-pop-enter-active,
-  .combo-pop-leave-active {
-    transition: none !important;
-  }
-}

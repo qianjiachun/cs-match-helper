@@ -210,19 +210,4 @@ onUnmounted(() => {
     transform: scale(1);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .emoji-picker-enter-active,
-  .emoji-picker-leave-active {
-    transition-duration: 0.01ms;
-  }
-
-  .emoji-picker-enter-active .emoji-picker-cell {
-    animation: none;
-  }
-
-  .emoji-picker-cell:active {
-    transform: none;
-  }
-}
 </style>

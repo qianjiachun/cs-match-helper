@@ -54,11 +54,3 @@ function onClick() {
     <span v-if="hasComments" class="min-w-2 tabular-nums">{{ countLabel }}</span>
   </button>
 </template>
-
-<style scoped>
-@media (prefers-reduced-motion: reduce) {
-  .comment-badge {
-    transition-duration: 0.01ms;
-  }
-}
-</style>

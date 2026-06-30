@@ -325,18 +325,4 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
   opacity: 0;
   transform: translateY(8px) scale(0.98);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .column-customizer-row {
-    transition: none !important;
-    will-change: auto;
-  }
-
-  .column-customizer-enter-active,
-  .column-customizer-leave-active,
-  .column-customizer-enter-active > div,
-  .column-customizer-leave-active > div {
-    transition: none;
-  }
-}
 </style>

@@ -227,13 +227,9 @@ watch(draft, () => {
   if (editing.value) void nextTick(resizeEditTextarea);
 });
 
-function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function playMainThumbPop() {
   const el = thumbRef.value;
-  if (!el || prefersReducedMotion()) return;
+  if (!el) return;
 
   animate(el, {
     scale: [1, 1.12, 1],
@@ -244,7 +240,7 @@ function playMainThumbPop() {
 
 function playUnlikeAnimation() {
   const el = thumbRef.value;
-  if (!el || prefersReducedMotion()) return;
+  if (!el) return;
 
   animate(el, {
     scale: [1, 0.9, 1],
@@ -257,7 +253,7 @@ function playUnlikeAnimation() {
 function playFloatThumbAnimation() {
   const wrap = thumbWrapRef.value;
   const source = thumbRef.value?.querySelector('svg');
-  if (!wrap || !source || prefersReducedMotion()) return;
+  if (!wrap || !source) return;
 
   const ghost = document.createElement('span');
   ghost.setAttribute('aria-hidden', 'true');
@@ -290,7 +286,7 @@ function playFloatThumbAnimation() {
 
 function playLikesCountAnimation() {
   const el = likesRef.value;
-  if (!el || prefersReducedMotion()) return;
+  if (!el) return;
 
   animate(el, {
     scale: [1, 1.14, 1],
@@ -903,20 +899,5 @@ function onLikeClick() {
   width: 14px;
   height: 14px;
   fill: currentColor;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .comment-edit-btn,
-  .comment-reply-btn {
-    transition: none;
-  }
-
-  .comment-edit-textarea {
-    transition: none;
-  }
-
-  .comment-like-ghost {
-    display: none;
-  }
 }
 </style>
