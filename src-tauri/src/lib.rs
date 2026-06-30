@@ -153,8 +153,19 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
             }
-            init_hud_window(app.handle())?;
-            init_assessment_hud_window(app.handle())?;
+
+            // HUD WebView 创建耗时，放到主窗口就绪后异步初始化，避免阻塞 setup 与 IPC 主线程
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(400)).await;
+                let handle = handle.clone();
+                let handle_for_main = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    let _ = init_hud_window(&handle_for_main);
+                    let _ = init_assessment_hud_window(&handle_for_main);
+                });
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

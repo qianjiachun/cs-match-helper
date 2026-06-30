@@ -206,7 +206,7 @@ export function mergeCounterStrafingSettings(
     assessmentMaxDiffMs: loaded.assessmentMaxDiffMs ?? 150,
     assessmentHudVisible: loaded.assessmentHudVisible ?? true,
     assessmentHudLocked: loaded.assessmentHudLocked ?? false,
-    assessmentHudAnchor: loaded.assessmentHudAnchor ?? 'bottomCenter',
+    assessmentHudAnchor: loaded.assessmentHudAnchor ?? 'topCenter',
     keyMap: {
       ...DEFAULT_KEY_MAP,
       ...loaded.keyMap,
@@ -250,7 +250,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   assessmentHistoryLimit: 300,
   assessmentHudVisible: true,
   assessmentHudLocked: false,
-  assessmentHudAnchor: 'bottomCenter',
+  assessmentHudAnchor: 'topCenter',
   assessmentHudX: null,
   assessmentHudY: null,
   assessmentHudWidth: null,

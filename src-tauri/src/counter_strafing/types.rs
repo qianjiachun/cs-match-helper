@@ -478,7 +478,7 @@ impl Default for CounterStrafingSettings {
             assessment_history_limit: default_assessment_history_limit(),
             assessment_hud_visible: default_true(),
             assessment_hud_locked: false,
-            assessment_hud_anchor: HudAnchor::BottomCenter,
+            assessment_hud_anchor: HudAnchor::default(),
             assessment_hud_x: None,
             assessment_hud_y: None,
             assessment_hud_width: None,

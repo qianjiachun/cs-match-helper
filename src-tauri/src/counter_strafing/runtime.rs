@@ -23,6 +23,7 @@ const ASSESSMENT_HUD_HEIGHT: f64 = HUD_HEIGHT;
 const ASSESSMENT_HUD_MIN_WIDTH: f64 = HUD_MIN_WIDTH;
 const ASSESSMENT_HUD_MIN_HEIGHT: f64 = HUD_MIN_HEIGHT;
 const HUD_MARGIN: i32 = 12;
+const HUD_STACK_GAP: i32 = 4;
 const SNAPSHOT_EMIT_INTERVAL: Duration = Duration::from_millis(100);
 const MIN_RECV_TIMEOUT: Duration = Duration::from_millis(1);
 const MAX_RECV_TIMEOUT: Duration = Duration::from_millis(50);
@@ -108,11 +109,8 @@ impl CounterStrafingRuntime {
         let show_assessment_hud = settings.assessment_hud_visible;
         drop(inner);
 
-        if show_shooting_hud {
-            let _ = self.show_hud(&app);
-        }
-        if show_assessment_hud {
-            let _ = self.show_assessment_hud(&app);
+        if show_shooting_hud || show_assessment_hud {
+            schedule_deferred_hud_show(app.clone(), show_shooting_hud, show_assessment_hud);
         }
 
         let snap = self.snapshot();
@@ -359,7 +357,10 @@ impl CounterStrafingRuntime {
     }
 
     pub fn show_hud(&self, app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
-        ensure_hud_window(app)?;
+        if app.get_webview_window(HUD_WINDOW_LABEL).is_none() {
+            schedule_deferred_hud_show(app.clone(), true, false);
+            return Err("HUD 窗口正在初始化，请稍后重试".to_string());
+        }
 
         let mut settings = load_counter_strafing_settings()?;
 
@@ -405,7 +406,10 @@ impl CounterStrafingRuntime {
     }
 
     pub fn show_assessment_hud(&self, app: &AppHandle) -> Result<CounterStrafingAssessmentSnapshot, String> {
-        ensure_assessment_hud_window(app)?;
+        if app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL).is_none() {
+            schedule_deferred_hud_show(app.clone(), false, true);
+            return Err("急停评估 HUD 窗口正在初始化，请稍后重试".to_string());
+        }
 
         let mut settings = load_counter_strafing_settings()?;
 
@@ -855,18 +859,32 @@ fn build_assessment_snapshot(inner: &RuntimeInner) -> CounterStrafingAssessmentS
     snap
 }
 
-fn ensure_assessment_hud_window(app: &AppHandle) -> Result<(), String> {
-    if app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL).is_some() {
-        return Ok(());
-    }
-    Err("急停评估 HUD 窗口未初始化，请重启应用".to_string())
-}
+fn schedule_deferred_hud_show(app: AppHandle, show_shooting: bool, show_assessment: bool) {
+    tauri::async_runtime::spawn(async move {
+        for _ in 0..50 {
+            let shooting_ready =
+                !show_shooting || app.get_webview_window(HUD_WINDOW_LABEL).is_some();
+            let assessment_ready = !show_assessment
+                || app
+                    .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
+                    .is_some();
+            if shooting_ready && assessment_ready {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
 
-fn ensure_hud_window(app: &AppHandle) -> Result<(), String> {
-    if app.get_webview_window(HUD_WINDOW_LABEL).is_some() {
-        return Ok(());
-    }
-    Err("HUD 窗口未初始化，请重启应用".to_string())
+        let app_for_main = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let runtime = app_for_main.state::<CounterStrafingRuntime>();
+            if show_shooting {
+                let _ = runtime.show_hud(&app_for_main);
+            }
+            if show_assessment {
+                let _ = runtime.show_assessment_hud(&app_for_main);
+            }
+        });
+    });
 }
 
 pub fn init_hud_window(app: &AppHandle) -> Result<(), String> {
@@ -959,7 +977,8 @@ fn apply_assessment_hud_bounds(window: &tauri::WebviewWindow, settings: &Counter
         .inner_size()
         .map(|size| (size.width as i32, size.height as i32))
         .unwrap_or((logical_w.round() as i32, logical_h.round() as i32));
-    position_hud_window(window, settings.assessment_hud_anchor, width, height);
+    let (x, y) = assessment_hud_position_below_shooting(window.app_handle(), settings, width, height);
+    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
 }
 
 fn preserve_assessment_hud_bounds(
@@ -1058,6 +1077,52 @@ fn hud_position(rect: &ScreenRect, anchor: HudAnchor, width: i32, height: i32) -
             rect.y + rect.height - height - HUD_MARGIN
         }
     };
+    (x, y)
+}
+
+fn shooting_hud_rect(settings: &CounterStrafingSettings) -> (i32, i32, i32, i32) {
+    if let (Some(x), Some(y), Some(width), Some(height)) = (
+        settings.hud_x,
+        settings.hud_y,
+        settings.hud_width,
+        settings.hud_height,
+    ) {
+        return (
+            x,
+            y,
+            width.round().clamp(HUD_MIN_WIDTH, 960.0) as i32,
+            height.round().clamp(HUD_MIN_HEIGHT, 480.0) as i32,
+        );
+    }
+
+    let logical_w = settings.hud_width.unwrap_or(HUD_WIDTH);
+    let logical_h = settings.hud_height.unwrap_or(HUD_HEIGHT);
+    let width = logical_w.round() as i32;
+    let height = logical_h.round() as i32;
+    let rect = win_input::resolve_hud_target_rect();
+    let (x, y) = hud_position(&rect, settings.hud_anchor, width, height);
+    (x, y, width, height)
+}
+
+fn assessment_hud_position_below_shooting(
+    app: &AppHandle,
+    settings: &CounterStrafingSettings,
+    assessment_width: i32,
+    _assessment_height: i32,
+) -> (i32, i32) {
+    if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
+        if let (Ok(pos), Ok(size)) = (shooting.outer_position(), shooting.inner_size()) {
+            let center_x = pos.x + size.width as i32 / 2;
+            let x = center_x - assessment_width / 2;
+            let y = pos.y + size.height as i32 + HUD_STACK_GAP;
+            return (x, y);
+        }
+    }
+
+    let (shooting_x, shooting_y, shooting_w, shooting_h) = shooting_hud_rect(settings);
+    let center_x = shooting_x + shooting_w / 2;
+    let x = center_x - assessment_width / 2;
+    let y = shooting_y + shooting_h + HUD_STACK_GAP;
     (x, y)
 }
 

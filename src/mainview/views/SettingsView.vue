@@ -106,7 +106,7 @@ function selectTab(tab: SettingsTab) {
           <div v-else-if="activeTab === 'comments'" key="comments">
             <CommentHistorySection
               :comments="comments"
-              :visible="visible && activeTab === 'comments'"
+              :visible="(visible ?? true) && activeTab === 'comments'"
             />
           </div>
           <div v-else key="about">

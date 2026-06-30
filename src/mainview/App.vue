@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { onMounted, ref } from 'vue';
 import CopyToast from './components/CopyToast.vue';
 import PlayerCommentsDrawer from './components/comments/PlayerCommentsDrawer.vue';
@@ -40,8 +41,11 @@ const {
 } = useUpdateCheck();
 
 onMounted(() => {
+  void getCurrentWindow().show();
   void ensureVersion();
-  void check();
+  window.setTimeout(() => {
+    void check();
+  }, 1500);
 });
 
 async function injectAiResult(raw: string): Promise<string | null> {
@@ -151,11 +155,12 @@ function onBackFromP5e() {
         :aria-hidden="currentView !== 'settings'"
       >
         <SettingsView
+          v-if="currentView === 'settings'"
           class="h-full"
           :ai="ai"
           :comments="comments"
           :initial-tab="settingsTab"
-          :visible="currentView === 'settings'"
+          :visible="true"
         />
       </div>
       <div
@@ -163,7 +168,10 @@ function onBackFromP5e() {
         :class="currentView === 'counter-strafing' ? 'view-shell--active' : 'view-shell--exit-right'"
         :aria-hidden="currentView !== 'counter-strafing'"
       >
-        <CounterStrafingView class="h-full" :visible="currentView === 'counter-strafing'" />
+        <CounterStrafingView
+          v-if="currentView === 'counter-strafing'"
+          class="h-full"
+        />
       </div>
     </main>
     <CopyToast />

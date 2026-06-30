@@ -1,12 +1,21 @@
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const APP_NAMESPACE: &str = "com.csmatchhelper.comments.v1";
 const FALLBACK_FILENAME: &str = "comment-client-id";
 
+static COMMENT_CLIENT_KEY: OnceLock<Result<String, String>> = OnceLock::new();
+
 #[tauri::command]
 pub fn get_comment_client_key() -> Result<String, String> {
+    COMMENT_CLIENT_KEY
+        .get_or_init(resolve_client_key)
+        .clone()
+}
+
+fn resolve_client_key() -> Result<String, String> {
     let client_id = resolve_client_id()?;
     Ok(sha256_hex(&client_id))
 }

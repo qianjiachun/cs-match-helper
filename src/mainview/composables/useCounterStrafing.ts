@@ -40,6 +40,25 @@ const BINDING_ROLES: BindingRole[] = ['forward', 'back', 'left', 'right', 'crouc
 
 const INPUT_LISTEN_ADMIN_HINT = '以管理员身份运行';
 
+const HUD_INIT_RETRY_HINT = '正在初始化';
+
+async function withHudInitRetry<T>(action: () => Promise<T>, attempts = 10): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes(HUD_INIT_RETRY_HINT) || attempt === attempts - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+  throw lastError;
+}
+
 export function useCounterStrafing() {
   const snapshot = ref<CounterStrafingSnapshot>({
     active: false,
@@ -184,7 +203,7 @@ export function useCounterStrafing() {
         assessmentSnapshot.value = await hideCounterStrafingAssessmentHud();
         settings.value.assessmentHudVisible = false;
       } else {
-        assessmentSnapshot.value = await showCounterStrafingAssessmentHud();
+        assessmentSnapshot.value = await withHudInitRetry(() => showCounterStrafingAssessmentHud());
         settings.value.assessmentHudVisible = true;
       }
     } catch (e) {
@@ -202,7 +221,7 @@ export function useCounterStrafing() {
         snapshot.value = await hideCounterStrafingHud();
         settings.value.hudVisible = false;
       } else {
-        snapshot.value = await showCounterStrafingHud();
+        snapshot.value = await withHudInitRetry(() => showCounterStrafingHud());
         settings.value.hudVisible = true;
       }
     } catch (e) {
