@@ -420,7 +420,7 @@ export function timingColor(
 
 export function comboLabel(record: CounterStrafingAssessmentRecord): string {
   if (record.isPerfect || record.timing === 'perfect') return '完美';
-  if (record.isSuccess) return '成功';
+  if (record.isSuccess) return '优秀';
   if (record.timing === 'early') return '偏早';
   return '偏晚';
 }

@@ -120,14 +120,14 @@ function selectTab(tab: CounterStrafingTab) {
   <div class="flex h-full min-h-0 bg-base">
     <aside
       class="flex w-[220px] shrink-0 flex-col border-r border-border bg-surface"
-      aria-label="急停HUD 导航"
+      aria-label="急停助手导航"
     >
       <div class="border-b border-border px-4 py-4">
         <div class="flex items-center gap-2.5">
           <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent">
             <Gauge class="h-4 w-4" aria-hidden="true" />
           </div>
-          <h1 class="text-[14px] font-semibold text-fg">急停HUD</h1>
+          <h1 class="text-[14px] font-semibold text-fg">急停助手</h1>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ function selectTab(tab: CounterStrafingTab) {
                 <li>完全退出 CS 匹配助手</li>
                 <li>在桌面或开始菜单找到程序图标</li>
                 <li>右键 → 以管理员身份运行</li>
-                <li>返回急停 HUD，再次点击「开始记录」</li>
+                <li>返回急停助手，再次点击「开始记录」</li>
               </ol>
             </div>
           </div>
@@ -276,7 +276,7 @@ function selectTab(tab: CounterStrafingTab) {
                   </p>
                 </div>
                 <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">成功率</p>
+                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">优秀率</p>
                   <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
                     {{ assessmentSnapshot.successRate.toFixed(1) }}<span class="text-[12px] font-medium text-fg-muted">%</span>
                   </p>
@@ -669,7 +669,7 @@ function selectTab(tab: CounterStrafingTab) {
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">成功误差阈值</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
                   <input
                     :value="settings.successErrorThreshold"
                     type="number"
@@ -730,7 +730,7 @@ function selectTab(tab: CounterStrafingTab) {
                   />
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">成功阈值 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">优秀阈值 (ms)</span>
                   <input
                     :value="settings.assessmentSuccessThresholdMs"
                     type="number"

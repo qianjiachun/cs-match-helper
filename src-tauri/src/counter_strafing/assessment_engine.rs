@@ -3,7 +3,7 @@ use crate::counter_strafing::types::{
     CounterStrafingSettings, AssessmentAxis, AssessmentTiming, InputBinding,
 };
 
-const MAX_DIFF_SECS: f64 = 0.2;
+const MAX_DIFF_SECS: f64 = 0.15;
 const MIN_RECORD_INTERVAL_SECS: f64 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +105,12 @@ impl CounterStrafingAssessmentEngine {
         self.records.clear();
     }
 
+    pub fn is_movement_pressed(&self, role: BindingRole) -> bool {
+        role_to_movement(role)
+            .map(|k| self.key_states[k.index()].pressed)
+            .unwrap_or(false)
+    }
+
     pub fn handle_movement(
         &mut self,
         role: BindingRole,
@@ -203,7 +209,7 @@ impl CounterStrafingAssessmentEngine {
         let timing_label = if is_perfect {
             "完美".to_string()
         } else if is_success {
-            "成功".to_string()
+            "优秀".to_string()
         } else if diff_ms < 0.0 {
             "偏早".to_string()
         } else {
@@ -391,7 +397,7 @@ mod tests {
         let r = e.handle_movement(BindingRole::Right, true, 0.108).unwrap();
         assert!(!r.is_perfect);
         assert!(r.is_success);
-        assert_eq!(r.timing_label, "成功");
+        assert_eq!(r.timing_label, "优秀");
     }
 
     #[test]

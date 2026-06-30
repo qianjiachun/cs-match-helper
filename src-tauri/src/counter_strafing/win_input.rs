@@ -1,6 +1,6 @@
 #[cfg(windows)]
 mod platform {
-    use crate::counter_strafing::types::{InputEvent, InputSource};
+    use crate::counter_strafing::types::{InputBinding, InputEvent, InputSource};
     use crossbeam_channel::{bounded, Receiver, Sender};
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
@@ -11,9 +11,11 @@ mod platform {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{GetLastError, HWND, LPARAM, LRESULT, WPARAM};
     use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
     use windows::Win32::UI::Input::{
-        GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
-        RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+        GetRawInputBuffer, GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT,
+        RAWINPUTDEVICE, RAWINPUTHEADER, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT,
+        RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
     };
     use std::sync::Mutex;
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -322,7 +324,11 @@ mod platform {
                 let state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut LoopState;
                 if !state_ptr.is_null() {
                     let state = &*state_ptr;
-                    for event in parse_raw_input(lparam) {
+                    let mut events = drain_raw_input_buffer();
+                    if events.is_empty() {
+                        events = parse_raw_input_from_handle(HRAWINPUT(lparam.0 as _));
+                    }
+                    for event in events {
                         let _ = state.tx.try_send(event);
                     }
                 }
@@ -336,8 +342,44 @@ mod platform {
         }
     }
 
-    unsafe fn parse_raw_input(lparam: LPARAM) -> Vec<InputEvent> {
-        let hraw = HRAWINPUT(lparam.0 as _);
+    /// 批量排空 Raw Input 队列，避免高回报率鼠标下逐条 GetRawInputData 丢事件。
+    unsafe fn drain_raw_input_buffer() -> Vec<InputEvent> {
+        let header_size = std::mem::size_of::<RAWINPUTHEADER>() as u32;
+        let mut events = Vec::new();
+
+        loop {
+            let mut size = 0u32;
+            // pData=NULL 时成功返回 0，所需字节数写入 size；不能把 count==0 当作无数据。
+            let probe = GetRawInputBuffer(None, &mut size, header_size);
+            if probe == u32::MAX || size == 0 {
+                break;
+            }
+
+            let mut buf = vec![0u8; size as usize];
+            let mut read_size = size;
+            let count = GetRawInputBuffer(
+                Some(buf.as_mut_ptr() as *mut RAWINPUT),
+                &mut read_size,
+                header_size,
+            );
+            if count == 0 || count == u32::MAX {
+                break;
+            }
+
+            let mut ptr = buf.as_ptr() as *const RAWINPUT;
+            let end = buf.as_ptr().add(read_size as usize);
+
+            while (ptr as *const u8) < end {
+                events.extend(parse_raw_input_record(&*ptr));
+                ptr = next_raw_input_block(ptr);
+            }
+        }
+
+        events
+    }
+
+    /// WM_INPUT 的 lparam 单条回退，防止批量接口在个别环境下未取到数据。
+    unsafe fn parse_raw_input_from_handle(hraw: HRAWINPUT) -> Vec<InputEvent> {
         let mut size = 0u32;
         let _ = GetRawInputData(
             hraw,
@@ -363,6 +405,17 @@ mod platform {
         }
 
         let raw = &*(buf.as_ptr() as *const RAWINPUT);
+        parse_raw_input_record(raw)
+    }
+
+    unsafe fn next_raw_input_block(ptr: *const RAWINPUT) -> *const RAWINPUT {
+        let size = (*ptr).header.dwSize as usize;
+        let align = std::mem::size_of::<usize>();
+        let aligned_size = (size + align - 1) & !(align - 1);
+        (ptr as *const u8).add(aligned_size) as *const RAWINPUT
+    }
+
+    unsafe fn parse_raw_input_record(raw: &RAWINPUT) -> Vec<InputEvent> {
         let time = qpc_secs();
 
         if raw.header.dwType == RIM_TYPEKEYBOARD.0 as u32 {
@@ -393,6 +446,31 @@ mod platform {
         }
 
         Vec::new()
+    }
+
+    fn mouse_button_vk(button: u8) -> Option<i32> {
+        Some(match button {
+            0 => 0x01, // VK_LBUTTON
+            1 => 0x02, // VK_RBUTTON
+            2 => 0x04, // VK_MBUTTON
+            3 => 0x05, // VK_XBUTTON1
+            4 => 0x06, // VK_XBUTTON2
+            _ => return None,
+        })
+    }
+
+    fn is_vk_pressed(vk: i32) -> bool {
+        unsafe { GetAsyncKeyState(vk) as u16 & 0x8000 != 0 }
+    }
+
+    /// 查询绑定键在系统层面的实际按下状态（用于漏 UP 时的兜底校正）。
+    pub fn is_binding_physically_pressed(binding: &InputBinding) -> bool {
+        match binding {
+            InputBinding::Keyboard { vk, .. } => is_vk_pressed(*vk as i32),
+            InputBinding::Mouse { button, .. } => mouse_button_vk(*button)
+                .map(is_vk_pressed)
+                .unwrap_or(false),
+        }
     }
 
     fn push_mouse_event(
@@ -447,7 +525,7 @@ mod platform {
 
 #[cfg(not(windows))]
 mod platform {
-    use crate::counter_strafing::types::InputEvent;
+    use crate::counter_strafing::types::{InputBinding, InputEvent};
     use crossbeam_channel::{bounded, Receiver};
 
     pub fn qpc_secs() -> f64 {
@@ -495,6 +573,10 @@ mod platform {
     }
 
     pub fn apply_click_through_styles(_hwnd: isize) {}
+
+    pub fn is_binding_physically_pressed(_binding: &InputBinding) -> bool {
+        false
+    }
 }
 
 pub use platform::*;

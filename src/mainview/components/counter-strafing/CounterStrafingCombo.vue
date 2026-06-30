@@ -31,9 +31,10 @@ watch(
     displayRecord.value = record;
     visible.value = true;
     if (hideTimer) clearTimeout(hideTimer);
+    const dwellMs = props.variant === 'hud' ? 360 : 500;
     hideTimer = setTimeout(() => {
       visible.value = false;
-    }, 500);
+    }, dwellMs);
   },
 );
 </script>
@@ -43,7 +44,7 @@ watch(
     <div
       v-if="visible && displayRecord"
       class="pointer-events-none flex flex-col items-center"
-      :class="variant === 'hud' ? 'hud-combo hud-combo-overlay' : ''"
+      :class="variant === 'hud' ? 'hud-combo hud-combo-overlay hud-combo--hud' : ''"
       :style="{ color: accentColor }"
     >
       <p
@@ -96,5 +97,17 @@ watch(
 .combo-pop-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(-8px);
+}
+
+.hud-combo--hud.combo-pop-enter-active {
+  transition:
+    opacity 70ms ease-out,
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hud-combo--hud.combo-pop-leave-active {
+  transition:
+    opacity 100ms ease-in,
+    transform 100ms ease-in;
 }
 </style>

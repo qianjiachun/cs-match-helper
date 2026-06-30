@@ -149,7 +149,7 @@ onUnmounted(() => {
             </span>
           </div>
           <div class="hud-shooting-stat">
-            <span class="hud-shooting-stat-label">成功率</span>
+            <span class="hud-shooting-stat-label">优秀率</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
               :style="{ color: snapshot.records.length ? successRateColor(snapshot.successRate) : undefined }"

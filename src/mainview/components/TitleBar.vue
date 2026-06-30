@@ -78,13 +78,13 @@ const emit = defineEmits<{
             ? 'bg-elevated text-fg'
             : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
         "
-        :aria-label="view === 'counter-strafing' ? '急停（当前）' : '打开急停'"
+        :aria-label="view === 'counter-strafing' ? '急停助手（当前）' : '打开急停助手'"
         :aria-current="view === 'counter-strafing' ? 'page' : undefined"
-        title="急停"
+        title="急停助手"
         @click="view === 'main' && emit('openCounterStrafing')"
       >
         <Gauge class="h-4 w-4" />
-        <span class="hidden sm:inline">急停</span>
+        <span class="hidden sm:inline">急停助手</span>
       </button>
       <button
         v-if="view === 'main'"

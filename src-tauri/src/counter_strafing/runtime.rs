@@ -596,6 +596,102 @@ fn compute_recv_timeout(engine: Option<&CounterStrafingEngine>) -> Duration {
     MAX_RECV_TIMEOUT
 }
 
+fn dispatch_consumer_event(app: &AppHandle, event: InputEvent) {
+    let (shot, assessment_record) = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        let binding = event_to_binding(&event);
+        let role = inner.settings.key_map.role_for_binding(&binding);
+        let assessment_record = role.and_then(|role| {
+            matches!(
+                role,
+                BindingRole::Left | BindingRole::Right | BindingRole::Forward | BindingRole::Back
+            )
+            .then(|| {
+                inner.assessment_engine.as_mut().and_then(|engine| {
+                    engine.handle_movement(role, event.is_down, event.time_secs)
+                })
+            })
+            .flatten()
+        });
+        let shot = inner
+            .engine
+            .as_mut()
+            .and_then(|engine| engine.handle_event(event));
+        (shot, assessment_record)
+    };
+
+    if let Some(ref record) = assessment_record {
+        let snap = app.state::<CounterStrafingRuntime>().assessment_snapshot();
+        let _ = app.emit("counter-strafing-assessment-record", record.clone());
+        let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+    }
+
+    if let Some(record) = shot {
+        let snap = app.state::<CounterStrafingRuntime>().snapshot();
+        let _ = app.emit("counter-strafing-shot", record);
+        let _ = app.emit("counter-strafing-snapshot", snap);
+    } else if assessment_record.is_none() {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        maybe_emit_snapshot(app, &mut inner);
+        maybe_emit_assessment_snapshot(app, &mut inner);
+    }
+}
+
+fn reconcile_stuck_inputs(app: &AppHandle, now: f64) {
+    let stuck_events = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let inner = runtime.inner.lock().unwrap();
+        inner
+            .engine
+            .as_ref()
+            .map(|engine| {
+                engine.collect_stuck_releases(
+                    &inner.settings.key_map,
+                    win_input::is_binding_physically_pressed,
+                    now,
+                )
+            })
+            .unwrap_or_default()
+    };
+
+    for event in stuck_events {
+        dispatch_consumer_event(app, event);
+    }
+
+    let assessment_records = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        let key_map = inner.settings.key_map.clone();
+        let Some(assessment) = inner.assessment_engine.as_mut() else {
+            return;
+        };
+        let mut records = Vec::new();
+        for role in [
+            BindingRole::Left,
+            BindingRole::Right,
+            BindingRole::Forward,
+            BindingRole::Back,
+        ] {
+            if assessment.is_movement_pressed(role)
+                && !win_input::is_binding_physically_pressed(key_map.binding_for_role(role))
+            {
+                if let Some(record) = assessment.handle_movement(role, false, now) {
+                    records.push(record);
+                }
+            }
+        }
+        records
+    };
+
+    for record in assessment_records {
+        let snap = app.state::<CounterStrafingRuntime>().assessment_snapshot();
+        let _ = app.emit("counter-strafing-assessment-record", record);
+        let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+    }
+}
+
 fn consumer_loop(
     app: AppHandle,
     rx: crossbeam_channel::Receiver<InputEvent>,
@@ -656,55 +752,15 @@ fn consumer_loop(
                     continue;
                 }
 
-                let (shot, assessment_record) = {
-                    let runtime = app.state::<CounterStrafingRuntime>();
-                    let mut inner = runtime.inner.lock().unwrap();
-                    let binding = event_to_binding(&event);
-                    let role = inner.settings.key_map.role_for_binding(&binding);
-                    let assessment_record = role.and_then(|role| {
-                        matches!(
-                            role,
-                            BindingRole::Left
-                                | BindingRole::Right
-                                | BindingRole::Forward
-                                | BindingRole::Back
-                        )
-                        .then(|| {
-                            inner.assessment_engine.as_mut().and_then(|engine| {
-                                engine.handle_movement(role, event.is_down, event.time_secs)
-                            })
-                        })
-                        .flatten()
-                    });
-                    let shot = inner
-                        .engine
-                        .as_mut()
-                        .and_then(|engine| engine.handle_event(event));
-                    (shot, assessment_record)
-                };
-
-                if let Some(ref record) = assessment_record {
-                    let snap = app.state::<CounterStrafingRuntime>().assessment_snapshot();
-                    let _ = app.emit("counter-strafing-assessment-record", record.clone());
-                    let _ = app.emit("counter-strafing-assessment-snapshot", snap);
-                }
-
-                if let Some(record) = shot {
-                    let snap = app.state::<CounterStrafingRuntime>().snapshot();
-                    let _ = app.emit("counter-strafing-shot", record);
-                    let _ = app.emit("counter-strafing-snapshot", snap);
-                } else if assessment_record.is_none() {
-                    let runtime = app.state::<CounterStrafingRuntime>();
-                    let mut inner = runtime.inner.lock().unwrap();
-                    maybe_emit_snapshot(&app, &mut inner);
-                    maybe_emit_assessment_snapshot(&app, &mut inner);
-                }
+                dispatch_consumer_event(&app, event);
             }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+                let now = win_input::qpc_secs();
+                reconcile_stuck_inputs(&app, now);
+
                 let runtime = app.state::<CounterStrafingRuntime>();
                 let mut inner = runtime.inner.lock().unwrap();
                 if inner.capturing_binding.is_none() {
-                    let now = win_input::qpc_secs();
                     let tick_record = inner
                         .engine
                         .as_mut()

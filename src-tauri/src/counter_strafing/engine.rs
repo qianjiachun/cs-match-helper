@@ -1,12 +1,16 @@
 use crate::counter_strafing::types::{
-    BindingRole, CounterStrafingSettings, CounterStrafingSnapshot, FireSampleKind, InputBinding,
-    InputEvent, InputSource, ShootingErrorReason, ShootingErrorRecord,
+    BindingRole, CounterStrafingKeyMap, CounterStrafingSettings, CounterStrafingSnapshot, FireSampleKind,
+    InputBinding, InputEvent, InputSource, ShootingErrorReason, ShootingErrorRecord,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MICRO_SPEED_RATIO: f64 = 1.5;
 const STARTUP_GRACE_MAX_SPEED_RATIO: f64 = 2.0;
 const TIME_EPS: f64 = 1e-6;
+/// 单次按住最长时长；超过则强制结束开火采样，防止漏 UP 时无限连发。
+const MAX_FIRE_HOLD_SECS: f64 = 30.0;
+/// 连发采样次数上限（默认 100ms 间隔下约 30 秒）。
+const MAX_AUTO_FIRE_SAMPLES: u32 = 300;
 
 pub struct CounterStrafingEngine {
     settings: CounterStrafingSettings,
@@ -60,6 +64,21 @@ impl FireScheduler {
 
     fn on_fire_up(&mut self) {
         self.active = false;
+    }
+
+    fn exceeds_guard(&self, now: f64) -> bool {
+        if !self.active {
+            return false;
+        }
+        if self.first_sample_emitted && self.sequence_index >= MAX_AUTO_FIRE_SAMPLES {
+            return true;
+        }
+        now - self.down_time >= MAX_FIRE_HOLD_SECS
+    }
+
+    fn force_release(&mut self) {
+        self.active = false;
+        self.first_sample_emitted = true;
     }
 
     fn mark_first_sample(&mut self, time: f64) {
@@ -393,6 +412,11 @@ impl CounterStrafingEngine {
             return None;
         }
         self.last_tick_time = time;
+        if self.fire_scheduler.exceeds_guard(time) {
+            self.fire_scheduler.force_release();
+            self.fire_pressed = false;
+            return None;
+        }
         if let Some(record) = self.process_fire_scheduler(time) {
             return Some(record);
         }
@@ -478,6 +502,12 @@ impl CounterStrafingEngine {
     }
 
     fn process_fire_scheduler(&mut self, now: f64) -> Option<ShootingErrorRecord> {
+        if self.fire_scheduler.exceeds_guard(now) {
+            self.fire_scheduler.force_release();
+            self.fire_pressed = false;
+            return None;
+        }
+
         let due = self.fire_scheduler.next_sample_due_time(
             self.settings.tap_max_hold_ms,
             self.settings.auto_fire_interval_ms,
@@ -849,6 +879,55 @@ impl CounterStrafingEngine {
     fn resolve_role(&self, source: &InputSource) -> Option<BindingRole> {
         let binding = source_to_binding(source);
         self.settings.key_map.role_for_binding(&binding)
+    }
+
+    /// 引擎认为仍按下、但系统查询已松开的绑定，合成 UP 事件以校正漏掉的 Raw Input。
+    pub fn collect_stuck_releases(
+        &self,
+        key_map: &CounterStrafingKeyMap,
+        is_pressed: impl Fn(&InputBinding) -> bool,
+        time: f64,
+    ) -> Vec<InputEvent> {
+        let mut events = Vec::new();
+
+        if self.fire_pressed && !is_pressed(key_map.binding_for_role(BindingRole::Fire)) {
+            events.push(stuck_release_event(key_map.binding_for_role(BindingRole::Fire), time));
+        }
+        if self.crouch_pressed && !is_pressed(key_map.binding_for_role(BindingRole::Crouch)) {
+            events.push(stuck_release_event(
+                key_map.binding_for_role(BindingRole::Crouch),
+                time,
+            ));
+        }
+
+        let movement_roles = [
+            BindingRole::Forward,
+            BindingRole::Back,
+            BindingRole::Left,
+            BindingRole::Right,
+        ];
+        for (idx, role) in movement_roles.iter().enumerate() {
+            if self.movement_pressed[idx] && !is_pressed(key_map.binding_for_role(*role)) {
+                events.push(stuck_release_event(key_map.binding_for_role(*role), time));
+            }
+        }
+
+        events
+    }
+}
+
+fn stuck_release_event(binding: &InputBinding, time: f64) -> InputEvent {
+    InputEvent {
+        source: binding_to_source(binding),
+        is_down: false,
+        time_secs: time,
+    }
+}
+
+fn binding_to_source(binding: &InputBinding) -> InputSource {
+    match binding {
+        InputBinding::Keyboard { vk, .. } => InputSource::Keyboard(*vk),
+        InputBinding::Mouse { button, .. } => InputSource::Mouse(*button),
     }
 }
 
@@ -1502,5 +1581,41 @@ mod tests {
             assert!(!record.is_stable);
             assert_eq!(record.score_label, "微动");
         }
+    }
+
+    #[test]
+    fn collect_stuck_releases_synthesizes_fire_up_when_physically_released() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        engine.handle_event(evt(mouse(0), true, 0.0));
+        let key_map = settings().key_map.clone();
+        let stuck = engine.collect_stuck_releases(&key_map, |_| false, 0.05);
+        assert_eq!(stuck.len(), 1);
+        assert!(!stuck[0].is_down);
+        match stuck[0].source {
+            InputSource::Mouse(0) => {}
+            _ => panic!("expected mouse left"),
+        }
+    }
+
+    #[test]
+    fn fire_hold_guard_stops_infinite_auto_samples() {
+        let mut s = settings();
+        s.tap_max_hold_ms = 50.0;
+        s.auto_fire_interval_ms = 10.0;
+        s.fire_sample_delay_ms = 5.0;
+        let mut engine = CounterStrafingEngine::new(s);
+        engine.handle_event(evt(mouse(0), true, 0.0));
+        engine.tick(0.006).expect("first sample");
+
+        let mut samples = 1u32;
+        let mut t = 0.06;
+        while t < 35.0 {
+            if engine.tick(t).is_some() {
+                samples += 1;
+            }
+            t += 0.01;
+        }
+        assert!(samples <= MAX_AUTO_FIRE_SAMPLES);
+        assert!(engine.next_sample_due_time().is_none());
     }
 }
