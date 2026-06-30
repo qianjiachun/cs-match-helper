@@ -8,12 +8,16 @@ use tauri::{AppHandle, Emitter, State};
 
 const SETTINGS_FILENAME: &str = "cs-match-helper-settings.json";
 const AI_REQUEST_TIMEOUT_MS: u64 = 10 * 60 * 1000;
+const PROVIDER_DEEPSEEK: &str = "deepseek";
+const PROVIDER_OPENAI_COMPATIBLE: &str = "openai_compatible";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiSettings {
     #[serde(default = "default_analysis_enabled")]
     pub analysis_enabled: bool,
+    #[serde(default = "default_provider_mode")]
+    pub provider_mode: String,
     #[serde(default)]
     pub api_key: String,
     #[serde(default = "default_base_url")]
@@ -34,6 +38,14 @@ pub struct AiSettings {
 
 fn default_analysis_enabled() -> bool {
     true
+}
+
+fn default_provider_mode() -> String {
+    PROVIDER_DEEPSEEK.to_string()
+}
+
+fn is_deepseek_provider(mode: &str) -> bool {
+    mode != PROVIDER_OPENAI_COMPATIBLE
 }
 
 fn default_base_url() -> String {
@@ -60,6 +72,7 @@ impl Default for AiSettings {
     fn default() -> Self {
         Self {
             analysis_enabled: default_analysis_enabled(),
+            provider_mode: default_provider_mode(),
             api_key: String::new(),
             base_url: default_base_url(),
             model: default_model(),
@@ -76,6 +89,7 @@ impl Default for AiSettings {
 #[serde(rename_all = "camelCase")]
 pub struct AiSettingsPublic {
     pub analysis_enabled: bool,
+    pub provider_mode: String,
     pub has_api_key: bool,
     /// 完整 Key，仅用于本机设置面板回显（请求仍由 Rust 侧发起）
     pub api_key: String,
@@ -93,6 +107,7 @@ pub struct AiSettingsPublic {
 #[serde(rename_all = "camelCase")]
 pub struct SaveAiSettingsInput {
     pub analysis_enabled: Option<bool>,
+    pub provider_mode: Option<String>,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub model: Option<String>,
@@ -204,13 +219,25 @@ pub fn apply_settings_patch(settings: &mut AiSettings, input: &SaveAiSettingsInp
     if let Some(v) = input.analysis_enabled {
         settings.analysis_enabled = v;
     }
+    if let Some(ref v) = input.provider_mode {
+        let trimmed = v.trim();
+        settings.provider_mode = if trimmed == PROVIDER_OPENAI_COMPATIBLE {
+            PROVIDER_OPENAI_COMPATIBLE.to_string()
+        } else {
+            PROVIDER_DEEPSEEK.to_string()
+        };
+    }
     if let Some(ref v) = input.api_key {
         settings.api_key = v.trim().to_string();
     }
     if let Some(ref v) = input.base_url {
         let trimmed = v.trim();
         settings.base_url = if trimmed.is_empty() {
-            default_base_url()
+            if is_deepseek_provider(&settings.provider_mode) {
+                default_base_url()
+            } else {
+                String::new()
+            }
         } else {
             trimmed.to_string()
         };
@@ -218,7 +245,11 @@ pub fn apply_settings_patch(settings: &mut AiSettings, input: &SaveAiSettingsInp
     if let Some(ref v) = input.model {
         let trimmed = v.trim();
         settings.model = if trimmed.is_empty() {
-            default_model()
+            if is_deepseek_provider(&settings.provider_mode) {
+                default_model()
+            } else {
+                String::new()
+            }
         } else {
             trimmed.to_string()
         };
@@ -259,6 +290,7 @@ fn mask_api_key(key: &str) -> String {
 fn to_public(settings: &AiSettings) -> AiSettingsPublic {
     AiSettingsPublic {
         analysis_enabled: settings.analysis_enabled,
+        provider_mode: settings.provider_mode.clone(),
         has_api_key: !settings.api_key.is_empty(),
         api_key: settings.api_key.clone(),
         api_key_masked: mask_api_key(&settings.api_key),
@@ -359,7 +391,13 @@ pub async fn start_ai_analysis(
         return Err("AI 分析已在设置中关闭".to_string());
     }
     if settings.api_key.trim().is_empty() {
-        return Err("请先在设置中配置 DeepSeek API Key".to_string());
+        return Err("请先在设置中配置 API Key".to_string());
+    }
+    if settings.base_url.trim().is_empty() {
+        return Err("请先在设置中配置 API Base URL".to_string());
+    }
+    if settings.model.trim().is_empty() {
+        return Err("请先在设置中配置模型名称".to_string());
     }
 
     ai_state.cancel_all();
@@ -430,7 +468,7 @@ async fn run_streaming_analysis(
         "response_format": { "type": "json_object" },
     });
 
-    if settings.thinking_enabled {
+    if is_deepseek_provider(&settings.provider_mode) && settings.thinking_enabled {
         body["thinking"] = serde_json::json!({ "type": "enabled" });
         body["reasoning_effort"] = serde_json::json!(settings.reasoning_effort);
     }
@@ -447,12 +485,12 @@ async fn run_streaming_analysis(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("请求 DeepSeek 失败: {e}"))?;
+        .map_err(|e| format!("请求 AI 服务失败: {e}"))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(format!("DeepSeek API 错误 ({status}): {text}"));
+        return Err(format!("AI API 错误 ({status}): {text}"));
     }
 
     let mut stream = response.bytes_stream();
@@ -532,6 +570,7 @@ mod tests {
         let settings = parse_settings_json(legacy).expect("legacy json should parse");
 
         assert!(!settings.analysis_enabled);
+        assert_eq!(settings.provider_mode, PROVIDER_DEEPSEEK);
         assert_eq!(settings.api_key, "sk-test-key");
         assert_eq!(settings.base_url, "https://api.example.com");
         assert_eq!(settings.model, "deepseek-v4-pro");
@@ -546,6 +585,7 @@ mod tests {
     fn partial_patch_preserves_unmentioned_fields() {
         let mut settings = AiSettings {
             analysis_enabled: true,
+            provider_mode: PROVIDER_OPENAI_COMPATIBLE.to_string(),
             api_key: "sk-keep-me".to_string(),
             base_url: "https://custom.example.com".to_string(),
             model: "deepseek-v4-pro".to_string(),
@@ -637,11 +677,49 @@ mod tests {
     }
 
     #[test]
+    fn openai_compatible_empty_base_url_and_model_stay_empty() {
+        let mut settings = AiSettings {
+            provider_mode: PROVIDER_OPENAI_COMPATIBLE.to_string(),
+            base_url: "https://custom.example.com".to_string(),
+            model: "gpt-4o-mini".to_string(),
+            ..AiSettings::default()
+        };
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                base_url: Some("   ".to_string()),
+                model: Some("".to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert!(settings.base_url.is_empty());
+        assert!(settings.model.is_empty());
+    }
+
+    #[test]
+    fn provider_mode_patch_accepts_openai_compatible() {
+        let mut settings = AiSettings::default();
+
+        apply_settings_patch(
+            &mut settings,
+            &SaveAiSettingsInput {
+                provider_mode: Some(PROVIDER_OPENAI_COMPATIBLE.to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(settings.provider_mode, PROVIDER_OPENAI_COMPATIBLE);
+    }
+
+    #[test]
     fn deserialize_patch_input_ignores_missing_fields() {
         let input: SaveAiSettingsInput =
             serde_json::from_str(r#"{"model":"deepseek-v4-pro"}"#).expect("patch json");
 
         assert!(input.analysis_enabled.is_none());
+        assert!(input.provider_mode.is_none());
         assert!(input.api_key.is_none());
         assert!(input.base_url.is_none());
         assert_eq!(input.model.as_deref(), Some("deepseek-v4-pro"));

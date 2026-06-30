@@ -15,7 +15,14 @@ import {
   formatPlayerRole,
   placeholderPlayerNotes,
 } from '@core/ai/player-notes';
-import { estimateTokenCostCny, formatCostCny, formatCostTooltip } from '@core/ai/pricing';
+import {
+  DEEPSEEK_API_KEYS_URL,
+  getApiKeyLabel,
+  getMissingApiKeyMessage,
+  hasKnownModelPricing,
+  isDeepSeekProvider,
+} from '@core/ai/types';
+import { estimateTokenCostCny, formatCostLabel, formatCostTooltip } from '@core/ai/pricing';
 import type { AiFactorType, AiKeyFactor } from '@core/ai/types';
 import type { MatchRecord } from '@core/match/models';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
@@ -34,8 +41,6 @@ const emit = defineEmits<{
   highlightPlayer: [steamId: string | null];
   openSettings: [];
 }>();
-
-const DEEPSEEK_API_KEYS_URL = 'https://platform.deepseek.com/api_keys';
 
 const tick = ref(0);
 let tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -60,6 +65,14 @@ const setupState = computed((): AiSetupState => {
   if (!s.hasApiKey) return 'no-key';
   return 'active';
 });
+
+const isDeepSeekMode = computed(() =>
+  isDeepSeekProvider(props.ai.settings.value?.providerMode),
+);
+const apiKeyLabel = computed(() => getApiKeyLabel(props.ai.settings.value?.providerMode));
+const missingApiKeyMessage = computed(() =>
+  getMissingApiKeyMessage(props.ai.settings.value?.providerMode),
+);
 
 const showSetupGuide = computed(() => setupState.value !== 'active');
 const isDisabled = computed(() => showSetupGuide.value);
@@ -89,7 +102,7 @@ const headline = computed(() => {
   }
   if (result.value?.headline) return result.value.headline;
   if (isLoading.value) return `${localHeadline.value}，AI 正在校准…`;
-  if (isNoKey.value) return '请先在设置中配置 DeepSeek API Key';
+  if (isNoKey.value) return missingApiKeyMessage.value;
   return '等待 AI 分析…';
 });
 
@@ -133,15 +146,14 @@ const costLabel = computed(() => {
   const u = props.ai.usage.value;
   const model = props.ai.settings.value?.model ?? 'deepseek-v4-flash';
   if (!u) return '';
-  const cost = estimateTokenCostCny(model, u);
-  return formatCostCny(cost);
+  return formatCostLabel(model, u);
 });
 
 const costTooltip = computed(() => {
   const u = props.ai.usage.value;
   const model = props.ai.settings.value?.model ?? 'deepseek-v4-flash';
   if (!u) return '';
-  const cost = estimateTokenCostCny(model, u);
+  const cost = hasKnownModelPricing(model) ? estimateTokenCostCny(model, u) : 0;
   return formatCostTooltip(model, u, cost);
 });
 
@@ -241,12 +253,12 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         </h2>
         <p class="mb-4 text-[13px] leading-relaxed text-slate-600">
           你已在设置中开启 AI 分析，但尚未填写
-          <span class="font-semibold text-amber-800">DeepSeek API Key</span>。
+          <span class="font-semibold text-amber-800">{{ apiKeyLabel }}</span>。
           填写后即可使用赛前预测与维度分析。
         </p>
         <div class="mb-5 rounded-xl border border-amber-200/90 bg-white/80 px-4 py-3 text-left text-[12px] leading-relaxed text-slate-700">
-          <p class="font-medium text-amber-900">在设置中找到「DeepSeek API Key」并粘贴你的 Key</p>
-          <p class="mt-1.5 text-slate-500">
+          <p class="font-medium text-amber-900">在设置中找到「{{ apiKeyLabel }}」并粘贴你的 Key</p>
+          <p v-if="isDeepSeekMode" class="mt-1.5 text-slate-500">
             还没有 Key？
             <a
               href="#"
@@ -255,6 +267,9 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
             >
               前往 DeepSeek 获取 API Key
             </a>
+          </p>
+          <p v-else class="mt-1.5 text-slate-500">
+            请向你所选服务商获取兼容 OpenAI 的 API Key。
           </p>
         </div>
         <button

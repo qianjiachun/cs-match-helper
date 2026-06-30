@@ -1,5 +1,45 @@
+export type AiProviderMode = 'deepseek' | 'openai_compatible';
+
+export const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com';
+export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
+export const DEEPSEEK_API_KEYS_URL = 'https://platform.deepseek.com/api_keys';
+
+export interface AiProviderOption {
+  value: AiProviderMode;
+  label: string;
+  description: string;
+}
+
+export const AI_PROVIDER_OPTIONS: readonly AiProviderOption[] = [
+  {
+    value: 'deepseek',
+    label: 'DeepSeek 预设',
+    description: '官方 API，含模型选择与思考模式',
+  },
+  {
+    value: 'openai_compatible',
+    label: 'OpenAI 兼容',
+    description: '自定义模型',
+  },
+] as const;
+
+export function isDeepSeekProvider(mode: AiProviderMode | string | undefined): boolean {
+  return mode !== 'openai_compatible';
+}
+
+export function getApiKeyLabel(mode: AiProviderMode | string | undefined): string {
+  return isDeepSeekProvider(mode) ? 'DeepSeek API Key' : 'API Key';
+}
+
+export function getMissingApiKeyMessage(mode: AiProviderMode | string | undefined): string {
+  return isDeepSeekProvider(mode)
+    ? '请先在设置中配置 DeepSeek API Key'
+    : '请先在设置中配置 API Key';
+}
+
 export interface AiSettingsPublic {
   analysisEnabled: boolean;
+  providerMode: AiProviderMode;
   hasApiKey: boolean;
   /** 本机设置面板回显用，HTTP 请求不在前端携带 */
   apiKey: string;
@@ -22,6 +62,7 @@ export function isAiAnalysisActive(
 export interface SaveAiSettingsInput {
   /** 仅提交需要更新的字段，未提交字段保留本地已有值 */
   analysisEnabled?: boolean;
+  providerMode?: AiProviderMode;
   /** 传空字符串表示清除已保存的 Key */
   apiKey?: string;
   baseUrl?: string;
@@ -142,6 +183,14 @@ export const AI_MODEL_OPTIONS: readonly AiModelOption[] = [
 
 export function formatModelBudgetHint(opt: Pick<AiModelOption, 'durationSec' | 'costLabel'>): string {
   return `约 ${opt.durationSec} 秒 · ${opt.costLabel}/次`;
+}
+
+export function resolveModelOption(model: string): AiModelOption | null {
+  return AI_MODEL_OPTIONS.find((opt) => opt.value === model) ?? null;
+}
+
+export function hasKnownModelPricing(model: string): boolean {
+  return resolveModelOption(model) !== null;
 }
 
 export const REASONING_EFFORT_OPTIONS = [

@@ -2,6 +2,7 @@ import type { MatchRecord } from '@core/match/models';
 import { buildAiAnalysisRequest, parseAiAnalysisResult } from '@core/ai/prompt';
 import { extractPartialAiResult, mergePartialResult } from '@core/ai/stream-parse';
 import {
+  getMissingApiKeyMessage,
   isAiAnalysisActive,
   type AiAnalysisResult,
   type AiAnalysisStatus,
@@ -76,7 +77,7 @@ export function useAiAnalysis() {
     if (!isAiAnalysisActive(settings.value)) {
       if (force && settings.value?.analysisEnabled && !settings.value?.hasApiKey) {
         status.value = 'no-key';
-        error.value = '请先在设置中配置 DeepSeek API Key';
+        error.value = getMissingApiKeyMessage(settings.value?.providerMode);
         return;
       }
       status.value = 'idle';

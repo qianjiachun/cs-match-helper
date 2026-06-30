@@ -1,4 +1,4 @@
-import type { AiTokenUsage } from './types';
+import { hasKnownModelPricing, type AiTokenUsage } from './types';
 
 export interface TokenPriceRates {
   inputCacheHitPerM: number;
@@ -54,6 +54,13 @@ export function formatCostTooltip(
   usage: AiTokenUsage,
   cost: number,
 ): string {
+  if (!hasKnownModelPricing(model)) {
+    return [
+      `模型 ${model}`,
+      `输入 ${usage.promptTokens} · 输出 ${usage.completionTokens} · 合计 ${usage.totalTokens}`,
+      '费用按服务商实际计费',
+    ].join('\n');
+  }
   const rates = resolveModelRates(model);
   return [
     `模型 ${model}`,
@@ -61,4 +68,9 @@ export function formatCostTooltip(
     `输出 ${usage.completionTokens} tokens × ¥${rates.outputPerM}/M`,
     `合计 ${formatCostCny(cost)}（估算）`,
   ].join('\n');
+}
+
+export function formatCostLabel(model: string, usage: AiTokenUsage): string {
+  if (!hasKnownModelPricing(model)) return '按服务商计费';
+  return formatCostCny(estimateTokenCostCny(model, usage));
 }
