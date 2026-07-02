@@ -57,18 +57,57 @@ fn read_machine_guid() -> Option<String> {
 
 #[cfg(windows)]
 fn read_user_sid() -> Option<String> {
-    use std::process::Command;
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::{CloseHandle, HLOCAL, LocalFree};
+    use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
+    use windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-    let output = Command::new("whoami").arg("/user").output().ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    for line in text.lines() {
-        for token in line.split_whitespace() {
-            if token.starts_with("S-1-") {
-                return Some(token.to_string());
-            }
+    unsafe {
+        let mut token = Default::default();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
+            return None;
+        }
+
+        let mut needed = 0u32;
+        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut needed);
+        if needed == 0 {
+            let _ = CloseHandle(token);
+            return None;
+        }
+
+        let mut buffer = vec![0u8; needed as usize];
+        if GetTokenInformation(
+            token,
+            TokenUser,
+            Some(buffer.as_mut_ptr() as *mut _),
+            needed,
+            &mut needed,
+        )
+        .is_err()
+        {
+            let _ = CloseHandle(token);
+            return None;
+        }
+
+        let token_user = &*(buffer.as_ptr() as *const TOKEN_USER);
+        let mut sid_string = PWSTR::null();
+        if ConvertSidToStringSidW(token_user.User.Sid, &mut sid_string).is_err() {
+            let _ = CloseHandle(token);
+            return None;
+        }
+
+        let sid = sid_string.to_string().ok()?;
+        let _ = LocalFree(HLOCAL(sid_string.0 as _));
+        let _ = CloseHandle(token);
+
+        let trimmed = sid.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
         }
     }
-    None
 }
 
 #[cfg(not(windows))]
