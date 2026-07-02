@@ -151,12 +151,18 @@ impl WatcherState {
         Ok(())
     }
 
-    pub fn stop(&mut self) {
+    pub fn signal_stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+    }
+
+    pub fn take_handle(&mut self) -> Option<JoinHandle<()>> {
+        self.handle.take()
+    }
+
+    pub fn stop(&mut self) {
+        self.signal_stop();
         if let Some(handle) = self.handle.take() {
-            thread::spawn(move || {
-                let _ = handle.join();
-            });
+            let _ = handle.join();
         }
     }
 }
