@@ -1,13 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile, root } from './load-env.mjs';
 
 const releaseDir = join(root, 'release');
-// 单文件 exe 分发：目标机需已安装 Microsoft Edge WebView2 Runtime
 const exeSource = join(root, 'src-tauri/target/release/cs-match-helper.exe');
 const appExeName = 'cs-match-helper.exe';
+const exeDest = join(releaseDir, appExeName);
 const uploadLunaris =
   process.argv.includes('--upload-lunaris') || process.env.AUTO_UPLOAD_LUNARIS === '1';
 
@@ -17,17 +17,12 @@ if (!existsSync(exeSource)) {
   process.exit(1);
 }
 
-if (existsSync(releaseDir)) {
-  rmSync(releaseDir, { recursive: true, force: true });
-}
 mkdirSync(releaseDir, { recursive: true });
-copyFileSync(exeSource, join(releaseDir, appExeName));
+copyFileSync(exeSource, exeDest);
 
-console.log(`已输出到: ${releaseDir}`);
-for (const name of readdirSync(releaseDir)) {
-  const size = statSync(join(releaseDir, name)).size;
-  console.log(`  ${name}  ${size}`);
-}
+const exeSize = statSync(exeDest).size;
+console.log(`已输出主程序: ${exeDest}  (${exeSize} bytes)`);
+console.log('Widget 请单独构建: npm run build:widget');
 
 if (!uploadLunaris) {
   process.exit(0);
@@ -41,15 +36,15 @@ if (!process.env.LUNARIS_API_KEY?.trim()) {
   process.exit(1);
 }
 
-console.log('\n── 自动上传 Lunaris CDN ──');
+console.log('\n── 自动上传 Lunaris CDN（主程序）──');
 const uploadScript = join(dirname(fileURLToPath(import.meta.url)), 'lunaris-upload.mjs');
-const result = spawnSync(process.execPath, [uploadScript], {
+const mainUpload = spawnSync(process.execPath, [uploadScript], {
   stdio: 'inherit',
   cwd: root,
   env: process.env,
 });
 
-if (result.status !== 0) {
-  console.error('\nLunaris 上传失败，发版中止。');
-  process.exit(result.status ?? 1);
+if (mainUpload.status !== 0) {
+  console.error('\n主程序 Lunaris 上传失败，发版中止。');
+  process.exit(mainUpload.status ?? 1);
 }
