@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { onMounted, ref } from 'vue';
+import { defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import CopyToast from './components/CopyToast.vue';
-import PlayerCommentsDrawer from './components/comments/PlayerCommentsDrawer.vue';
 import TitleBar from './components/TitleBar.vue';
-import UpdateDialog from './components/UpdateDialog.vue';
 import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
 import { useComments } from './composables/useComments';
@@ -12,22 +9,35 @@ import { useLogWatcher } from './composables/useLogWatcher';
 import { useP5eCdp } from './composables/useP5eCdp';
 import { useUpdateCheck } from './composables/useUpdateCheck';
 import MatchAssistantView from './views/MatchAssistantView.vue';
-import P5eLaunchView from './views/P5eLaunchView.vue';
 import PlatformSelectView from './views/PlatformSelectView.vue';
-import CounterStrafingView from './views/CounterStrafingView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
+import { startupMark } from './utils/startup-metrics';
 import type { PlatformId } from '@platforms/types';
+
+startupMark('app setup start');
+
+const P5eLaunchView = defineAsyncComponent(() => import('./views/P5eLaunchView.vue'));
+const CounterStrafingView = defineAsyncComponent(() => import('./views/CounterStrafingView.vue'));
+const PlayerCommentsDrawer = defineAsyncComponent(
+  () => import('./components/comments/PlayerCommentsDrawer.vue'),
+);
+const UpdateDialog = defineAsyncComponent(() => import('./components/UpdateDialog.vue'));
 
 const { phase, selectedPlatform, selectPlatform, completeP5eSetup, resetToPlatformSelect } =
   useAppSession();
 
-const { matches, logEntries, clearLogEntries, watcher, injectMatch, startWatching, stopWatching } =
-  useLogWatcher();
-const p5e = useP5eCdp((record) => {
-  matches.value = [record];
-});
-const ai = useAiAnalysis();
-const comments = useComments();
+const logWatcher = useLogWatcher({ autoInit: false });
+const { matches, logEntries, clearLogEntries, watcher, injectMatch, ensureListeners, startWatching, stopWatching } =
+  logWatcher;
+
+const p5e = useP5eCdp(
+  (record) => {
+    matches.value = [record];
+  },
+  { autoInit: false },
+);
+const ai = useAiAnalysis({ autoInit: false });
+const comments = useComments({ autoInit: false });
 const {
   formattedVersion,
   dialogOpen,
@@ -40,13 +50,48 @@ const {
   retryDownload,
 } = useUpdateCheck();
 
-onMounted(() => {
-  void getCurrentWindow().show();
-  void ensureVersion();
-  window.setTimeout(() => {
-    void check();
-  }, 1500);
+const commentsDrawerMounted = ref(false);
+const updateDialogMounted = ref(false);
+
+watch(
+  () => comments.drawerOpen.value,
+  (open) => {
+    if (open) commentsDrawerMounted.value = true;
+  },
+);
+
+watch(dialogOpen, (open) => {
+  if (open) updateDialogMounted.value = true;
 });
+
+watch(
+  () => updateState.hasUpdate,
+  (hasUpdate) => {
+    if (hasUpdate) updateDialogMounted.value = true;
+  },
+);
+
+onMounted(() => {
+  startupMark('app mounted');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      startupMark('first interaction ready');
+      const preloadKey = () => {
+        comments.preloadClientKey();
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(preloadKey, { timeout: 3000 });
+      } else {
+        window.setTimeout(preloadKey, 1500);
+      }
+    });
+  });
+
+  void ensureVersion();
+  window.setTimeout(() => void check(), 12000);
+});
+
+startupMark('app setup end');
 
 async function injectAiResult(raw: string): Promise<string | null> {
   const match = matches.value[0];
@@ -79,11 +124,20 @@ function goMain() {
 async function onSelectPlatform(id: PlatformId) {
   selectPlatform(id);
   if (id === 'perfect') {
+    await ensureListeners();
     await stopWatching();
     await startWatching();
   } else {
     void stopWatching();
+    if (id === '5e') {
+      void p5e.ensureReady();
+    }
   }
+}
+
+async function onDebugOpen() {
+  await ensureListeners();
+  await p5e.ensureReady();
 }
 
 function onP5eReady() {
@@ -113,6 +167,7 @@ function onBackFromP5e() {
       @open-counter-strafing="openCounterStrafing()"
       @go-main="goMain"
       @open-update-dialog="openDialog()"
+      @debug-open="onDebugOpen()"
     />
     <main class="relative min-h-0 flex-1 overflow-hidden">
       <div
@@ -177,13 +232,15 @@ function onBackFromP5e() {
       </div>
     </main>
     <CopyToast />
-    <PlayerCommentsDrawer :comments="comments" />
+    <PlayerCommentsDrawer v-if="commentsDrawerMounted" :comments="comments" />
     <UpdateDialog
+      v-if="updateDialogMounted"
       :open="dialogOpen"
       :current-version="updateState.currentVersion"
       :latest-version="updateState.latestVersion"
       :release-notes="updateState.releaseNotes"
       :release-url="updateState.releaseUrl"
+      :download-url="updateState.downloadUrl"
       :published-at="updateState.publishedAt"
       :phase="updateState.phase"
       :progress-percent="updateState.progressPercent"
