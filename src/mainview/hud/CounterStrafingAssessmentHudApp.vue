@@ -14,6 +14,7 @@ import type {
 } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAssessmentHudWindow } from './useAssessmentHudWindow';
+import { onHudDragPointerDown } from './useHudWindow';
 
 const snapshot = ref<CounterStrafingAssessmentSnapshot>({
   active: false,
@@ -120,8 +121,8 @@ onUnmounted(() => {
     <div
       v-if="!snapshot.hudLocked"
       class="hud-drag-handle absolute right-0 bottom-0 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-tl-xl bg-black/40 backdrop-blur-sm active:cursor-grabbing opacity-0 transition-opacity duration-200 group-hover/hud:opacity-100"
-      data-tauri-drag-region
       aria-label="拖动 HUD"
+      @pointerdown="onHudDragPointerDown"
     >
       <Grip class="h-4 w-4 text-white/80" aria-hidden="true" />
     </div>

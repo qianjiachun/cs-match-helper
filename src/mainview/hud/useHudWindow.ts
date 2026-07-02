@@ -23,6 +23,20 @@ function schedulePersistBounds() {
   }, 180);
 }
 
+/** 仅左键拖动；避免 Windows 上 drag-region 右键弹出系统菜单 */
+export async function onHudDragPointerDown(event: PointerEvent) {
+  if (event.button !== 0) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  try {
+    await getCurrentWindow().startDragging();
+  } catch {
+    // 权限或平台不支持时忽略
+  }
+}
+
 /** 监听 HUD 拖动/缩放结束，持久化位置与尺寸（后端也会监听窗口事件作为兜底） */
 export function useHudWindow() {
   let unlisteners: UnlistenFn[] = [];
