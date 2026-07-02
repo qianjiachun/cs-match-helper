@@ -3,7 +3,7 @@ import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
 import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import {
   p5eSimulateClientNotFound,
@@ -17,9 +17,13 @@ import {
   collectRuntimeDiagnostics,
   formatRuntimeDiagnostics,
 } from '../utils/runtime-diagnostics';
+const MatchDebugWidgetPanel = defineAsyncComponent(
+  () => import('./MatchDebugWidgetPanel.vue'),
+);
 const props = withDefaults(
   defineProps<{
     placement?: 'header' | 'floating' | 'inline';
+    initialOpen?: boolean;
     logEntries?: DebugLogEntry[];
     watcher?: WatcherStatus;
     injectAiResult?: (raw: string) => Promise<string | null>;
@@ -28,6 +32,7 @@ const props = withDefaults(
   }>(),
   {
     placement: 'inline',
+    initialOpen: false,
     logEntries: () => [],
     watcher: () => ({
       running: false,
@@ -47,7 +52,7 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'comments' | 'runtime';
+type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'comments' | 'widget' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
 const isDev = import.meta.env.DEV;
@@ -62,7 +67,7 @@ const {
   openDialog: openUpdateDialog,
 } = useUpdateCheck();
 
-const open = ref(false);
+const open = ref(props.initialOpen);
 const activeTab = ref<DebugTab>('inject');
 const injectSubTab = ref<InjectSubTab>('match');
 const logSubTab = ref<LogSubTab>('perfect');
@@ -402,6 +407,18 @@ watch(
             type="button"
             class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
             :class="
+              injectSubTab === 'widget'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-fg-muted hover:text-fg-secondary'
+            "
+            @click="switchInjectSubTab('widget')"
+          >
+            Widget
+          </button>
+          <button
+            type="button"
+            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
+            :class="
               injectSubTab === 'runtime'
                 ? 'bg-surface text-fg shadow-sm'
                 : 'text-fg-muted hover:text-fg-secondary'
@@ -613,7 +630,9 @@ watch(
           </div>
         </div>
 
-        <div v-else class="space-y-3">
+        <MatchDebugWidgetPanel v-else-if="injectSubTab === 'widget'" />
+
+        <div v-else-if="injectSubTab === 'runtime'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
             WebView2 与动画能力诊断，用于排查其他电脑上的界面/动画异常。
           </p>

@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { ArrowLeft, Gauge, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { ArrowLeft, Bug, Gauge, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { defineAsyncComponent, ref } from 'vue';
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from '../native';
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import appIcon from '@app-icon';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
-import MatchDebugPanel from './MatchDebugPanel.vue';
 import UpdateBadge from './UpdateBadge.vue';
 
+const MatchDebugPanel = defineAsyncComponent(() => import('./MatchDebugPanel.vue'));
+
 const { debugEnabled } = useDebugUnlock();
+const debugPanelMounted = ref(false);
+const debugPanelInitialOpen = ref(false);
+
+function openDebugPanel() {
+  debugPanelInitialOpen.value = true;
+  debugPanelMounted.value = true;
+  emit('debugOpen');
+}
 
 defineProps<{
   view: 'main' | 'settings' | 'counter-strafing';
@@ -29,6 +39,7 @@ const emit = defineEmits<{
   openCounterStrafing: [];
   goMain: [];
   openUpdateDialog: [];
+  debugOpen: [];
 }>();
 </script>
 
@@ -58,9 +69,20 @@ const emit = defineEmits<{
     </div>
 
     <div class="no-drag relative flex h-full items-stretch">
+      <button
+        v-if="debugEnabled && !debugPanelMounted"
+        type="button"
+        class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
+        title="调试：注入数据与日志输出"
+        @click="openDebugPanel"
+      >
+        <Bug class="h-4 w-4" />
+        <span class="hidden sm:inline">调试</span>
+      </button>
       <MatchDebugPanel
-        v-if="debugEnabled"
+        v-else-if="debugEnabled && debugPanelMounted"
         placement="header"
+        :initial-open="debugPanelInitialOpen"
         :log-entries="logEntries"
         :watcher="watcher"
         :inject-ai-result="injectAiResult"

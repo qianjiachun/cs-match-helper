@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Check } from 'lucide-vue-next';
+import { AlertCircle, Check, XCircle } from 'lucide-vue-next';
 import { useCopyFeedback } from '../composables/useCopyFeedback';
 
-const { toastMessage, toastVisible } = useCopyFeedback();
+const { toastMessage, toastVisible, toastVariant } = useCopyFeedback();
 </script>
 
 <template>
@@ -13,7 +13,21 @@ const { toastMessage, toastVisible } = useCopyFeedback();
       role="status"
       aria-live="polite"
     >
-      <Check class="h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+      <Check
+        v-if="toastVariant === 'success'"
+        class="h-4 w-4 shrink-0 text-emerald-500"
+        aria-hidden="true"
+      />
+      <AlertCircle
+        v-else-if="toastVariant === 'warning'"
+        class="h-4 w-4 shrink-0 text-amber-500"
+        aria-hidden="true"
+      />
+      <XCircle
+        v-else
+        class="h-4 w-4 shrink-0 text-red-500"
+        aria-hidden="true"
+      />
       {{ toastMessage }}
     </div>
   </Transition>

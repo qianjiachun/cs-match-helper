@@ -3,6 +3,7 @@ import type { UpdatePhase } from '@core/update/types';
 import {
   AlertCircle,
   ArrowRight,
+  Copy,
   Download,
   ExternalLink,
   FileText,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted } from 'vue';
 import { formatAppVersion, formatBytes } from '../composables/useUpdateCheck';
+import { showToast } from '../composables/useCopyFeedback';
 import { openExternalUrl } from '../native';
 import ReleaseNotesContent from './ReleaseNotesContent.vue';
 
@@ -22,6 +24,7 @@ const props = defineProps<{
   latestVersion: string;
   releaseNotes: string;
   releaseUrl: string;
+  downloadUrl?: string;
   publishedAt?: string;
   phase: UpdatePhase;
   progressPercent: number;
@@ -122,6 +125,14 @@ const progressValue = computed(() => {
 
 const canClose = computed(() => !props.busy);
 
+const manualDownloadUrl = computed(
+  () => props.downloadUrl?.trim() || props.releaseUrl?.trim() || '',
+);
+
+const copyDownloadLabel = computed(() =>
+  props.downloadUrl?.trim() ? '复制下载地址' : '复制发布页链接',
+);
+
 function onBackdropClick(event: MouseEvent) {
   if (!canClose.value) return;
   if (event.target === event.currentTarget) {
@@ -138,6 +149,22 @@ function onKeydown(event: KeyboardEvent) {
 function openReleasePage() {
   if (!props.releaseUrl) return;
   void openExternalUrl(props.releaseUrl);
+}
+
+async function copyDownloadUrl() {
+  const url = manualDownloadUrl.value;
+  if (!url) {
+    showToast('暂时无法获取下载链接', 'error');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast(
+      props.downloadUrl?.trim() ? '已复制下载链接，可在浏览器中打开' : '已复制 GitHub 发布页链接',
+    );
+  } catch {
+    showToast('复制失败，请重试', 'error');
+  }
 }
 
 onMounted(() => {
@@ -281,7 +308,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <footer class="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle bg-elevated/35 px-5 py-4">
+          <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle bg-elevated/35 px-5 py-4">
             <button
               v-if="phase === 'failed'"
               type="button"
@@ -290,6 +317,15 @@ onUnmounted(() => {
             >
               <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
               重试自动下载
+            </button>
+            <button
+              v-if="manualDownloadUrl"
+              type="button"
+              class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
+              @click="copyDownloadUrl()"
+            >
+              <Copy class="h-3.5 w-3.5" aria-hidden="true" />
+              {{ copyDownloadLabel }}
             </button>
             <button
               v-if="canClose"
