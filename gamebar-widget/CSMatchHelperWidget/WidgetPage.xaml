@@ -1,0 +1,176 @@
+<Page
+    x:Class="CSMatchHelperWidget.WidgetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Grid Padding="8,6">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="4"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="AssessmentPanel" Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="1,0,1,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                        <Grid Margin="0,0,4,0">
+                            <TextBlock Text="平均" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock Text="平均" Style="{StaticResource HudStatLabelStyle}"/>
+                        </Grid>
+                        <Grid>
+                            <TextBlock x:Name="AvgDiffTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                            <TextBlock x:Name="AvgDiffText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                        <Grid Margin="0,0,4,0">
+                            <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelStyle}"/>
+                        </Grid>
+                        <Grid>
+                            <TextBlock x:Name="SuccessRateTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                            <TextBlock x:Name="SuccessRateText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Grid Margin="0,0,4,0">
+                            <TextBlock Text="标准差" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock Text="标准差" Style="{StaticResource HudStatLabelStyle}"/>
+                        </Grid>
+                        <Grid>
+                            <TextBlock x:Name="StdDevTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                            <TextBlock x:Name="StdDevText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid Grid.Column="1" VerticalAlignment="Bottom">
+                    <TextBlock x:Name="TendencyTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                    <TextBlock
+                        x:Name="TendencyText"
+                        Text="—"
+                        Style="{StaticResource HudStatValueStyle}"/>
+                </Grid>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Canvas
+                    x:Name="AssessmentChart"
+                    SizeChanged="OnChartSizeChanged"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+
+                <StackPanel
+                    x:Name="ComboOverlay"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed"
+                    Opacity="0"
+                    RenderTransformOrigin="0.5,0.5">
+                    <StackPanel.RenderTransform>
+                        <CompositeTransform x:Name="ComboTransform" ScaleX="1.35" ScaleY="1.35" TranslateY="4"/>
+                    </StackPanel.RenderTransform>
+
+                    <Grid HorizontalAlignment="Center">
+                        <TextBlock
+                            x:Name="ComboLabelGlow"
+                            Style="{StaticResource HudComboLabelGlowStyle}"/>
+                        <TextBlock
+                            x:Name="ComboLabelShadow"
+                            Style="{StaticResource HudComboLabelShadowStyle}"/>
+                        <TextBlock
+                            x:Name="ComboLabelText"
+                            Style="{StaticResource HudComboLabelStyle}"/>
+                    </Grid>
+
+                    <Grid HorizontalAlignment="Center" Margin="0,0,0,0">
+                        <TextBlock
+                            x:Name="ComboMetaShadow"
+                            Style="{StaticResource HudComboMetaShadowStyle}"/>
+                        <TextBlock
+                            x:Name="ComboMetaText"
+                            Style="{StaticResource HudComboMetaStyle}"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <Grid x:Name="ShootingPanel" Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="1,0,1,2">
+                <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                    <Grid Margin="0,0,4,0">
+                        <TextBlock Text="误差" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                        <TextBlock Text="误差" Style="{StaticResource HudStatLabelStyle}"/>
+                    </Grid>
+                    <Grid>
+                        <TextBlock x:Name="AvgErrorTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                        <TextBlock x:Name="AvgErrorText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
+                    </Grid>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Grid Margin="0,0,4,0">
+                        <TextBlock Text="稳定" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                        <TextBlock Text="稳定" Style="{StaticResource HudStatLabelStyle}"/>
+                    </Grid>
+                    <Grid>
+                        <TextBlock x:Name="StableRateTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
+                        <TextBlock x:Name="StableRateText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+
+            <Canvas
+                x:Name="ShootingChart"
+                Grid.Row="1"
+                SizeChanged="OnChartSizeChanged"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"/>
+        </Grid>
+
+        <Border
+            x:Name="StatusOverlay"
+            Grid.RowSpan="3"
+            Background="#99000000"
+            Visibility="Visible">
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+                <TextBlock
+                    x:Name="StatusText"
+                    Text="数据准备中…"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="#F8FAFC"
+                    FontFamily="Segoe UI"
+                    HorizontalAlignment="Center"
+                    TextAlignment="Center"/>
+                <TextBlock
+                    x:Name="StatusHintText"
+                    Text="正在连接 CS 匹配助手"
+                    FontSize="10"
+                    Foreground="#B3FFFFFF"
+                    FontFamily="Segoe UI"
+                    HorizontalAlignment="Center"
+                    TextAlignment="Center"
+                    Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
