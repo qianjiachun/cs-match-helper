@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted, ref } from 'vue';
+import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
 import {
   cancelBindingCapture,
   clearCounterStrafingAssessmentRecords,
@@ -35,6 +36,7 @@ import {
   type ShootingErrorRecord,
 } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import { showToast } from './useCopyFeedback';
 
 const BINDING_ROLES: BindingRole[] = ['forward', 'back', 'left', 'right', 'crouch', 'fire'];
 
@@ -60,6 +62,7 @@ async function withHudInitRetry<T>(action: () => Promise<T>, attempts = 10): Pro
 }
 
 export function useCounterStrafing() {
+  const { displayMode } = useCounterStrafingDisplayMode();
   const snapshot = ref<CounterStrafingSnapshot>({
     active: false,
     listening: false,
@@ -174,18 +177,19 @@ export function useCounterStrafing() {
     try {
       if (snapshot.value.listening) {
         snapshot.value = await stopCounterStrafing();
-        await refreshAssessment();
       } else {
-        snapshot.value = await startCounterStrafing();
+        const showHud = displayMode.value === 'hud';
+        snapshot.value = await startCounterStrafing(showHud);
         if (!snapshot.value.listening) {
           throw new Error('按键监听未成功启动，请重试');
         }
-        await refreshAssessment();
-        if (settings.value.hudVisible !== snapshot.value.hudVisible) {
-          settings.value.hudVisible = snapshot.value.hudVisible;
-        }
-        if (settings.value.assessmentHudVisible !== assessmentSnapshot.value.hudVisible) {
-          settings.value.assessmentHudVisible = assessmentSnapshot.value.hudVisible;
+        if (showHud) {
+          if (settings.value.hudVisible !== snapshot.value.hudVisible) {
+            settings.value.hudVisible = snapshot.value.hudVisible;
+          }
+          if (settings.value.assessmentHudVisible !== snapshot.value.assessmentHudVisible) {
+            settings.value.assessmentHudVisible = snapshot.value.assessmentHudVisible;
+          }
         }
       }
     } catch (e) {
@@ -283,6 +287,7 @@ export function useCounterStrafing() {
       snapshot.value = await resetCounterStrafingSettings();
       settings.value = mergeCounterStrafingSettings(await loadCounterStrafingSettings());
       await refreshAssessment();
+      showToast('已恢复默认设置');
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {

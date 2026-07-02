@@ -1,61 +1,51 @@
 <script setup lang="ts">
 import {
-  Activity,
-  Eye,
-  EyeOff,
+  ArrowDownUp,
+  BarChart3,
+  ChartColumn,
   Gauge,
   Keyboard,
+  Layers,
   LayoutDashboard,
-  LayoutPanelTop,
   LineChart,
-  Lock,
-  LockOpen,
-  Play,
   RotateCcw,
-  Settings2,
   ShieldAlert,
   SlidersHorizontal,
-  Square,
   Target,
   Zap,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
-import CounterStrafingLineChart from '../components/counter-strafing/CounterStrafingLineChart.vue';
-import ShootingErrorBars from '../components/counter-strafing/ShootingErrorBars.vue';
+import { computed, onMounted, ref } from 'vue';
+import CounterStrafingConsole from '../components/counter-strafing/CounterStrafingConsole.vue';
+import CounterStrafingDataPanel from '../components/counter-strafing/CounterStrafingDataPanel.vue';
 import SettingsCard from '../components/settings/SettingsCard.vue';
-import SettingsToggle from '../components/settings/SettingsToggle.vue';
 import { useCounterStrafing } from '../composables/useCounterStrafing';
+import { useGameBarWidget } from '../composables/useGameBarWidget';
 import type { BindingRole } from '@core/counter-strafing/types';
-import {
-  formatDiffMs,
-  formatErrorValue,
-  formatSpeedRatio,
-  sampleStateColor,
-  shotFeedback,
-  assessmentRecordColor,
-} from '@core/counter-strafing/types';
 
 defineProps<{
   visible?: boolean;
 }>();
 
-type CounterStrafingTab = 'overview' | 'hud' | 'keys' | 'advanced';
+type CounterStrafingTab = 'console' | 'data' | 'keys' | 'advanced';
 
-const activeTab = ref<CounterStrafingTab>('overview');
+const activeTab = ref<CounterStrafingTab>('console');
 
 const navItems = [
-  { id: 'overview' as const, label: '总览', icon: LayoutDashboard },
-  { id: 'hud' as const, label: 'HUD 显示', icon: LayoutPanelTop },
+  { id: 'console' as const, label: '控制台', icon: LayoutDashboard },
+  { id: 'data' as const, label: '数据', icon: BarChart3 },
   { id: 'keys' as const, label: '键位', icon: Keyboard },
   { id: 'advanced' as const, label: '高级设置', icon: SlidersHorizontal },
 ];
 
 const contentDesc: Record<CounterStrafingTab, string> = {
-  overview: '开始记录、查看核心反馈',
-  hud: '管理游戏内悬浮 HUD 的显示与锁定',
+  console: '选择显示模式、开启记录并完成准备',
+  data: '查看急停和开枪的练习数据',
   keys: '自定义方向键、蹲键与开火键',
   advanced: '移速模型、采样校准与判定参数',
 };
+
+const cs = useCounterStrafing();
+const widget = useGameBarWidget({ autoInit: false });
 
 const {
   snapshot,
@@ -68,10 +58,6 @@ const {
   inputListenNeedsAdmin,
   bindingRoles,
   bindingRoleLabels,
-  toggleListening,
-  toggleHud,
-  toggleAssessmentHud,
-  clearAllRecords,
   patchNumberSetting,
   patchStatisticsHistoryLimit,
   restoreMovementModelDefaults,
@@ -80,29 +66,14 @@ const {
   cancelCapture,
   restoreDefaultKeyMap,
   applySettings,
-} = useCounterStrafing();
+} = cs;
+
+onMounted(() => {
+  void widget.refreshStatus();
+  widget.ensureSessionUpdateCheck();
+});
 
 const activeMeta = computed(() => navItems.find((item) => item.id === activeTab.value)!);
-
-const hasAnyRecords = computed(
-  () => assessmentSnapshot.value.records.length > 0 || snapshot.value.shotRecords.length > 0,
-);
-
-const lastShotFeedback = computed(() =>
-  lastShot.value ? shotFeedback(lastShot.value) : null,
-);
-
-const assessmentDiffExtremes = computed(() => {
-  const records = assessmentSnapshot.value.records;
-  if (!records.length) return { min: null as number | null, max: null as number | null };
-  let min = records[0].diffMs;
-  let max = records[0].diffMs;
-  for (const record of records) {
-    if (record.diffMs < min) min = record.diffMs;
-    if (record.diffMs > max) max = record.diffMs;
-  }
-  return { min, max };
-});
 
 function bindingLabel(role: BindingRole): string {
   return settings.value.keyMap[role].label;
@@ -166,25 +137,37 @@ const switchTrackClass =
           <span class="text-[13px] font-medium">{{ item.label }}</span>
         </button>
       </nav>
+
+      <div class="shrink-0 border-t border-border bg-surface px-3 py-3">
+        <button
+          type="button"
+          class="group flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5 text-left shadow-sm transition-[background-color,border-color,transform,box-shadow] duration-200 hover:border-warning/35 hover:bg-warning/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/25 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:shadow-sm"
+          :disabled="busy"
+          @click="restoreAllDefaults()"
+        >
+          <span
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-elevated text-fg-muted transition-colors duration-200 group-hover:bg-warning/12 group-hover:text-warning group-disabled:bg-elevated group-disabled:text-fg-muted"
+            aria-hidden="true"
+          >
+            <RotateCcw class="h-4 w-4" />
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-[13px] font-medium text-fg-secondary transition-colors duration-200 group-hover:text-fg">
+              恢复默认设置
+            </span>
+            <span class="mt-0.5 block text-[11px] leading-snug text-fg-muted">
+              键位、悬浮窗与高级参数
+            </span>
+          </span>
+        </button>
+      </div>
     </aside>
 
     <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
       <header class="sticky top-0 z-10 border-b border-border bg-base/90 px-6 py-5 backdrop-blur-sm">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 class="text-[18px] font-bold tracking-tight text-fg">{{ activeMeta.label }}</h2>
-            <p class="mt-1 text-[13px] text-fg-muted">{{ contentDesc[activeTab] }}</p>
-          </div>
-          <button
-            v-if="activeTab === 'advanced'"
-            type="button"
-            class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="busy"
-            @click="restoreAllDefaults()"
-          >
-            <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-            恢复默认
-          </button>
+        <div>
+          <h2 class="text-[18px] font-bold tracking-tight text-fg">{{ activeMeta.label }}</h2>
+          <p class="mt-1 text-[13px] text-fg-muted">{{ contentDesc[activeTab] }}</p>
         </div>
       </header>
 
@@ -225,206 +208,21 @@ const switchTrackClass =
         </div>
 
         <Transition name="settings-tab" mode="out-in">
-          <!-- 总览 -->
-          <div v-if="activeTab === 'overview'" key="overview" class="space-y-5">
-            <SettingsCard title="HUD 控制" description="开启后同时采集急停评估与开枪稳定性" :icon="Play">
-              <div class="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-colors duration-200"
-                  :class="
-                    snapshot.listening
-                      ? 'bg-danger/10 text-danger hover:bg-danger/15'
-                      : 'bg-accent text-white hover:bg-accent-hover'
-                  "
-                  :disabled="busy"
-                  @click="toggleListening()"
-                >
-                  <component :is="snapshot.listening ? Square : Play" class="h-4 w-4" />
-                  {{ snapshot.listening ? '停止记录' : '开始记录' }}
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="busy || !hasAnyRecords"
-                  @click="clearAllRecords()"
-                >
-                  <RotateCcw class="h-4 w-4" />
-                  清除输入
-                </button>
-              </div>
-            </SettingsCard>
+          <CounterStrafingConsole
+            v-if="activeTab === 'console'"
+            key="console"
+            :cs="cs"
+            :widget="widget"
+          />
 
-            <SettingsCard title="急停评估" description="AD / WS 反向切换时机" :icon="LineChart">
-              <div
-                class="flex min-h-[72px] flex-col items-center justify-center rounded-xl border border-border-subtle bg-elevated/60 px-4 py-5"
-              >
-                <template v-if="lastAssessmentRecord">
-                  <p
-                    class="text-[28px] font-bold tabular-nums"
-                    :style="{ color: assessmentRecordColor(lastAssessmentRecord) }"
-                  >
-                    {{ formatDiffMs(lastAssessmentRecord.diffMs) }}
-                  </p>
-                  <p class="mt-1 text-[13px] text-fg-secondary">
-                    {{ lastAssessmentRecord.fromKey }} → {{ lastAssessmentRecord.toKey }} ·
-                    {{ lastAssessmentRecord.timingLabel }}
-                  </p>
-                </template>
-                <p v-else class="text-[13px] text-fg-muted">开始记录后，反向切换会在这里显示评估结果</p>
-              </div>
-              <CounterStrafingLineChart
-                :records="assessmentSnapshot.records"
-                :max-points="32"
-                :height="104"
-                colored
-                class="mt-4"
-              />
-              <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">平均偏差</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ formatDiffMs(assessmentSnapshot.avgDiffMs) }}
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">优秀率</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ assessmentSnapshot.successRate.toFixed(1) }}<span class="text-[12px] font-medium text-fg-muted">%</span>
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">标准差</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ assessmentSnapshot.stdDevMs.toFixed(1) }}<span class="text-[12px] font-medium text-fg-muted">ms</span>
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">最小值</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ assessmentDiffExtremes.min !== null ? formatDiffMs(assessmentDiffExtremes.min) : '—' }}
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">最大值</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ assessmentDiffExtremes.max !== null ? formatDiffMs(assessmentDiffExtremes.max) : '—' }}
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">整体倾向</p>
-                  <p class="mt-1 text-[15px] font-semibold text-fg">{{ assessmentSnapshot.tendencyLabel }}</p>
-                </div>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title="开枪稳定" description="速度倍率与稳定余量/误差反馈" :icon="Target">
-              <div
-                v-if="lastShot && lastShotFeedback"
-                class="mb-4 flex min-h-[56px] flex-col items-center justify-center rounded-xl border border-border-subtle bg-elevated/60 px-4 py-4"
-              >
-                <p
-                  class="text-[24px] font-bold tabular-nums text-fg"
-                  :style="{ color: sampleStateColor(lastShot) }"
-                >
-                  {{ formatSpeedRatio(lastShot) }}
-                </p>
-                <p
-                  class="mt-1 font-mono text-[15px] font-semibold tabular-nums"
-                  :style="{ color: lastShotFeedback.color }"
-                >
-                  {{ lastShotFeedback.shortLabel }}
-                </p>
-              </div>
-              <ShootingErrorBars :records="snapshot.shotRecords" :height="104" show-legend show-hud-feedback />
-              <div class="mt-4 grid grid-cols-3 gap-3">
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">平均误差</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ formatErrorValue(snapshot.avgError) }}
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">稳定率</p>
-                  <p class="mt-1 text-[18px] font-bold tabular-nums text-fg">
-                    {{ snapshot.stableRate.toFixed(1) }}<span class="text-[12px] font-medium text-fg-muted">%</span>
-                  </p>
-                </div>
-                <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
-                  <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">最近状态</p>
-                  <p class="mt-1 text-[15px] font-semibold text-fg">{{ lastShot?.scoreLabel ?? '—' }}</p>
-                </div>
-              </div>
-            </SettingsCard>
-          </div>
-
-          <!-- HUD 显示 -->
-          <div v-else-if="activeTab === 'hud'" key="hud" class="space-y-5">
-            <SettingsCard title="急停评估 HUD" description="折线图：急停时机与历史趋势" :icon="LineChart">
-              <div class="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
-                  :disabled="busy"
-                  @click="toggleAssessmentHud()"
-                >
-                  <component :is="assessmentSnapshot.hudVisible ? EyeOff : Eye" class="h-4 w-4" />
-                  {{ assessmentSnapshot.hudVisible ? '隐藏 HUD' : '显示 HUD' }}
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
-                  :disabled="busy"
-                  @click="applySettings({ assessmentHudLocked: !settings.assessmentHudLocked })"
-                >
-                  <component :is="settings.assessmentHudLocked ? LockOpen : Lock" class="h-4 w-4" />
-                  {{ settings.assessmentHudLocked ? '解锁' : '锁定' }}
-                </button>
-              </div>
-              <p class="mt-3 text-[11px] text-fg-muted">
-                当前状态：{{ assessmentSnapshot.hudVisible ? '已显示' : '已隐藏' }} ·
-                {{ settings.assessmentHudLocked ? '已锁定' : '未锁定' }}
-              </p>
-            </SettingsCard>
-
-            <SettingsCard title="开枪稳定 HUD" description="柱状图：开枪稳定性与误差历史" :icon="Activity">
-              <div class="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
-                  :disabled="busy"
-                  @click="toggleHud()"
-                >
-                  <component :is="snapshot.hudVisible ? EyeOff : Eye" class="h-4 w-4" />
-                  {{ snapshot.hudVisible ? '隐藏 HUD' : '显示 HUD' }}
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
-                  :disabled="busy"
-                  @click="applySettings({ hudLocked: !settings.hudLocked })"
-                >
-                  <component :is="settings.hudLocked ? LockOpen : Lock" class="h-4 w-4" />
-                  {{ settings.hudLocked ? '解锁' : '锁定' }}
-                </button>
-              </div>
-              <p class="mt-3 text-[11px] text-fg-muted">
-                当前状态：{{ snapshot.hudVisible ? '已显示' : '已隐藏' }} ·
-                {{ settings.hudLocked ? '已锁定' : '未锁定' }}
-              </p>
-              <SettingsToggle
-                class="mt-4"
-                :model-value="settings.hudShowStableBars"
-                label="显示绿色稳定柱"
-                description="关闭后稳定射击保留时间轴空位，仅黄/红失误高亮"
-                @update:model-value="applySettings({ hudShowStableBars: $event })"
-              />
-            </SettingsCard>
-
-            <p class="text-[11px] leading-relaxed text-fg-muted">
-              两个 HUD 可同时显示。仅右下角手柄可拖动，锁定后鼠标穿透。
-            </p>
-          </div>
+          <CounterStrafingDataPanel
+            v-else-if="activeTab === 'data'"
+            key="data"
+            :snapshot="snapshot"
+            :assessment-snapshot="assessmentSnapshot"
+            :last-shot="lastShot"
+            :last-assessment-record="lastAssessmentRecord"
+          />
 
           <!-- 键位 -->
           <div v-else-if="activeTab === 'keys'" key="keys" class="space-y-5">
@@ -462,7 +260,7 @@ const switchTrackClass =
 
           <!-- 高级设置 -->
           <div v-else key="advanced" class="space-y-5">
-            <SettingsCard title="判定与显示" description="调整稳定判定、急停评估与统计窗口" :icon="Settings2">
+            <SettingsCard title="判定与显示" description="调整稳定判定、急停评估与统计窗口" :icon="SlidersHorizontal">
               <div class="space-y-4">
                 <div
                   class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/20 bg-accent/4 px-4 py-3.5"
@@ -502,7 +300,7 @@ const switchTrackClass =
                       <div
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                       >
-                        <Target class="h-4 w-4" aria-hidden="true" />
+                        <ChartColumn class="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div class="min-w-0">
                         <p class="text-[13px] font-semibold text-fg">开枪稳定</p>
@@ -861,7 +659,7 @@ const switchTrackClass =
               </div>
             </SettingsCard>
 
-            <SettingsCard title="蹲起窗口" description="松蹲后的稳定宽限与误差恢复" :icon="Activity">
+            <SettingsCard title="蹲起窗口" description="松蹲后的稳定宽限与误差恢复" :icon="ArrowDownUp">
               <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block space-y-1.5">
                   <span class="text-[12px] font-medium text-fg-secondary">蹲起宽限 (ms)</span>
