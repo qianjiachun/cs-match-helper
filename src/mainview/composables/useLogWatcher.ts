@@ -4,12 +4,13 @@ import type { WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
 import { findLastMatchEventInLogLines, isLogLineWithinMaxAge, BOOTSTRAP_MATCH_MAX_AGE_MS } from '@platforms/perfect/log-parser';
 import { homeDir } from '@tauri-apps/api/path';
-import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { onUnmounted, ref, shallowRef } from 'vue';
 import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
 
 const MAX_DEBUG_LOG_ENTRIES = 500;
 
-export function useLogWatcher() {
+export function useLogWatcher(options?: { autoInit?: boolean }) {
+  const autoInit = options?.autoInit ?? true;
   const watcher = ref<WatcherStatus>({
     running: false,
     logPath: '',
@@ -92,6 +93,7 @@ export function useLogWatcher() {
 
   async function startWatching() {
     if (watching) return;
+    await ensureListeners();
     watching = true;
 
     await startLogWatch();
@@ -118,15 +120,22 @@ export function useLogWatcher() {
     };
   }
 
-  onMounted(async () => {
+  let listenersReady = false;
+
+  async function ensureListeners() {
+    if (listenersReady) return;
+    listenersReady = true;
     unlistenLine = await onLogLine((payload) => {
       handleLogLine(payload.raw);
     });
-
     unlistenStatus = await onWatcherStatus((status) => {
       watcher.value = status;
     });
-  });
+  }
+
+  if (autoInit) {
+    void ensureListeners();
+  }
 
   onUnmounted(() => {
     unlistenLine?.();
@@ -134,5 +143,14 @@ export function useLogWatcher() {
     void stopWatching();
   });
 
-  return { watcher, matches, logEntries, clearLogEntries, injectMatch, startWatching, stopWatching };
+  return {
+    watcher,
+    matches,
+    logEntries,
+    clearLogEntries,
+    injectMatch,
+    ensureListeners,
+    startWatching,
+    stopWatching,
+  };
 }

@@ -172,9 +172,7 @@ export function useAiSettingsForm(
   }
 
   async function init() {
-    if (!ai.settings.value) {
-      await ai.refreshSettings();
-    }
+    await ai.ensureSettingsLoaded();
     if (!hasInitialSynced) {
       applySettingsToForm();
     }

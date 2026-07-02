@@ -1,7 +1,10 @@
 import { ref } from 'vue';
 
+export type ToastVariant = 'success' | 'warning' | 'error';
+
 const toastMessage = ref('');
 const toastVisible = ref(false);
+const toastVariant = ref<ToastVariant>('success');
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -30,14 +33,17 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-function showToast(message: string) {
+function showToast(message: string, variant: ToastVariant = 'success') {
   toastMessage.value = message;
+  toastVariant.value = variant;
   toastVisible.value = true;
   if (hideTimer) clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {
     toastVisible.value = false;
   }, 2000);
 }
+
+export { showToast };
 
 export function useCopyFeedback() {
   async function copyText(
@@ -51,7 +57,10 @@ export function useCopyFeedback() {
 
     const ok = await copyToClipboard(text);
     if (opts.showToast !== false) {
-      showToast(ok ? (opts.successMessage ?? '已复制') : '复制失败，请重试');
+      showToast(
+        ok ? (opts.successMessage ?? '已复制') : '复制失败，请重试',
+        ok ? 'success' : 'error',
+      );
     }
     return ok;
   }
@@ -64,6 +73,7 @@ export function useCopyFeedback() {
   return {
     toastMessage,
     toastVisible,
+    toastVariant,
     copyText,
     copySteamId,
   };

@@ -46,17 +46,30 @@ import {
 } from './comments-mock';
 
 let clientKeyReady = false;
+let clientKeyPromise: Promise<string> | null = null;
 let selfCommentColorPromise: Promise<string | null> | null = null;
+
+function getOrCreateClientKeyPromise(): Promise<string> {
+  if (!clientKeyPromise) {
+    clientKeyPromise = getCommentClientKey();
+  }
+  return clientKeyPromise;
+}
+
+export function preloadCommentClientKey(): void {
+  ensureClientKeyProvider();
+  void getOrCreateClientKeyPromise();
+}
 
 function ensureClientKeyProvider() {
   if (clientKeyReady) return;
-  setCommentClientKeyProvider(() => getCommentClientKey());
+  setCommentClientKeyProvider(() => getOrCreateClientKeyPromise());
   clientKeyReady = true;
 }
 
 async function resolveSelfCommentColor(): Promise<string | null> {
   if (!selfCommentColorPromise) {
-    selfCommentColorPromise = getCommentClientKey()
+    selfCommentColorPromise = getOrCreateClientKeyPromise()
       .then((key) => generateColorFromClientKey(key))
       .catch(() => null);
   }
@@ -99,8 +112,8 @@ function isListCacheFresh(entry: ListCacheEntry): boolean {
   return Date.now() - entry.cachedAt < LIST_CACHE_TTL_MS;
 }
 
-export function useComments() {
-  ensureClientKeyProvider();
+export function useComments(options?: { autoInit?: boolean }) {
+  const autoInit = options?.autoInit ?? true;
 
   const counts = ref<Record<string, PlayerCommentCount>>({});
   const countsLoading = ref(false);
@@ -209,9 +222,23 @@ export function useComments() {
   const replyCursors = ref<Record<string, CommentCursor | null>>({});
   const replyingToId = ref<string | null>(null);
 
-  void resolveSelfCommentColor().then((color) => {
-    selfCommentColor.value = color;
-  });
+  let ready = false;
+
+  async function preloadClientKey() {
+    preloadCommentClientKey();
+  }
+
+  async function ensureReady() {
+    if (ready) return;
+    ready = true;
+    ensureClientKeyProvider();
+    const color = await resolveSelfCommentColor();
+    if (color) selfCommentColor.value = color;
+  }
+
+  if (autoInit) {
+    void ensureReady();
+  }
 
   const historyList = ref<HistoryCommentItem[]>([]);
   const historyLoading = ref(false);
@@ -411,6 +438,7 @@ export function useComments() {
   async function openPlayer(player: MatchPlayer, platformId: MatchPlatformId = 'perfect') {
     if (!canComment(player.steamId)) return;
 
+    await ensureReady();
     mockMode.value = false;
     const steamId = player.steamId;
     activePlatformId.value = platformId;
@@ -939,6 +967,7 @@ export function useComments() {
   }
 
   async function loadHistory(reset = false) {
+    await ensureReady();
     if (historyMockMode.value) {
       if (reset) {
         if (historyFetched.value && historyList.value.length > 0) return;
@@ -1002,6 +1031,8 @@ export function useComments() {
   }
 
   return {
+    preloadClientKey,
+    ensureReady,
     counts,
     countsLoading,
     drawerOpen,

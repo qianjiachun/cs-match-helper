@@ -14,7 +14,7 @@ import {
   start5eCdpCollector,
   stop5eCdpCollector,
 } from '@core/platform/5e';
-import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { onUnmounted, ref, shallowRef } from 'vue';
 
 const MAX_P5E_DEBUG_LOG_ENTRIES = 500;
 
@@ -39,7 +39,11 @@ export function getP5eLaunchCollectError(launch: {
   return null;
 }
 
-export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
+export function useP5eCdp(
+  onMatch: (record: MatchRecord) => void,
+  options?: { autoInit?: boolean },
+) {
+  const autoInit = options?.autoInit ?? true;
   const status = ref<P5eCdpStatus>({
     running: false,
     port: 9222,
@@ -273,7 +277,11 @@ export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
     }
   }
 
-  onMounted(async () => {
+  let listenersReady = false;
+
+  async function ensureReady() {
+    if (listenersReady) return;
+    listenersReady = true;
     unlistenEvent = await on5eCdpEvent(handleEvent);
     unlistenStatus = await on5eCdpStatus((s) => {
       status.value = s;
@@ -282,7 +290,11 @@ export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
       }
     });
     await refreshStatus();
-  });
+  }
+
+  if (autoInit) {
+    void ensureReady();
+  }
 
   onUnmounted(() => {
     unlistenEvent?.();
@@ -294,6 +306,7 @@ export function useP5eCdp(onMatch: (record: MatchRecord) => void) {
     lastError,
     logEntries,
     clearLogEntries,
+    ensureReady,
     startCollect,
     launchAndCollect,
     stopCollect,

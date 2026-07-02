@@ -10,7 +10,7 @@ import {
   type AiTokenUsage,
   type SaveAiSettingsInput,
 } from '@core/ai/types';
-import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { onUnmounted, ref, shallowRef } from 'vue';
 import {
   cancelAiAnalysis,
   loadAiSettings,
@@ -22,7 +22,8 @@ import {
   startAiAnalysis,
 } from '../native';
 
-export function useAiAnalysis() {
+export function useAiAnalysis(options?: { autoInit?: boolean }) {
+  const autoInit = options?.autoInit ?? true;
   const settings = ref<AiSettingsPublic | null>(null);
   const status = ref<AiAnalysisStatus>('idle');
   const activeMatchId = ref<string | null>(null);
@@ -34,6 +35,9 @@ export function useAiAnalysis() {
   const startedAt = ref<number | null>(null);
 
   const unlisteners: Array<() => void> = [];
+  let settingsLoadPromise: Promise<void> | null = null;
+  let listenersReady = false;
+  let listenersPromise: Promise<void> | null = null;
 
   async function refreshSettings() {
     try {
@@ -42,6 +46,14 @@ export function useAiAnalysis() {
       settings.value = null;
       error.value = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  async function ensureSettingsLoaded() {
+    if (settings.value) return;
+    if (!settingsLoadPromise) {
+      settingsLoadPromise = refreshSettings().then(() => undefined);
+    }
+    await settingsLoadPromise;
   }
 
   async function saveSettings(input: SaveAiSettingsInput) {
@@ -61,6 +73,57 @@ export function useAiAnalysis() {
     startedAt.value = null;
   }
 
+  async function ensureAnalysisListeners() {
+    if (listenersReady) return;
+    if (!listenersPromise) {
+      listenersPromise = (async () => {
+        const [onStart, onDelta, onDone, onError] = await Promise.all([
+          onAiAnalysisStart((evt) => {
+            if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
+            status.value = 'streaming';
+            startedAt.value = evt.startedAt;
+            streamingText.value = '';
+            error.value = null;
+          }),
+          onAiAnalysisDelta((evt) => {
+            if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
+            status.value = 'streaming';
+            streamingText.value = evt.fullText;
+            const full = parseAiAnalysisResult(evt.fullText);
+            if (full) {
+              result.value = full;
+            } else {
+              const partial = extractPartialAiResult(evt.fullText);
+              if (partial) {
+                result.value = mergePartialResult(result.value, partial);
+              }
+            }
+          }),
+          onAiAnalysisDone((evt) => {
+            if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
+            status.value = 'done';
+            streamingText.value = evt.fullText;
+            usage.value = evt.usage;
+            elapsedMs.value = evt.elapsedMs;
+            result.value = parseAiAnalysisResult(evt.fullText);
+            if (!result.value) {
+              status.value = 'error';
+              error.value = 'AI 返回格式无法解析，请重试';
+            }
+          }),
+          onAiAnalysisError((evt) => {
+            if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
+            status.value = 'error';
+            error.value = evt.error;
+          }),
+        ]);
+        unlisteners.push(onStart, onDelta, onDone, onError);
+        listenersReady = true;
+      })();
+    }
+    await listenersPromise;
+  }
+
   async function analyzeMatch(record: MatchRecord, force = false) {
     if (
       !force &&
@@ -70,9 +133,8 @@ export function useAiAnalysis() {
       return;
     }
 
-    if (!settings.value) {
-      await refreshSettings();
-    }
+    await ensureSettingsLoaded();
+    await ensureAnalysisListeners();
 
     if (!isAiAnalysisActive(settings.value)) {
       if (force && settings.value?.analysisEnabled && !settings.value?.hasApiKey) {
@@ -124,59 +186,14 @@ export function useAiAnalysis() {
     return null;
   }
 
-  onMounted(async () => {
-    await refreshSettings();
+  async function ensureReady() {
+    await ensureSettingsLoaded();
+    await ensureAnalysisListeners();
+  }
 
-    unlisteners.push(
-      await onAiAnalysisStart((evt) => {
-        if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
-        status.value = 'streaming';
-        startedAt.value = evt.startedAt;
-        streamingText.value = '';
-        error.value = null;
-      }),
-    );
-
-    unlisteners.push(
-      await onAiAnalysisDelta((evt) => {
-        if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
-        status.value = 'streaming';
-        streamingText.value = evt.fullText;
-        const full = parseAiAnalysisResult(evt.fullText);
-        if (full) {
-          result.value = full;
-        } else {
-          const partial = extractPartialAiResult(evt.fullText);
-          if (partial) {
-            result.value = mergePartialResult(result.value, partial);
-          }
-        }
-      }),
-    );
-
-    unlisteners.push(
-      await onAiAnalysisDone((evt) => {
-        if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
-        status.value = 'done';
-        streamingText.value = evt.fullText;
-        usage.value = evt.usage;
-        elapsedMs.value = evt.elapsedMs;
-        result.value = parseAiAnalysisResult(evt.fullText);
-        if (!result.value) {
-          status.value = 'error';
-          error.value = 'AI 返回格式无法解析，请重试';
-        }
-      }),
-    );
-
-    unlisteners.push(
-      await onAiAnalysisError((evt) => {
-        if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
-        status.value = 'error';
-        error.value = evt.error;
-      }),
-    );
-  });
+  if (autoInit) {
+    void ensureReady();
+  }
 
   onUnmounted(() => {
     unlisteners.forEach((fn) => fn());
@@ -193,6 +210,9 @@ export function useAiAnalysis() {
     elapsedMs,
     error,
     startedAt,
+    ensureSettingsLoaded,
+    ensureAnalysisListeners,
+    ensureReady,
     refreshSettings,
     saveSettings,
     analyzeMatch,
