@@ -363,6 +363,12 @@
           "markdownDescription": "允许检查 GitHub 发布版本"
         },
         {
+          "description": "允许检查 Game Bar Widget 更新",
+          "type": "string",
+          "const": "allow-check-gamebar-widget-update",
+          "markdownDescription": "允许检查 Game Bar Widget 更新"
+        },
+        {
           "description": "允许清空急停评估记录",
           "type": "string",
           "const": "allow-clear-counter-strafing-assessment-records",
@@ -399,6 +405,12 @@
           "markdownDescription": "允许代理拉取需 Referer 的远程图片（完美留言板头像/附图）"
         },
         {
+          "description": "允许查找开发环境 Widget dist 目录",
+          "type": "string",
+          "const": "allow-find-gamebar-widget-dev-dist",
+          "markdownDescription": "允许查找开发环境 Widget dist 目录"
+        },
+        {
           "description": "允许查询 5E CDP 采集状态",
           "type": "string",
           "const": "allow-get-5e-cdp-status",
@@ -429,6 +441,12 @@
           "markdownDescription": "允许获取急停快照"
         },
         {
+          "description": "允许获取 Game Bar Widget 安装状态",
+          "type": "string",
+          "const": "allow-get-gamebar-widget-status",
+          "markdownDescription": "允许获取 Game Bar Widget 安装状态"
+        },
+        {
           "description": "允许查询日志监听状态",
           "type": "string",
           "const": "allow-get-log-status",
@@ -445,6 +463,18 @@
           "type": "string",
           "const": "allow-hide-counter-strafing-hud",
           "markdownDescription": "允许隐藏急停 HUD"
+        },
+        {
+          "description": "允许从本地 zip 安装 Game Bar Widget",
+          "type": "string",
+          "const": "allow-install-gamebar-widget-from-local",
+          "markdownDescription": "允许从本地 zip 安装 Game Bar Widget"
+        },
+        {
+          "description": "允许从 CDN 安装或更新 Game Bar Widget",
+          "type": "string",
+          "const": "allow-install-or-update-gamebar-widget",
+          "markdownDescription": "允许从 CDN 安装或更新 Game Bar Widget"
         },
         {
           "description": "允许带 CDP 端口启动 5E 客户端",
@@ -589,6 +619,12 @@
           "type": "string",
           "const": "allow-stop-log-watch",
           "markdownDescription": "允许停止日志监听"
+        },
+        {
+          "description": "允许卸载 Game Bar Widget",
+          "type": "string",
+          "const": "allow-uninstall-gamebar-widget",
+          "markdownDescription": "允许卸载 Game Bar Widget"
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

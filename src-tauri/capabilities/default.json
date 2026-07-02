@@ -59,6 +59,12 @@
     "allow-show-counter-strafing-assessment-hud",
     "allow-hide-counter-strafing-assessment-hud",
     "allow-save-counter-strafing-assessment-hud-bounds",
+    "allow-get-gamebar-widget-status",
+    "allow-check-gamebar-widget-update",
+    "allow-install-or-update-gamebar-widget",
+    "allow-install-gamebar-widget-from-local",
+    "allow-find-gamebar-widget-dev-dist",
+    "allow-uninstall-gamebar-widget",
     "opener:default",
     "dialog:default",
     "core:webview:deny-internal-toggle-devtools"

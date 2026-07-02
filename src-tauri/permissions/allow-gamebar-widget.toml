@@ -1,0 +1,29 @@
+[[permission]]
+identifier = "allow-get-gamebar-widget-status"
+description = "允许获取 Game Bar Widget 安装状态"
+commands.allow = ["get_gamebar_widget_status"]
+
+[[permission]]
+identifier = "allow-check-gamebar-widget-update"
+description = "允许检查 Game Bar Widget 更新"
+commands.allow = ["check_gamebar_widget_update"]
+
+[[permission]]
+identifier = "allow-install-or-update-gamebar-widget"
+description = "允许从 CDN 安装或更新 Game Bar Widget"
+commands.allow = ["install_or_update_gamebar_widget"]
+
+[[permission]]
+identifier = "allow-install-gamebar-widget-from-local"
+description = "允许从本地 zip 安装 Game Bar Widget"
+commands.allow = ["install_gamebar_widget_from_local"]
+
+[[permission]]
+identifier = "allow-find-gamebar-widget-dev-dist"
+description = "允许查找开发环境 Widget dist 目录"
+commands.allow = ["find_gamebar_widget_dev_dist"]
+
+[[permission]]
+identifier = "allow-uninstall-gamebar-widget"
+description = "允许卸载 Game Bar Widget"
+commands.allow = ["uninstall_gamebar_widget"]
