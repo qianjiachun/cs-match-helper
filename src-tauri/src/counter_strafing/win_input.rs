@@ -19,9 +19,10 @@ mod platform {
     };
     use std::sync::Mutex;
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, PostMessageW,
-        PostQuitMessage, RegisterClassW, SetWindowLongPtrW, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
-        GetWindowLongPtrW, GWLP_USERDATA, MSG, WM_CLOSE, WM_DESTROY, WM_INPUT, WNDCLASSW, WS_OVERLAPPED,
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, MsgWaitForMultipleObjectsEx,
+        MWMO_INPUTAVAILABLE, PostMessageW, PostQuitMessage, RegisterClassW, SetWindowLongPtrW,
+        TranslateMessage, CS_HREDRAW, CS_VREDRAW, GetWindowLongPtrW, GWLP_USERDATA, MSG, PeekMessageW,
+        PM_REMOVE, QS_ALLINPUT, WM_CLOSE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW, WS_OVERLAPPED,
     };
 
     const CLASS_NAME: &str = "CSMatchHelperRawInput";
@@ -45,6 +46,7 @@ mod platform {
     const INPUT_INIT_TIMEOUT: Duration = Duration::from_secs(2);
     const INPUT_INIT_POLL: Duration = Duration::from_millis(5);
     const INPUT_HEALTH_CHECK: Duration = Duration::from_millis(50);
+    const INPUT_MSG_WAIT_TIMEOUT_MS: u32 = 50;
 
     pub fn is_process_elevated() -> bool {
         use windows::Win32::UI::Shell::IsUserAnAdmin;
@@ -270,12 +272,22 @@ mod platform {
 
             let mut msg = MSG::default();
             while running.load(Ordering::SeqCst) {
-                let ret = GetMessageW(&mut msg, None, 0, 0);
-                if ret.0 == 0 || ret.0 == -1 {
-                    break;
+                let _ = MsgWaitForMultipleObjectsEx(
+                    None,
+                    INPUT_MSG_WAIT_TIMEOUT_MS,
+                    QS_ALLINPUT,
+                    MWMO_INPUTAVAILABLE,
+                );
+                while running.load(Ordering::SeqCst)
+                    && PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool()
+                {
+                    if msg.message == WM_QUIT {
+                        running.store(false, Ordering::SeqCst);
+                        break;
+                    }
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
                 }
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
             }
 
             unregister_raw_input_devices();

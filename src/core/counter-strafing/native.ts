@@ -27,8 +27,8 @@ export async function getCounterStrafingSnapshot(): Promise<CounterStrafingSnaps
   return invoke<CounterStrafingSnapshot>('get_counter_strafing_snapshot');
 }
 
-export async function startCounterStrafing(): Promise<CounterStrafingSnapshot> {
-  return invoke<CounterStrafingSnapshot>('start_counter_strafing');
+export async function startCounterStrafing(showHud = true): Promise<CounterStrafingSnapshot> {
+  return invoke<CounterStrafingSnapshot>('start_counter_strafing', { showHud });
 }
 
 export async function stopCounterStrafing(): Promise<CounterStrafingSnapshot> {

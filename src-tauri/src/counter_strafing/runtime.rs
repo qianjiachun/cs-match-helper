@@ -1,9 +1,11 @@
 use crate::counter_strafing::assessment_engine::CounterStrafingAssessmentEngine;
 use crate::counter_strafing::engine::{mouse_label, vk_label, CounterStrafingEngine};
+use crate::counter_strafing::ipc_server;
+use super::hud_window;
 use crate::counter_strafing::settings::{load_counter_strafing_settings, save_counter_strafing_settings};
 use crate::counter_strafing::types::{
     BindingRole, CounterStrafingAssessmentSnapshot, CounterStrafingSettings, CounterStrafingSnapshot,
-    HudAnchor, InputBinding, InputEvent, InputSource,
+    GameBarIpcSnapshot, HudAnchor, InputBinding, InputEvent, InputSource, ShootingHudIpcSnapshot,
 };
 use crate::counter_strafing::win_input::{self, InputListener, ScreenRect};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -49,6 +51,8 @@ struct RuntimeInner {
     last_assessment_snapshot_emit: Option<Instant>,
     capturing_binding: Option<BindingRole>,
     capture_only_input: bool,
+    ipc_server: Option<ipc_server::IpcServer>,
+    snapshot_signal: Option<ipc_server::SnapshotSignal>,
 }
 
 impl CounterStrafingRuntime {
@@ -57,12 +61,17 @@ impl CounterStrafingRuntime {
         build_assessment_snapshot(&inner)
     }
 
+    pub fn gamebar_ipc_snapshot(&self) -> GameBarIpcSnapshot {
+        let inner = self.inner.lock().unwrap();
+        build_gamebar_ipc_snapshot(&inner)
+    }
+
     pub fn snapshot(&self) -> CounterStrafingSnapshot {
         let inner = self.inner.lock().unwrap();
         build_snapshot(&inner)
     }
 
-    pub fn start(&self, app: AppHandle) -> Result<CounterStrafingSnapshot, String> {
+    pub fn start(&self, app: AppHandle, show_hud: bool) -> Result<CounterStrafingSnapshot, String> {
         let mut inner = self.inner.lock().unwrap();
         if inner.listening {
             return Ok(build_snapshot(&inner));
@@ -70,8 +79,10 @@ impl CounterStrafingRuntime {
 
         let settings = load_counter_strafing_settings()?;
         inner.settings = settings.clone();
-        inner.hud_visible = settings.hud_visible;
-        inner.assessment_hud_visible = settings.assessment_hud_visible;
+        let show_shooting_hud = show_hud && settings.hud_visible;
+        let show_assessment_hud = show_hud && settings.assessment_hud_visible;
+        inner.hud_visible = show_shooting_hud;
+        inner.assessment_hud_visible = show_assessment_hud;
         inner.engine = Some(CounterStrafingEngine::new(settings.clone()));
         inner.assessment_engine = Some(CounterStrafingAssessmentEngine::new(settings.clone()));
         inner.stop_flag = Some(Arc::new(AtomicBool::new(false)));
@@ -105,8 +116,31 @@ impl CounterStrafingRuntime {
         inner.active = true;
         inner.listening = true;
 
-        let show_shooting_hud = settings.hud_visible;
-        let show_assessment_hud = settings.assessment_hud_visible;
+        let show_shooting_hud = inner.hud_visible;
+        let show_assessment_hud = inner.assessment_hud_visible;
+
+        let snapshot_signal = ipc_server::SnapshotSignal::new();
+        inner.snapshot_signal = Some(snapshot_signal.clone());
+
+        let app_for_ipc = app.clone();
+        match ipc_server::IpcServer::start(
+            app_for_ipc.clone(),
+            move || {
+                app_for_ipc
+                    .state::<CounterStrafingRuntime>()
+                    .gamebar_ipc_snapshot()
+            },
+            snapshot_signal,
+        ) {
+            Ok((server, port)) => {
+                eprintln!("[counter-strafing] Game Bar IPC listening on 127.0.0.1:{port}");
+                inner.ipc_server = Some(server);
+            }
+            Err(e) => {
+                eprintln!("[counter-strafing] {e}");
+            }
+        }
+
         drop(inner);
 
         if show_shooting_hud || show_assessment_hud {
@@ -130,15 +164,13 @@ impl CounterStrafingRuntime {
         }
 
         if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
-            let _ = window.hide();
-            let _ = window.close();
+            let _ = window.destroy();
         }
         if let Some(window) = app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL) {
-            let _ = window.hide();
-            let _ = window.close();
+            let _ = window.destroy();
         }
 
-        let (consumer, input) = {
+        let (consumer, input, ipc) = {
             let mut inner = self.inner.lock().unwrap();
             inner.hud_visible = false;
             inner.assessment_hud_visible = false;
@@ -151,10 +183,24 @@ impl CounterStrafingRuntime {
             inner.stop_flag = None;
             inner.last_snapshot_emit = None;
             inner.last_assessment_snapshot_emit = None;
-            (inner.consumer.take(), inner.input.take())
+            (
+                inner.consumer.take(),
+                inner.input.take(),
+                inner.ipc_server.take(),
+            )
         };
 
-        spawn_background_join(consumer, input);
+        thread::spawn(move || {
+            if let Some(mut ipc) = ipc {
+                ipc.stop();
+            }
+            if let Some(handle) = consumer {
+                let _ = handle.join();
+            }
+            if let Some(mut input) = input {
+                input.stop();
+            }
+        });
     }
 
     pub fn stop(&self, app: &AppHandle) -> CounterStrafingSnapshot {
@@ -166,10 +212,14 @@ impl CounterStrafingRuntime {
             flag.store(true, Ordering::SeqCst);
         }
 
-        let (consumer, input) = {
+        let (consumer, input, ipc) = {
             let mut inner = self.inner.lock().unwrap();
-            (inner.consumer.take(), inner.input.take())
+            (inner.consumer.take(), inner.input.take(), inner.ipc_server.take())
         };
+
+        if let Some(mut ipc) = ipc {
+            ipc.stop();
+        }
 
         if let Some(handle) = consumer {
             let _ = handle.join();
@@ -256,14 +306,14 @@ impl CounterStrafingRuntime {
             )
         };
 
-        if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
-            if hud_visible {
-                sync_hud_window(&window, &settings);
-            }
-        }
         if let Some(window) = app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL) {
             if assessment_hud_visible {
                 sync_assessment_hud_window(&window, &settings);
+            }
+        }
+        if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
+            if hud_visible {
+                sync_hud_window(&window, &settings);
             }
         }
 
@@ -358,8 +408,7 @@ impl CounterStrafingRuntime {
 
     pub fn show_hud(&self, app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
         if app.get_webview_window(HUD_WINDOW_LABEL).is_none() {
-            schedule_deferred_hud_show(app.clone(), true, false);
-            return Err("HUD 窗口正在初始化，请稍后重试".to_string());
+            init_hud_window(app)?;
         }
 
         let mut settings = load_counter_strafing_settings()?;
@@ -407,8 +456,7 @@ impl CounterStrafingRuntime {
 
     pub fn show_assessment_hud(&self, app: &AppHandle) -> Result<CounterStrafingAssessmentSnapshot, String> {
         if app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL).is_none() {
-            schedule_deferred_hud_show(app.clone(), false, true);
-            return Err("急停评估 HUD 窗口正在初始化，请稍后重试".to_string());
+            init_assessment_hud_window(app)?;
         }
 
         let mut settings = load_counter_strafing_settings()?;
@@ -421,7 +469,18 @@ impl CounterStrafingRuntime {
         window
             .show()
             .map_err(|e| format!("显示急停评估 HUD 失败: {e}"))?;
+        settings.assessment_hud_visible = true;
         sync_assessment_hud_window(&window, &settings);
+
+        let shooting_visible = {
+            let inner = self.inner.lock().unwrap();
+            inner.hud_visible
+        };
+        if shooting_visible && settings.hud_x.is_none() && settings.hud_y.is_none() {
+            if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
+                sync_hud_window(&shooting, &settings);
+            }
+        }
 
         let snap = {
             let mut inner = self.inner.lock().unwrap();
@@ -513,16 +572,16 @@ impl CounterStrafingRuntime {
             build_snapshot(&inner)
         };
 
-        if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
-            if hud_visible {
-                let _ = window.show();
-                sync_hud_window(&window, &defaults);
-            }
-        }
         if let Some(window) = app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL) {
             if assessment_hud_visible {
                 let _ = window.show();
                 sync_assessment_hud_window(&window, &defaults);
+            }
+        }
+        if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
+            if hud_visible {
+                let _ = window.show();
+                sync_hud_window(&window, &defaults);
             }
         }
 
@@ -570,20 +629,6 @@ impl CounterStrafingRuntime {
     }
 }
 
-fn spawn_background_join(consumer: Option<JoinHandle<()>>, input: Option<InputListener>) {
-    if consumer.is_none() && input.is_none() {
-        return;
-    }
-    thread::spawn(move || {
-        if let Some(handle) = consumer {
-            let _ = handle.join();
-        }
-        if let Some(mut input) = input {
-            input.stop();
-        }
-    });
-}
-
 struct ConsumerShared {
     stop_flag: Arc<AtomicBool>,
 }
@@ -598,6 +643,17 @@ fn compute_recv_timeout(engine: Option<&CounterStrafingEngine>) -> Duration {
         }
     }
     MAX_RECV_TIMEOUT
+}
+
+fn bump_gamebar_snapshot_signal(app: &AppHandle) {
+    let signal = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let inner = runtime.inner.lock().unwrap();
+        inner.snapshot_signal.clone()
+    };
+    if let Some(signal) = signal {
+        signal.bump();
+    }
 }
 
 fn dispatch_consumer_event(app: &AppHandle, event: InputEvent) {
@@ -629,12 +685,14 @@ fn dispatch_consumer_event(app: &AppHandle, event: InputEvent) {
         let snap = app.state::<CounterStrafingRuntime>().assessment_snapshot();
         let _ = app.emit("counter-strafing-assessment-record", record.clone());
         let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+        bump_gamebar_snapshot_signal(app);
     }
 
     if let Some(record) = shot {
         let snap = app.state::<CounterStrafingRuntime>().snapshot();
         let _ = app.emit("counter-strafing-shot", record);
         let _ = app.emit("counter-strafing-snapshot", snap);
+        bump_gamebar_snapshot_signal(app);
     } else if assessment_record.is_none() {
         let runtime = app.state::<CounterStrafingRuntime>();
         let mut inner = runtime.inner.lock().unwrap();
@@ -693,6 +751,7 @@ fn reconcile_stuck_inputs(app: &AppHandle, now: f64) {
         let snap = app.state::<CounterStrafingRuntime>().assessment_snapshot();
         let _ = app.emit("counter-strafing-assessment-record", record);
         let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+        bump_gamebar_snapshot_signal(app);
     }
 }
 
@@ -774,6 +833,7 @@ fn consumer_loop(
                         let snap = app.state::<CounterStrafingRuntime>().snapshot();
                         let _ = app.emit("counter-strafing-shot", record);
                         let _ = app.emit("counter-strafing-snapshot", snap);
+                        bump_gamebar_snapshot_signal(&app);
                         continue;
                     }
                 }
@@ -801,6 +861,9 @@ fn maybe_emit_assessment_snapshot(app: &AppHandle, inner: &mut RuntimeInner) {
         inner.last_assessment_snapshot_emit = Some(Instant::now());
         let snap = build_assessment_snapshot(inner);
         let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+        if let Some(signal) = inner.snapshot_signal.clone() {
+            signal.bump();
+        }
     }
 }
 
@@ -813,6 +876,9 @@ fn maybe_emit_snapshot(app: &AppHandle, inner: &mut RuntimeInner) {
         inner.last_snapshot_emit = Some(Instant::now());
         let snap = build_snapshot(inner);
         let _ = app.emit("counter-strafing-snapshot", snap);
+        if let Some(signal) = inner.snapshot_signal.clone() {
+            signal.bump();
+        }
     }
 }
 
@@ -859,8 +925,46 @@ fn build_assessment_snapshot(inner: &RuntimeInner) -> CounterStrafingAssessmentS
     snap
 }
 
+const WIDGET_IPC_TAIL: usize = 32;
+
+fn tail_records<T: Clone>(records: Vec<T>, limit: usize) -> Vec<T> {
+    if records.len() <= limit {
+        records
+    } else {
+        records[records.len() - limit..].to_vec()
+    }
+}
+
+fn build_gamebar_ipc_snapshot(inner: &RuntimeInner) -> GameBarIpcSnapshot {
+    let mut assessment = build_assessment_snapshot(inner);
+    assessment.records = tail_records(assessment.records, WIDGET_IPC_TAIL);
+
+    let shooting_snap = build_snapshot(inner);
+    let shooting = ShootingHudIpcSnapshot {
+        shot_records: tail_records(shooting_snap.shot_records, WIDGET_IPC_TAIL),
+        avg_error: shooting_snap.avg_error,
+        stable_rate: shooting_snap.stable_rate,
+        hud_show_stable_bars: shooting_snap.hud_show_stable_bars,
+        last_shot: shooting_snap.last_shot,
+    };
+    GameBarIpcSnapshot {
+        assessment,
+        shooting: Some(shooting),
+    }
+}
+
 fn schedule_deferred_hud_show(app: AppHandle, show_shooting: bool, show_assessment: bool) {
     tauri::async_runtime::spawn(async move {
+        let app_init = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if show_assessment {
+                let _ = init_assessment_hud_window(&app_init);
+            }
+            if show_shooting {
+                let _ = init_hud_window(&app_init);
+            }
+        });
+
         for _ in 0..50 {
             let shooting_ready =
                 !show_shooting || app.get_webview_window(HUD_WINDOW_LABEL).is_some();
@@ -877,11 +981,11 @@ fn schedule_deferred_hud_show(app: AppHandle, show_shooting: bool, show_assessme
         let app_for_main = app.clone();
         let _ = app.run_on_main_thread(move || {
             let runtime = app_for_main.state::<CounterStrafingRuntime>();
-            if show_shooting {
-                let _ = runtime.show_hud(&app_for_main);
-            }
             if show_assessment {
                 let _ = runtime.show_assessment_hud(&app_for_main);
+            }
+            if show_shooting {
+                let _ = runtime.show_hud(&app_for_main);
             }
         });
     });
@@ -904,12 +1008,17 @@ pub fn init_hud_window(app: &AppHandle) -> Result<(), String> {
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(true)
+    .closable(false)
+    .minimizable(false)
+    .maximizable(false)
     .visible(false)
     .focused(false)
     .inner_size(HUD_WIDTH, HUD_HEIGHT)
     .min_inner_size(HUD_MIN_WIDTH, HUD_MIN_HEIGHT)
     .build()
     .map_err(|e| format!("创建 HUD 窗口失败: {e}"))?;
+
+    hud_window::harden_hud_window(&window);
 
     let settings = load_counter_strafing_settings().unwrap_or_default();
     sync_hud_window(&window, &settings);
@@ -934,12 +1043,17 @@ pub fn init_assessment_hud_window(app: &AppHandle) -> Result<(), String> {
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(true)
+    .closable(false)
+    .minimizable(false)
+    .maximizable(false)
     .visible(false)
     .focused(false)
     .inner_size(ASSESSMENT_HUD_WIDTH, ASSESSMENT_HUD_HEIGHT)
     .min_inner_size(ASSESSMENT_HUD_MIN_WIDTH, ASSESSMENT_HUD_MIN_HEIGHT)
     .build()
     .map_err(|e| format!("创建急停评估 HUD 窗口失败: {e}"))?;
+
+    hud_window::harden_hud_window(&window);
 
     let settings = load_counter_strafing_settings().unwrap_or_default();
     sync_assessment_hud_window(&window, &settings);
@@ -948,6 +1062,7 @@ pub fn init_assessment_hud_window(app: &AppHandle) -> Result<(), String> {
 }
 
 fn sync_assessment_hud_window(window: &tauri::WebviewWindow, settings: &CounterStrafingSettings) {
+    hud_window::harden_hud_window(window);
     apply_assessment_hud_bounds(window, settings);
     let _ = window.set_ignore_cursor_events(settings.assessment_hud_locked);
 }
@@ -977,8 +1092,7 @@ fn apply_assessment_hud_bounds(window: &tauri::WebviewWindow, settings: &Counter
         .inner_size()
         .map(|size| (size.width as i32, size.height as i32))
         .unwrap_or((logical_w.round() as i32, logical_h.round() as i32));
-    let (x, y) = assessment_hud_position_below_shooting(window.app_handle(), settings, width, height);
-    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+    position_hud_window(window, settings.assessment_hud_anchor, width, height);
 }
 
 fn preserve_assessment_hud_bounds(
@@ -1006,6 +1120,7 @@ fn preserve_assessment_hud_bounds(
 }
 
 fn sync_hud_window(window: &tauri::WebviewWindow, settings: &CounterStrafingSettings) {
+    hud_window::harden_hud_window(window);
     apply_hud_bounds(window, settings);
     let _ = window.set_ignore_cursor_events(settings.hud_locked);
 }
@@ -1035,7 +1150,16 @@ fn apply_hud_bounds(window: &tauri::WebviewWindow, settings: &CounterStrafingSet
         .inner_size()
         .map(|size| (size.width as i32, size.height as i32))
         .unwrap_or((logical_w.round() as i32, logical_h.round() as i32));
-    position_hud_window(window, settings.hud_anchor, width, height);
+    let (x, y) = if settings.assessment_hud_visible
+        && settings.assessment_hud_x.is_none()
+        && settings.assessment_hud_y.is_none()
+    {
+        shooting_hud_position_below_assessment(window.app_handle(), settings, width, height)
+    } else {
+        let rect = win_input::resolve_hud_target_rect();
+        hud_position(&rect, settings.hud_anchor, width, height)
+    };
+    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
 }
 
 fn preserve_hud_bounds(target: &mut CounterStrafingSettings, source: &CounterStrafingSettings) {
@@ -1080,49 +1204,49 @@ fn hud_position(rect: &ScreenRect, anchor: HudAnchor, width: i32, height: i32) -
     (x, y)
 }
 
-fn shooting_hud_rect(settings: &CounterStrafingSettings) -> (i32, i32, i32, i32) {
+fn assessment_hud_rect(settings: &CounterStrafingSettings) -> (i32, i32, i32, i32) {
     if let (Some(x), Some(y), Some(width), Some(height)) = (
-        settings.hud_x,
-        settings.hud_y,
-        settings.hud_width,
-        settings.hud_height,
+        settings.assessment_hud_x,
+        settings.assessment_hud_y,
+        settings.assessment_hud_width,
+        settings.assessment_hud_height,
     ) {
         return (
             x,
             y,
-            width.round().clamp(HUD_MIN_WIDTH, 960.0) as i32,
-            height.round().clamp(HUD_MIN_HEIGHT, 480.0) as i32,
+            width.round().clamp(ASSESSMENT_HUD_MIN_WIDTH, 960.0) as i32,
+            height.round().clamp(ASSESSMENT_HUD_MIN_HEIGHT, 480.0) as i32,
         );
     }
 
-    let logical_w = settings.hud_width.unwrap_or(HUD_WIDTH);
-    let logical_h = settings.hud_height.unwrap_or(HUD_HEIGHT);
+    let logical_w = settings.assessment_hud_width.unwrap_or(ASSESSMENT_HUD_WIDTH);
+    let logical_h = settings.assessment_hud_height.unwrap_or(ASSESSMENT_HUD_HEIGHT);
     let width = logical_w.round() as i32;
     let height = logical_h.round() as i32;
     let rect = win_input::resolve_hud_target_rect();
-    let (x, y) = hud_position(&rect, settings.hud_anchor, width, height);
+    let (x, y) = hud_position(&rect, settings.assessment_hud_anchor, width, height);
     (x, y, width, height)
 }
 
-fn assessment_hud_position_below_shooting(
+fn shooting_hud_position_below_assessment(
     app: &AppHandle,
     settings: &CounterStrafingSettings,
-    assessment_width: i32,
-    _assessment_height: i32,
+    shooting_width: i32,
+    _shooting_height: i32,
 ) -> (i32, i32) {
-    if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
-        if let (Ok(pos), Ok(size)) = (shooting.outer_position(), shooting.inner_size()) {
+    if let Some(assessment) = app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL) {
+        if let (Ok(pos), Ok(size)) = (assessment.outer_position(), assessment.inner_size()) {
             let center_x = pos.x + size.width as i32 / 2;
-            let x = center_x - assessment_width / 2;
+            let x = center_x - shooting_width / 2;
             let y = pos.y + size.height as i32 + HUD_STACK_GAP;
             return (x, y);
         }
     }
 
-    let (shooting_x, shooting_y, shooting_w, shooting_h) = shooting_hud_rect(settings);
-    let center_x = shooting_x + shooting_w / 2;
-    let x = center_x - assessment_width / 2;
-    let y = shooting_y + shooting_h + HUD_STACK_GAP;
+    let (assessment_x, assessment_y, assessment_w, assessment_h) = assessment_hud_rect(settings);
+    let center_x = assessment_x + assessment_w / 2;
+    let x = center_x - shooting_width / 2;
+    let y = assessment_y + assessment_h + HUD_STACK_GAP;
     (x, y)
 }
 
@@ -1165,8 +1289,9 @@ pub fn clear_counter_strafing_records(
 pub fn start_counter_strafing(
     state: State<'_, CounterStrafingRuntime>,
     app: AppHandle,
+    show_hud: Option<bool>,
 ) -> Result<CounterStrafingSnapshot, String> {
-    state.start(app)
+    state.start(app, show_hud.unwrap_or(true))
 }
 
 #[tauri::command]

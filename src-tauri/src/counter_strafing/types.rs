@@ -189,6 +189,31 @@ impl Default for CounterStrafingAssessmentSnapshot {
     }
 }
 
+/// Game Bar Widget IPC：评估字段扁平化在根级，开枪稳定数据在 `shooting` 子对象。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShootingHudIpcSnapshot {
+    #[serde(default)]
+    pub shot_records: Vec<ShootingErrorRecord>,
+    #[serde(default)]
+    pub avg_error: f64,
+    #[serde(default)]
+    pub stable_rate: f64,
+    #[serde(default = "default_true")]
+    pub hud_show_stable_bars: bool,
+    #[serde(default)]
+    pub last_shot: Option<ShootingErrorRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameBarIpcSnapshot {
+    #[serde(flatten)]
+    pub assessment: CounterStrafingAssessmentSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shooting: Option<ShootingHudIpcSnapshot>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShootingErrorRecord {
