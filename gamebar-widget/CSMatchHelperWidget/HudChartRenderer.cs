@@ -195,36 +195,75 @@ namespace CSMatchHelperWidget
         private const int MaxPoints = 32;
 
         private readonly Canvas _canvas;
-        private readonly Rectangle[] _bars;
-        private readonly SolidColorBrush[] _barBrushes;
+        private readonly Rectangle[] _greenBars;
+        private readonly Rectangle[] _yellowBars;
+        private readonly Rectangle[] _redBars;
+        private readonly Line[] _thresholdLines;
+        private readonly SolidColorBrush[] _greenBrushes;
+        private readonly SolidColorBrush[] _yellowBrushes;
+        private readonly SolidColorBrush[] _redBrushes;
+        private readonly SolidColorBrush _thresholdBrush;
 
         public ShootingChartRenderer(Canvas canvas)
         {
             _canvas = canvas;
-            _bars = new Rectangle[MaxPoints];
-            _barBrushes = new SolidColorBrush[MaxPoints];
+            _thresholdBrush = new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xFF, 0xFF));
+
+            _greenBars = new Rectangle[MaxPoints];
+            _yellowBars = new Rectangle[MaxPoints];
+            _redBars = new Rectangle[MaxPoints];
+            _thresholdLines = new Line[MaxPoints];
+            _greenBrushes = new SolidColorBrush[MaxPoints];
+            _yellowBrushes = new SolidColorBrush[MaxPoints];
+            _redBrushes = new SolidColorBrush[MaxPoints];
 
             for (var i = 0; i < MaxPoints; i++)
             {
-                var brush = new SolidColorBrush(Colors.Transparent);
-                _barBrushes[i] = brush;
-                var bar = new Rectangle
+                var greenBrush = new SolidColorBrush(Colors.Transparent);
+                _greenBrushes[i] = greenBrush;
+                _greenBars[i] = CreateBar(greenBrush);
+                _canvas.Children.Add(_greenBars[i]);
+
+                var yellowBrush = new SolidColorBrush(Colors.Transparent);
+                _yellowBrushes[i] = yellowBrush;
+                _yellowBars[i] = CreateBar(yellowBrush);
+                _canvas.Children.Add(_yellowBars[i]);
+
+                var redBrush = new SolidColorBrush(Colors.Transparent);
+                _redBrushes[i] = redBrush;
+                _redBars[i] = CreateBar(redBrush);
+                _canvas.Children.Add(_redBars[i]);
+
+                _thresholdLines[i] = new Line
                 {
-                    RadiusX = 1,
-                    RadiusY = 1,
-                    Fill = brush,
+                    Stroke = _thresholdBrush,
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 2, 2 },
                     Visibility = Visibility.Collapsed,
                 };
-                _bars[i] = bar;
-                _canvas.Children.Add(bar);
+                _canvas.Children.Add(_thresholdLines[i]);
             }
+        }
+
+        private static Rectangle CreateBar(SolidColorBrush brush)
+        {
+            return new Rectangle
+            {
+                RadiusX = 1,
+                RadiusY = 1,
+                Fill = brush,
+                Visibility = Visibility.Collapsed,
+            };
         }
 
         public void Reset()
         {
             for (var i = 0; i < MaxPoints; i++)
             {
-                _bars[i].Visibility = Visibility.Collapsed;
+                _greenBars[i].Visibility = Visibility.Collapsed;
+                _yellowBars[i].Visibility = Visibility.Collapsed;
+                _redBars[i].Visibility = Visibility.Collapsed;
+                _thresholdLines[i].Visibility = Visibility.Collapsed;
             }
         }
 
@@ -244,11 +283,15 @@ namespace CSMatchHelperWidget
             var innerW = width - padX * 2;
             var blockW = Math.Max(3, (innerW - gap * (count - 1)) / count);
             var blockH = height - padY * 2;
+            var barBottom = padY + blockH;
 
             var data = SliceLast(records, MaxPoints);
             for (var slot = 0; slot < MaxPoints; slot++)
             {
-                _bars[slot].Visibility = Visibility.Collapsed;
+                _greenBars[slot].Visibility = Visibility.Collapsed;
+                _yellowBars[slot].Visibility = Visibility.Collapsed;
+                _redBars[slot].Visibility = Visibility.Collapsed;
+                _thresholdLines[slot].Visibility = Visibility.Collapsed;
             }
 
             for (var i = 0; i < data.Count; i++)
@@ -259,8 +302,8 @@ namespace CSMatchHelperWidget
                 }
 
                 var record = data[i].GetObject();
-                var state = HudChartRenderer.SampleState(record);
-                var isStableHidden = !showStableBars && state == "stable";
+                var seg = HudChartRenderer.ShotBarSegments(record);
+                var isStableHidden = !showStableBars && seg.State == "stable";
                 if (isStableHidden)
                 {
                     continue;
@@ -274,16 +317,47 @@ namespace CSMatchHelperWidget
 
                 var x = padX + slot * (blockW + gap);
                 var y = padY;
-                var isLatest = i == data.Count - 1;
-                var color = HudChartRenderer.SampleStateColor(record);
 
-                _bars[slot].Width = blockW;
-                _bars[slot].Height = blockH;
-                _barBrushes[slot].Color = color;
-                _bars[slot].Opacity = isLatest ? 1 : 0.75;
-                Canvas.SetLeft(_bars[slot], x);
-                Canvas.SetTop(_bars[slot], y);
-                _bars[slot].Visibility = Visibility.Visible;
+                var greenH = seg.GreenRatio * blockH;
+                var yellowH = seg.YellowRatio * blockH;
+                var redH = seg.RedRatio * blockH;
+                var thresholdY = barBottom - seg.ThresholdLineRatio * blockH;
+
+                _thresholdLines[slot].X1 = x + 1;
+                _thresholdLines[slot].Y1 = thresholdY;
+                _thresholdLines[slot].X2 = x + blockW - 1;
+                _thresholdLines[slot].Y2 = thresholdY;
+                _thresholdLines[slot].Visibility = Visibility.Visible;
+
+                if (greenH > 0)
+                {
+                    _greenBars[slot].Width = blockW;
+                    _greenBars[slot].Height = greenH;
+                    _greenBrushes[slot].Color = seg.StableColor;
+                    Canvas.SetLeft(_greenBars[slot], x);
+                    Canvas.SetTop(_greenBars[slot], barBottom - greenH);
+                    _greenBars[slot].Visibility = Visibility.Visible;
+                }
+
+                if (yellowH > 0)
+                {
+                    _yellowBars[slot].Width = blockW;
+                    _yellowBars[slot].Height = yellowH;
+                    _yellowBrushes[slot].Color = HudChartRenderer.MicroColor;
+                    Canvas.SetLeft(_yellowBars[slot], x);
+                    Canvas.SetTop(_yellowBars[slot], barBottom - greenH - yellowH);
+                    _yellowBars[slot].Visibility = Visibility.Visible;
+                }
+
+                if (redH > 0)
+                {
+                    _redBars[slot].Width = blockW;
+                    _redBars[slot].Height = redH;
+                    _redBrushes[slot].Color = HudChartRenderer.RunColor;
+                    Canvas.SetLeft(_redBars[slot], x);
+                    Canvas.SetTop(_redBars[slot], barBottom - greenH - yellowH - redH);
+                    _redBars[slot].Visibility = Visibility.Visible;
+                }
             }
         }
 
@@ -300,8 +374,33 @@ namespace CSMatchHelperWidget
         }
     }
 
+    internal struct ShotBarSegments
+    {
+        public string State;
+        public Color StableColor;
+        public double GreenRatio;
+        public double YellowRatio;
+        public double RedRatio;
+        public double ThresholdLineRatio;
+        public bool IsCrouchGrace;
+        public bool IsFireHeld;
+    }
+
     internal static class HudChartRenderer
     {
+        private const double MicroRatio = 1.5;
+        private const double MinVisibleRatio = 0.12;
+        private const double ThresholdLineRatio = 0.5;
+        private const double MaxDisplayRatio = 2.0;
+        private const double YellowStartRatio = 1.02;
+        private const double YellowFullRatio = 1.35;
+        private const double MinYellowRatio = 0.08;
+        private const double RedStartRatio = 1.35;
+        private const double RedFullRatio = 1.8;
+
+        public static readonly Color MicroColor = Color.FromArgb(0xFF, 0xFB, 0xBF, 0x24);
+        public static readonly Color RunColor = Color.FromArgb(0xFF, 0xF8, 0x71, 0x71);
+
         public static Color AssessmentRecordColor(JsonObject record)
         {
             var isPerfect = JsonHelpers.GetBool(record, "isPerfect");
@@ -320,6 +419,7 @@ namespace CSMatchHelperWidget
             var speedRatio = JsonHelpers.GetNumber(record, "speedRatio", 0);
             var axisConflict = JsonHelpers.GetBool(record, "axisConflict");
             if (crouchGrace || reason == "crouchGrace") return "stable";
+            if (reason == "crouching") return "stable";
             if (reason == "lowSpeedMovement" || speedRatio <= 1) return "stable";
             if (axisConflict || speedRatio > 1.5) return "run";
             if (speedRatio > 1) return "micro";
@@ -332,6 +432,85 @@ namespace CSMatchHelperWidget
             if (state == "stable") return Color.FromArgb(0xFF, 0x4A, 0xDE, 0x80);
             if (state == "micro") return Color.FromArgb(0xFF, 0xFB, 0xBF, 0x24);
             return Color.FromArgb(0xFF, 0xF8, 0x71, 0x71);
+        }
+
+        public static ShotBarSegments ShotBarSegments(JsonObject record)
+        {
+            var state = SampleState(record);
+            var speedRatio = JsonHelpers.GetNumber(record, "speedRatio", 0);
+            var thresholdFill = Clamp01(speedRatio);
+            var upperZone = 1 - ThresholdLineRatio;
+
+            var crouchGrace = JsonHelpers.GetBool(record, "crouchGraceActive");
+            var reason = JsonHelpers.GetString(record, "reason", "");
+            var isCrouchGrace = crouchGrace || reason == "crouchGrace";
+            var isCrouching = reason == "crouching";
+            var isLowRiskStable = isCrouchGrace || isCrouching;
+            var sampleKind = JsonHelpers.GetString(record, "sampleKind", "fireDown");
+            var fireHeld = JsonHelpers.GetBool(record, "fireHeld");
+            var axisConflict = JsonHelpers.GetBool(record, "axisConflict");
+
+            var greenRatio = 0.0;
+            var yellowRatio = 0.0;
+            var redRatio = 0.0;
+
+            if (state == "stable")
+            {
+                greenRatio = isLowRiskStable
+                    ? MinVisibleRatio
+                    : Math.Max(MinVisibleRatio, thresholdFill * ThresholdLineRatio);
+            }
+            else if (state == "micro")
+            {
+                greenRatio = ThresholdLineRatio;
+                yellowRatio = YellowVisualFill(speedRatio) * upperZone;
+            }
+            else
+            {
+                var severity = axisConflict
+                    ? Math.Max(0.5, Clamp01((speedRatio - 1) / (RedFullRatio - 1)))
+                    : Math.Max(
+                        MinYellowRatio,
+                        Clamp01((speedRatio - MicroRatio) / (RedFullRatio - MicroRatio)));
+                redRatio = Math.Max(
+                    MinVisibleRatio,
+                    ThresholdLineRatio + severity * upperZone);
+            }
+
+            var stableColor = isCrouchGrace
+                ? Color.FromArgb(0xFF, 0x5E, 0xEA, 0xD4)
+                : Color.FromArgb(0xFF, 0x4A, 0xDE, 0x80);
+
+            return new ShotBarSegments
+            {
+                State = state,
+                StableColor = stableColor,
+                GreenRatio = greenRatio,
+                YellowRatio = yellowRatio,
+                RedRatio = redRatio,
+                ThresholdLineRatio = ThresholdLineRatio,
+                IsCrouchGrace = isCrouchGrace,
+                IsFireHeld = fireHeld || sampleKind == "fireHeld",
+            };
+        }
+
+        private static double YellowVisualFill(double speedRatio)
+        {
+            var yellowRaw = Clamp01(
+                (speedRatio - YellowStartRatio) / (YellowFullRatio - YellowStartRatio));
+            if (yellowRaw <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Max(MinYellowRatio, Math.Sqrt(yellowRaw));
+        }
+
+        private static double Clamp01(double value)
+        {
+            if (value < 0) return 0;
+            if (value > 1) return 1;
+            return value;
         }
     }
 }

@@ -268,7 +268,6 @@ watch(
       type="button"
       class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
       :class="open ? 'bg-elevated text-fg-secondary' : ''"
-      title="调试：注入数据与日志输出"
       @click="toggle"
     >
       <Bug class="h-4 w-4" />

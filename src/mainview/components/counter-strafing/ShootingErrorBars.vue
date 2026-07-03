@@ -2,9 +2,8 @@
 import { computed } from 'vue';
 import type { ShootingErrorRecord } from '@core/counter-strafing/types';
 import {
-  barHeightRatio,
-  sampleState,
-  sampleStateColor,
+  SHOT_BAR_COLORS,
+  shotBarSegments,
   shotFeedback,
 } from '@core/counter-strafing/types';
 
@@ -37,12 +36,12 @@ const STROKE_INSET = 1;
 const blocks = computed(() => props.records.slice(-props.maxPoints));
 const latest = computed(() => blocks.value.at(-1) ?? null);
 const latestFeedback = computed(() => (latest.value ? shotFeedback(latest.value) : null));
-const hasData = computed(() => blocks.value.length > 0);
 
 const legendItems = [
-  { state: 'stable' as const, color: '#4ade80', label: '稳定' },
-  { state: 'micro' as const, color: '#fbbf24', label: '微动' },
-  { state: 'run' as const, color: '#f87171', label: '跑打' },
+  { color: SHOT_BAR_COLORS.stable, label: '阈值内' },
+  { color: SHOT_BAR_COLORS.micro, label: '微动超阈' },
+  { color: SHOT_BAR_COLORS.run, label: '跑打/冲突' },
+  { color: SHOT_BAR_COLORS.crouchGrace, label: '蹲起宽限' },
 ];
 
 const chart = computed(() => {
@@ -56,54 +55,47 @@ const chart = computed(() => {
   const innerW = width - padX * 2;
   const blockW = Math.max(3, (innerW - gap * (count - 1)) / count);
   const blockH = height - padY * 2;
+  const barBottom = padY + blockH;
 
   const items = data.map((record, i) => {
     const slot = count - data.length + i;
     const isLatest = i === data.length - 1;
-    const w = blockW;
-    const h = blockH;
     const x = padX + slot * (blockW + gap);
     const y = padY;
-    const state = sampleState(record);
-    const isStableHidden = !props.showStableBars && state === 'stable';
+    const seg = shotBarSegments(record);
+    const isStableHidden = !props.showStableBars && seg.state === 'stable';
 
-    const heightRatio = barHeightRatio(record.speedRatio);
-    const barH = h * heightRatio;
-    const barY = y + h - barH;
+    const greenH = seg.greenRatio * blockH;
+    const yellowH = seg.yellowRatio * blockH;
+    const redH = seg.redRatio * blockH;
+    const thresholdY = barBottom - seg.thresholdLineRatio * blockH;
 
-    const isTapFirst =
-      !isStableHidden &&
-      record.sampleKind === 'fireDown' &&
-      (record.shotSequenceIndex ?? 1) === 1 &&
-      !record.fireHeld;
-
-    // 稳定余量：柱顶小横线位置（越高余量越大）
-    // const marginLineY =
-    //   state === 'stable' || state === 'crouchGrace'
-    //     ? y + h - (h * THRESHOLD_RATIO * feedback.stabilityPercent) / 100
-    //     : null;
-    const marginLineY = null;
+    const greenY = barBottom - greenH;
+    const yellowY = barBottom - greenH - yellowH;
+    const redY = barBottom - greenH - yellowH - redH;
 
     return {
       x,
       y,
-      w,
-      h,
-      barY,
-      barH,
-      marginLineY,
+      w: blockW,
+      h: blockH,
+      barBottom,
+      thresholdY,
+      greenY,
+      greenH,
+      yellowY,
+      yellowH,
+      redY,
+      redH,
+      stableColor: seg.stableColor,
       isLatest,
       isStableHidden,
-      state,
-      color: sampleStateColor(record),
-      isTapFirst,
-      opacity: isLatest ? 1 : 0.75,
+      isCrouchGrace: seg.isCrouchGrace,
+      isTapFirst: !isStableHidden && seg.isTapFirst,
+      showGreen: greenH > 0 && !isStableHidden,
+      showYellow: yellowH > 0 && !isStableHidden,
+      showRed: redH > 0 && !isStableHidden,
     };
-  });
-
-  const ghostSlots = Array.from({ length: count }, (_, i) => {
-    const x = padX + i * (blockW + gap);
-    return { x, y: padY, w: blockW, h: blockH };
   });
 
   const frameX = padX - STROKE_INSET;
@@ -118,12 +110,12 @@ const chart = computed(() => {
     padY,
     blockH,
     innerW,
+    barBottom,
     frameX,
     frameY,
     frameW,
     frameH,
     items,
-    ghostSlots,
   };
 });
 </script>
@@ -168,49 +160,54 @@ const chart = computed(() => {
         rx="4"
       />
 
-      <g v-if="!hasData && !ghost" aria-hidden="true">
+      <g v-for="(block, i) in chart.items" :key="i">
+        <line
+          v-if="!block.isStableHidden"
+          :x1="block.x + 1"
+          :y1="block.thresholdY"
+          :x2="block.x + block.w - 1"
+          :y2="block.thresholdY"
+          :stroke="SHOT_BAR_COLORS.threshold"
+          stroke-width="1"
+          stroke-dasharray="2 2"
+          vector-effect="non-scaling-stroke"
+        />
+
         <rect
-          v-for="(slot, i) in chart.ghostSlots"
-          :key="`ghost-${i}`"
-          :x="slot.x"
-          :y="slot.y"
-          :width="slot.w"
-          :height="slot.h"
-          fill="rgba(255,255,255,0.02)"
+          v-if="block.showGreen"
+          :x="block.x"
+          :y="block.greenY"
+          :width="block.w"
+          :height="block.greenH"
+          :fill="block.stableColor"
           rx="1"
         />
-      </g>
 
-      <g v-for="(block, i) in chart.items" :key="i">
         <rect
-          v-if="!block.isStableHidden"
+          v-if="block.showYellow"
           :x="block.x"
-          :y="block.barY"
+          :y="block.yellowY"
           :width="block.w"
-          :height="block.barH"
-          :fill="block.color"
-          :opacity="block.opacity"
+          :height="block.yellowH"
+          :fill="SHOT_BAR_COLORS.micro"
+          rx="1"
+        />
+
+        <rect
+          v-if="block.showRed"
+          :x="block.x"
+          :y="block.redY"
+          :width="block.w"
+          :height="block.redH"
+          :fill="SHOT_BAR_COLORS.run"
           rx="1"
           :filter="block.isLatest && ghost ? 'url(#instrument-glow)' : undefined"
-        />
-
-        <line
-          v-if="block.marginLineY != null"
-          :x1="block.x + 1"
-          :y1="block.marginLineY"
-          :x2="block.x + block.w - 1"
-          :y2="block.marginLineY"
-          stroke="rgba(255,255,255,0.85)"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          vector-effect="non-scaling-stroke"
         />
 
         <polygon
           v-if="block.isTapFirst"
           :points="`${block.x + block.w / 2},${block.y + block.h + 2} ${block.x + block.w / 2 - 3},${block.y + block.h + 6} ${block.x + block.w / 2 + 3},${block.y + block.h + 6}`"
           fill="white"
-          opacity="0.8"
         />
       </g>
     </svg>
@@ -221,13 +218,13 @@ const chart = computed(() => {
     >
       <span
         v-for="item in legendItems"
-        :key="item.state"
+        :key="item.label"
         class="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider"
       >
         <span class="inline-block h-2 w-2 rounded-full" :style="{ background: item.color }" />
         {{ item.label }}
       </span>
-      <span class="text-[9px] opacity-70">颜色=稳定状态</span>
+      <span class="text-[9px] opacity-70">柱高=移动误差，自下而上堆叠</span>
     </div>
   </div>
 </template>

@@ -15,6 +15,10 @@ import type {
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAssessmentHudWindow } from './useAssessmentHudWindow';
 import { onHudDragPointerDown } from './useHudWindow';
+import {
+  assessmentHudStatsVisibility,
+  useHudChartStatsVisibility,
+} from './useHudChartStatsVisibility';
 
 const snapshot = ref<CounterStrafingAssessmentSnapshot>({
   active: false,
@@ -33,9 +37,48 @@ const liveRecord = ref<CounterStrafingAssessmentRecord | null>(null);
 const initError = ref<string | null>(null);
 const chartHeight = ref(120);
 const chartWrapRef = ref<HTMLElement | null>(null);
+const hudRootRef = ref<HTMLElement | null>(null);
+const statsVisibility = useHudChartStatsVisibility(hudRootRef, assessmentHudStatsVisibility);
+const HUD_HISTORY_LIMIT = 64;
+
+function createRafCoalescer<T>(apply: (value: T) => void) {
+  let pending: T | null = null;
+  let rafId: number | null = null;
+
+  const schedule = (value: T) => {
+    pending = value;
+    if (rafId !== null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      if (pending !== null) {
+        apply(pending);
+        pending = null;
+      }
+    });
+  };
+
+  const flush = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (pending !== null) {
+      apply(pending);
+      pending = null;
+    }
+  };
+
+  return { schedule, flush };
+}
+
+function trimHistory<T>(records: T[], limit: number): T[] {
+  if (records.length <= limit) return records;
+  return records.slice(records.length - limit);
+}
 
 let unlisteners: UnlistenFn[] = [];
 let resizeObserver: ResizeObserver | null = null;
+let flushAssessmentSnapshotRaf: (() => void) | null = null;
 
 useAssessmentHudWindow();
 
@@ -90,12 +133,23 @@ onMounted(async () => {
     if (snapshot.value.lastRecord) {
       liveRecord.value = snapshot.value.lastRecord;
     }
+    const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
+      snapshot.value = next;
+    });
+    flushAssessmentSnapshotRaf = assessmentSnapshotRaf.flush;
+
     unlisteners = await Promise.all([
       onCounterStrafingAssessmentRecord((record) => {
         liveRecord.value = record;
+        const records = trimHistory([...snapshot.value.records, record], HUD_HISTORY_LIMIT);
+        snapshot.value = {
+          ...snapshot.value,
+          records,
+          lastRecord: record,
+        };
       }),
       onCounterStrafingAssessmentSnapshot((next) => {
-        snapshot.value = next;
+        assessmentSnapshotRaf.schedule(next);
       }),
     ]);
   } catch (e) {
@@ -107,13 +161,15 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
+  flushAssessmentSnapshotRaf?.();
   void Promise.all(unlisteners.map((fn) => fn()));
 });
 </script>
 
 <template>
   <div
-    class="hud-root group/hud relative h-full min-h-[80px] min-w-[260px] w-full select-none"
+    ref="hudRootRef"
+    class="hud-root group/hud relative h-full w-full select-none"
     :class="snapshot.hudLocked ? 'pointer-events-none' : ''"
   >
     <div class="hud-frame pointer-events-none absolute inset-0 z-10" aria-hidden="true" />
@@ -129,18 +185,18 @@ onUnmounted(() => {
 
     <div
       v-if="initError"
-      class="hud-error pointer-events-none relative z-1 flex h-full min-h-[80px] items-center justify-center px-4 text-center"
+      class="hud-error pointer-events-none relative z-1 flex h-full items-center justify-center px-4 text-center"
     >
       <p class="hud-stat text-[11px] leading-relaxed text-rose-200/90">{{ initError }}</p>
     </div>
 
     <div
       v-else
-      class="hud-layout pointer-events-none absolute inset-0 z-1 flex flex-col gap-0.5 px-2 py-1.5"
+      class="hud-layout pointer-events-none absolute inset-0 z-1 flex flex-col gap-0.5 overflow-hidden px-2 py-1.5"
     >
-      <div class="hud-assessment-stats shrink-0">
+      <div v-if="statsVisibility.showBar" class="hud-assessment-stats shrink-0">
         <div class="hud-assessment-stats-main">
-          <div class="hud-shooting-stat">
+          <div v-if="statsVisibility.showAvg" class="hud-shooting-stat">
             <span class="hud-shooting-stat-label">平均</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
@@ -149,7 +205,7 @@ onUnmounted(() => {
               {{ snapshot.records.length ? formatHudDiffMs(snapshot.avgDiffMs) : '—' }}
             </span>
           </div>
-          <div class="hud-shooting-stat">
+          <div v-if="statsVisibility.showSuccess" class="hud-shooting-stat">
             <span class="hud-shooting-stat-label">优秀率</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
@@ -158,7 +214,7 @@ onUnmounted(() => {
               {{ snapshot.records.length ? `${snapshot.successRate.toFixed(1)}%` : '—' }}
             </span>
           </div>
-          <div class="hud-shooting-stat">
+          <div v-if="statsVisibility.showStdDev" class="hud-shooting-stat">
             <span class="hud-shooting-stat-label">标准差</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
@@ -169,6 +225,7 @@ onUnmounted(() => {
           </div>
         </div>
         <span
+          v-if="statsVisibility.showTendency"
           class="hud-assessment-tendency hud-shooting-stat-value shrink-0 tabular-nums"
           :style="{ color: snapshot.records.length ? tendencyColor(snapshot.tendency) : undefined }"
         >

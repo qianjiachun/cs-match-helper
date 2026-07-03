@@ -12,7 +12,14 @@ import {
 } from 'lucide-vue-next';
 import { useGameBarWidgetInstallUi } from '../../composables/useGameBarWidgetInstallUi';
 import { showToast } from '../../composables/useCopyFeedback';
+import { openExternalUrl } from '../../native';
 import type { useGameBarWidget } from '../../composables/useGameBarWidget';
+
+const WIDGET_FEEDBACK_ISSUES_URL = 'https://github.com/qianjiachun/cs-match-helper/issues';
+
+function openWidgetFeedback() {
+  void openExternalUrl(WIDGET_FEEDBACK_ISSUES_URL);
+}
 
 const props = withDefaults(
   defineProps<{
@@ -191,13 +198,22 @@ defineExpose({ openInstallPanel });
     >
       <p class="font-medium">安装失败</p>
       <p class="mt-1 whitespace-pre-wrap">{{ widgetError }}</p>
-      <button
-        type="button"
-        class="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
-        @click="copyDiagnostics()"
-      >
-        复制问题信息
-      </button>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
+          @click="copyDiagnostics()"
+        >
+          复制问题信息
+        </button>
+        <button
+          type="button"
+          class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
+          @click="openWidgetFeedback()"
+        >
+          去反馈
+        </button>
+      </div>
     </div>
 
     <div

@@ -1,4 +1,5 @@
 mod perfect;
+mod admin_relaunch;
 mod platform_5e_cdp;
 mod platform_5e_launch;
 mod platform_5e_match;
@@ -12,6 +13,7 @@ pub use platform_5e_launch::{
 };
 pub use platform_5e_match::fetch_5e_match_detail;
 pub use platform_board::{fetch_http_json, fetch_proxied_image};
+pub use admin_relaunch::relaunch_current_exe_as_admin;
 
 pub fn find_watchable_parent(target: &std::path::Path) -> std::path::PathBuf {
     perfect::find_watchable_parent(target)

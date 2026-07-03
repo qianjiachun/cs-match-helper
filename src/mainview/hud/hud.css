@@ -44,6 +44,8 @@ body {
   padding: 0 1px;
   font-family: 'Chakra Petch', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
   line-height: 1.15;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .hud-assessment-stats-main {
@@ -51,6 +53,8 @@ body {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .hud-assessment-tendency {
@@ -129,12 +133,16 @@ body {
   padding: 0 1px;
   font-family: 'Chakra Petch', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
   line-height: 1.15;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .hud-shooting-stat {
   display: flex;
   align-items: baseline;
   gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .hud-shooting-stat-label {

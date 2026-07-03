@@ -6,10 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
 using Windows.Storage.Streams;
+using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.Web.Http;
@@ -38,6 +40,21 @@ namespace CSMatchHelperWidget
         private bool _comboExitInProgress;
         private bool _comboVisible;
 
+        private const double MinAssessmentRatio = 0.05;
+        private const double MaxAssessmentRatio = 0.95;
+
+        private bool _showAssessmentChart = true;
+        private bool _showShootingChart = true;
+        private double _assessmentRatio = 0.5;
+        private bool _assessmentOnTop = true;
+        private static readonly CoreCursor SplitterArrowCursor = new CoreCursor(CoreCursorType.Arrow, 0);
+        private static readonly CoreCursor SplitterResizeCursor = new CoreCursor(CoreCursorType.SizeNorthSouth, 0);
+
+        private bool _isDraggingSplitter;
+        private bool _splitterHot;
+        private LayoutFingerprint _lastLayoutFingerprint;
+        private uint _splitterPointerId;
+
         public WidgetPage()
         {
             InitializeComponent();
@@ -47,11 +64,13 @@ namespace CSMatchHelperWidget
             _comboHideTimer.Tick += OnComboHideTick;
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
+            ApplyWidgetLayout();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            SetLinkState(WidgetLinkState.Preparing, "正在连接 CS 匹配助手");
+            SetLinkState(WidgetLinkState.Preparing, "请打开 CS 匹配助手开始记录");
+            UpdateChartStatsVisibility();
             _ = StreamLoopAsync();
         }
 
@@ -99,7 +118,7 @@ namespace CSMatchHelperWidget
                         else if (!_hasLiveSnapshot)
                         {
                             await RunOnUiThreadAsync(() =>
-                                SetLinkState(WidgetLinkState.Preparing, "正在连接 CS 匹配助手"));
+                                SetLinkState(WidgetLinkState.Preparing, "请打开 CS 匹配助手开始记录"));
                         }
                     }
 
@@ -258,6 +277,396 @@ namespace CSMatchHelperWidget
             }
         }
 
+        private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_isDraggingSplitter)
+            {
+                return;
+            }
+
+            ApplyWidgetLayout();
+            UpdateChartStatsVisibility();
+        }
+
+        private static Visibility StatVisibility(bool show)
+        {
+            return show ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void UpdateChartStatsVisibility()
+        {
+            UpdateAssessmentStatsVisibility();
+            UpdateShootingStatsVisibility();
+        }
+
+        private void UpdateAssessmentStatsVisibility()
+        {
+            var width = AssessmentPanel.ActualWidth;
+            var height = AssessmentPanel.ActualHeight;
+            bool showBar;
+            bool showAvg;
+            bool showSuccess;
+            bool showStdDev;
+            bool showTendency;
+
+            if (width < 108 || height < 46)
+            {
+                showBar = false;
+                showAvg = false;
+                showSuccess = false;
+                showStdDev = false;
+                showTendency = false;
+            }
+            else if (width < 176)
+            {
+                showBar = true;
+                showAvg = true;
+                showSuccess = false;
+                showStdDev = false;
+                showTendency = false;
+            }
+            else if (width < 236)
+            {
+                showBar = true;
+                showAvg = true;
+                showSuccess = true;
+                showStdDev = false;
+                showTendency = false;
+            }
+            else if (width < 296)
+            {
+                showBar = true;
+                showAvg = true;
+                showSuccess = true;
+                showStdDev = true;
+                showTendency = false;
+            }
+            else
+            {
+                showBar = true;
+                showAvg = true;
+                showSuccess = true;
+                showStdDev = true;
+                showTendency = true;
+            }
+
+            AssessmentStatsRow.Visibility = StatVisibility(showBar);
+            AssessmentAvgStatGroup.Visibility = StatVisibility(showAvg);
+            AssessmentSuccessStatGroup.Visibility = StatVisibility(showSuccess);
+            AssessmentStdDevStatGroup.Visibility = StatVisibility(showStdDev);
+            AssessmentTendencyGroup.Visibility = StatVisibility(showTendency);
+        }
+
+        private void UpdateShootingStatsVisibility()
+        {
+            var width = ShootingPanel.ActualWidth;
+            var height = ShootingPanel.ActualHeight;
+            bool showBar;
+            bool showError;
+            bool showStable;
+
+            if (width < 96 || height < 42)
+            {
+                showBar = false;
+                showError = false;
+                showStable = false;
+            }
+            else if (width < 148)
+            {
+                showBar = true;
+                showError = true;
+                showStable = false;
+            }
+            else
+            {
+                showBar = true;
+                showError = true;
+                showStable = true;
+            }
+
+            ShootingStatsRow.Visibility = StatVisibility(showBar);
+            ShootingErrorStatGroup.Visibility = StatVisibility(showError);
+            ShootingStableStatGroup.Visibility = StatVisibility(showStable);
+        }
+
+        private static double ClampRatio(double ratio)
+        {
+            if (ratio < MinAssessmentRatio)
+            {
+                return MinAssessmentRatio;
+            }
+
+            if (ratio > MaxAssessmentRatio)
+            {
+                return MaxAssessmentRatio;
+            }
+
+            return ratio;
+        }
+
+        private void ApplyLayoutFromSnapshot(JsonObject root)
+        {
+            if (_isDraggingSplitter)
+            {
+                return;
+            }
+
+            var showAssessment = true;
+            var showShooting = true;
+            var ratio = 0.5;
+            var assessmentOnTop = true;
+            if (root.TryGetValue("layout", out var layoutValue) && layoutValue.ValueType == JsonValueType.Object)
+            {
+                var layout = layoutValue.GetObject();
+                showAssessment = JsonHelpers.GetBool(layout, "showAssessmentChart", true);
+                showShooting = JsonHelpers.GetBool(layout, "showShootingChart", true);
+                ratio = JsonHelpers.GetNumber(layout, "assessmentRatio", 0.5);
+                assessmentOnTop = JsonHelpers.GetBool(layout, "assessmentOnTop", true);
+            }
+
+            if (!showAssessment && !showShooting)
+            {
+                showAssessment = true;
+            }
+
+            var fingerprint = new LayoutFingerprint
+            {
+                ShowAssessment = showAssessment,
+                ShowShooting = showShooting,
+                Ratio = ClampRatio(ratio),
+                AssessmentOnTop = assessmentOnTop,
+            };
+            if (fingerprint.Equals(_lastLayoutFingerprint))
+            {
+                return;
+            }
+
+            _lastLayoutFingerprint = fingerprint;
+            _showAssessmentChart = showAssessment;
+            _showShootingChart = showShooting;
+            _assessmentRatio = fingerprint.Ratio;
+            _assessmentOnTop = assessmentOnTop;
+            ApplyWidgetLayout();
+        }
+
+        private void ApplyPanelRows()
+        {
+            if (_assessmentOnTop)
+            {
+                Grid.SetRow(AssessmentPanel, 0);
+                Grid.SetRow(ShootingPanel, 2);
+                return;
+            }
+
+            Grid.SetRow(ShootingPanel, 0);
+            Grid.SetRow(AssessmentPanel, 2);
+        }
+
+        private void ApplyRowHeights(double ratio, bool dualMode)
+        {
+            if (dualMode)
+            {
+                if (_assessmentOnTop)
+                {
+                    AssessmentRow.Height = new GridLength(ratio, GridUnitType.Star);
+                    ShootingRow.Height = new GridLength(1.0 - ratio, GridUnitType.Star);
+                }
+                else
+                {
+                    AssessmentRow.Height = new GridLength(1.0 - ratio, GridUnitType.Star);
+                    ShootingRow.Height = new GridLength(ratio, GridUnitType.Star);
+                }
+
+                return;
+            }
+
+            if (_showAssessmentChart)
+            {
+                if (_assessmentOnTop)
+                {
+                    AssessmentRow.Height = new GridLength(1, GridUnitType.Star);
+                    ShootingRow.Height = new GridLength(0);
+                }
+                else
+                {
+                    AssessmentRow.Height = new GridLength(0);
+                    ShootingRow.Height = new GridLength(1, GridUnitType.Star);
+                }
+
+                return;
+            }
+
+            if (_assessmentOnTop)
+            {
+                AssessmentRow.Height = new GridLength(0);
+                ShootingRow.Height = new GridLength(1, GridUnitType.Star);
+            }
+            else
+            {
+                AssessmentRow.Height = new GridLength(1, GridUnitType.Star);
+                ShootingRow.Height = new GridLength(0);
+            }
+        }
+
+        private void ApplyWidgetLayout(double? ratioOverride = null)
+        {
+            if (ratioOverride.HasValue)
+            {
+                _assessmentRatio = ClampRatio(ratioOverride.Value);
+            }
+
+            if (!_showAssessmentChart && !_showShootingChart)
+            {
+                _showAssessmentChart = true;
+            }
+
+            var dualMode = _showAssessmentChart && _showShootingChart;
+            AssessmentPanel.Visibility = _showAssessmentChart ? Visibility.Visible : Visibility.Collapsed;
+            ShootingPanel.Visibility = _showShootingChart ? Visibility.Visible : Visibility.Collapsed;
+            SplitterHandle.Visibility = dualMode ? Visibility.Visible : Visibility.Collapsed;
+            ApplyPanelRows();
+
+            if (!dualMode)
+            {
+                SplitterRow.Height = new GridLength(0);
+                ApplyRowHeights(0, false);
+                UpdateSplitterVisual(false);
+                UpdateChartStatsVisibility();
+                return;
+            }
+
+            SplitterRow.Height = GridLength.Auto;
+            var ratio = ClampRatio(_assessmentRatio);
+            ApplyRowHeights(ratio, true);
+            UpdateSplitterVisual(_splitterHot || _isDraggingSplitter);
+            UpdateChartStatsVisibility();
+        }
+
+        private void UpdateSplitterVisual(bool active)
+        {
+            SplitterHandle.Opacity = active ? 1 : 0.3;
+            SplitterLine.Opacity = _isDraggingSplitter ? 0.95 : active ? 0.7 : 0.35;
+            SplitterGrip.Opacity = active ? 1 : 0;
+        }
+
+        private void SetSplitterCursor(bool resize)
+        {
+            var coreWindow = Window.Current?.CoreWindow;
+            if (coreWindow == null)
+            {
+                return;
+            }
+
+            coreWindow.PointerCursor = resize ? SplitterResizeCursor : SplitterArrowCursor;
+        }
+
+        private double RatioFromPointer(PointerRoutedEventArgs e)
+        {
+            var position = e.GetCurrentPoint(RootGrid).Position;
+            var total = RootGrid.ActualHeight;
+            if (total <= 1)
+            {
+                return _assessmentRatio;
+            }
+
+            var pointerRatio = position.Y / total;
+            return _assessmentOnTop ? ClampRatio(pointerRatio) : ClampRatio(1.0 - pointerRatio);
+        }
+
+        private void OnSplitterPointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            _splitterHot = true;
+            SetSplitterCursor(true);
+            UpdateSplitterVisual(true);
+        }
+
+        private void OnSplitterPointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            if (_isDraggingSplitter)
+            {
+                return;
+            }
+
+            _splitterHot = false;
+            SetSplitterCursor(false);
+            UpdateSplitterVisual(false);
+        }
+
+        private void OnSplitterPointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            _isDraggingSplitter = true;
+            _splitterPointerId = e.Pointer.PointerId;
+            SplitterHandle.CapturePointer(e.Pointer);
+            UpdateSplitterVisual(true);
+            ApplyWidgetLayout(RatioFromPointer(e));
+            _lastChartFingerprint = default(ChartFingerprint);
+            if (_lastRoot != null)
+            {
+                RedrawCharts(_lastRoot);
+            }
+        }
+
+        private void OnSplitterPointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_isDraggingSplitter || e.Pointer.PointerId != _splitterPointerId)
+            {
+                return;
+            }
+
+            ApplyWidgetLayout(RatioFromPointer(e));
+            _lastChartFingerprint = default(ChartFingerprint);
+            if (_lastRoot != null)
+            {
+                RedrawCharts(_lastRoot);
+            }
+        }
+
+        private async void OnSplitterPointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_isDraggingSplitter || e.Pointer.PointerId != _splitterPointerId)
+            {
+                return;
+            }
+
+            _isDraggingSplitter = false;
+            SplitterHandle.ReleasePointerCapture(e.Pointer);
+            var ratio = RatioFromPointer(e);
+            _assessmentRatio = ratio;
+            _lastLayoutFingerprint = default(LayoutFingerprint);
+            ApplyWidgetLayout(ratio);
+            var position = e.GetCurrentPoint(SplitterHandle).Position;
+            _splitterHot = position.X >= 0
+                && position.Y >= 0
+                && position.X <= SplitterHandle.ActualWidth
+                && position.Y <= SplitterHandle.ActualHeight;
+            SetSplitterCursor(_splitterHot);
+            UpdateSplitterVisual(_splitterHot);
+            await SaveLayoutRatioAsync(ratio).ConfigureAwait(false);
+        }
+
+        private async Task SaveLayoutRatioAsync(double ratio)
+        {
+            try
+            {
+                var url = IpcPortDiscovery.GetPrimaryWidgetLayoutUrl();
+                var body = new JsonObject();
+                body.SetNamedValue("gamebarAssessmentRatio", JsonValue.CreateNumberValue(ratio));
+                var content = new HttpStringContent(
+                    body.Stringify(),
+                    Windows.Storage.Streams.UnicodeEncoding.Utf8,
+                    "application/json");
+                var response = await _httpClient.PostAsync(new Uri(url), content).AsTask().ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Debug.WriteLine($"[CSMatchHelperWidget] layout save failed: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CSMatchHelperWidget] layout save error: {ex}");
+            }
+        }
+
         private enum WidgetLinkState
         {
             Preparing,
@@ -279,7 +688,7 @@ namespace CSMatchHelperWidget
                     return;
                 default:
                     StatusText.Text = "数据准备中…";
-                    StatusHintText.Text = hint ?? "正在连接 CS 匹配助手";
+                    StatusHintText.Text = hint ?? "请打开 CS 匹配助手开始记录";
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
             }
@@ -297,6 +706,7 @@ namespace CSMatchHelperWidget
             _assessmentChart.Reset();
             _shootingChart.Reset();
             HideComboImmediate();
+            _lastLayoutFingerprint = default(LayoutFingerprint);
         }
 
         private void ApplySnapshot(JsonObject root)
@@ -318,6 +728,7 @@ namespace CSMatchHelperWidget
             _hasLiveSnapshot = true;
             SetLinkState(WidgetLinkState.Live);
 
+            ApplyLayoutFromSnapshot(root);
             ApplyAssessment(root);
             ApplyShooting(root);
 
@@ -388,19 +799,33 @@ namespace CSMatchHelperWidget
 
         private void RedrawCharts(JsonObject root)
         {
-            var assessmentRecords = JsonHelpers.GetArray(root, "records");
-            _assessmentChart.Update(assessmentRecords);
-
-            var showStableBars = true;
-            var shotRecords = new JsonArray();
-            if (root.TryGetValue("shooting", out var shootingValue) && shootingValue.ValueType == JsonValueType.Object)
+            if (_showAssessmentChart)
             {
-                var shooting = shootingValue.GetObject();
-                shotRecords = JsonHelpers.GetArray(shooting, "shotRecords");
-                showStableBars = JsonHelpers.GetBool(shooting, "hudShowStableBars", true);
+                var assessmentRecords = JsonHelpers.GetArray(root, "records");
+                _assessmentChart.Update(assessmentRecords);
+            }
+            else
+            {
+                _assessmentChart.Reset();
             }
 
-            _shootingChart.Update(shotRecords, showStableBars);
+            if (_showShootingChart)
+            {
+                var showStableBars = true;
+                var shotRecords = new JsonArray();
+                if (root.TryGetValue("shooting", out var shootingValue) && shootingValue.ValueType == JsonValueType.Object)
+                {
+                    var shooting = shootingValue.GetObject();
+                    shotRecords = JsonHelpers.GetArray(shooting, "shotRecords");
+                    showStableBars = JsonHelpers.GetBool(shooting, "hudShowStableBars", true);
+                }
+
+                _shootingChart.Update(shotRecords, showStableBars);
+            }
+            else
+            {
+                _shootingChart.Reset();
+            }
         }
 
         private ChartFingerprint BuildChartFingerprint(JsonObject root)
@@ -422,11 +847,48 @@ namespace CSMatchHelperWidget
                 ShootingCount = (uint)shootingRecords.Count,
                 ShootingLastTimestamp = GetLastTimestamp(shootingRecords),
                 ShowStableBars = showStableBars,
+                ShowAssessmentChart = _showAssessmentChart,
+                ShowShootingChart = _showShootingChart,
+                AssessmentRatio = _assessmentRatio,
                 AssessmentWidth = AssessmentChart.ActualWidth,
                 AssessmentHeight = AssessmentChart.ActualHeight,
                 ShootingWidth = ShootingChart.ActualWidth,
                 ShootingHeight = ShootingChart.ActualHeight,
             };
+        }
+
+        private struct LayoutFingerprint : IEquatable<LayoutFingerprint>
+        {
+            public bool ShowAssessment;
+            public bool ShowShooting;
+            public double Ratio;
+            public bool AssessmentOnTop;
+
+            public bool Equals(LayoutFingerprint other)
+            {
+                return ShowAssessment == other.ShowAssessment
+                    && ShowShooting == other.ShowShooting
+                    && AssessmentOnTop == other.AssessmentOnTop
+                    && Math.Abs(Ratio - other.Ratio) < 0.001;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is LayoutFingerprint other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    var hash = 17;
+                    hash = hash * 31 + ShowAssessment.GetHashCode();
+                    hash = hash * 31 + ShowShooting.GetHashCode();
+                    hash = hash * 31 + Ratio.GetHashCode();
+                    hash = hash * 31 + AssessmentOnTop.GetHashCode();
+                    return hash;
+                }
+            }
         }
 
         private static ulong GetLastTimestamp(JsonArray records)
@@ -452,6 +914,9 @@ namespace CSMatchHelperWidget
             public uint ShootingCount;
             public ulong ShootingLastTimestamp;
             public bool ShowStableBars;
+            public bool ShowAssessmentChart;
+            public bool ShowShootingChart;
+            public double AssessmentRatio;
             public double AssessmentWidth;
             public double AssessmentHeight;
             public double ShootingWidth;
@@ -464,6 +929,9 @@ namespace CSMatchHelperWidget
                     && ShootingCount == other.ShootingCount
                     && ShootingLastTimestamp == other.ShootingLastTimestamp
                     && ShowStableBars == other.ShowStableBars
+                    && ShowAssessmentChart == other.ShowAssessmentChart
+                    && ShowShootingChart == other.ShowShootingChart
+                    && Math.Abs(AssessmentRatio - other.AssessmentRatio) < 0.001
                     && Math.Abs(AssessmentWidth - other.AssessmentWidth) < 0.5
                     && Math.Abs(AssessmentHeight - other.AssessmentHeight) < 0.5
                     && Math.Abs(ShootingWidth - other.ShootingWidth) < 0.5
@@ -485,6 +953,9 @@ namespace CSMatchHelperWidget
                     hash = hash * 31 + ShootingCount.GetHashCode();
                     hash = hash * 31 + ShootingLastTimestamp.GetHashCode();
                     hash = hash * 31 + ShowStableBars.GetHashCode();
+                    hash = hash * 31 + ShowAssessmentChart.GetHashCode();
+                    hash = hash * 31 + ShowShootingChart.GetHashCode();
+                    hash = hash * 31 + AssessmentRatio.GetHashCode();
                     hash = hash * 31 + AssessmentWidth.GetHashCode();
                     hash = hash * 31 + AssessmentHeight.GetHashCode();
                     hash = hash * 31 + ShootingWidth.GetHashCode();

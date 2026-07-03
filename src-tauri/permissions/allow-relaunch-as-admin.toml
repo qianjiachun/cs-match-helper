@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-relaunch-as-admin"
+description = "允许以管理员身份重启应用"
+commands.allow = ["relaunch_as_admin"]

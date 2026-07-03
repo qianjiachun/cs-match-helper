@@ -97,10 +97,98 @@ function Get-MissingDependencyPaths {
     return @($missing)
 }
 
+function Get-AppxPackageVersionFromPath {
+    param([Parameter(Mandatory = $true)][string]$PackagePath)
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($PackagePath)
+    try {
+        $entry = $zip.Entries | Where-Object { $_.Name -eq 'AppxManifest.xml' } | Select-Object -First 1
+        if (-not $entry) {
+            throw "AppxManifest.xml not found in package: $PackagePath"
+        }
+        $stream = $entry.Open()
+        try {
+            $reader = New-Object System.IO.StreamReader($stream)
+            try {
+                $xml = [xml]$reader.ReadToEnd()
+            } finally {
+                $reader.Dispose()
+            }
+        } finally {
+            $stream.Dispose()
+        }
+        return [version]$xml.Package.Identity.Version
+    } finally {
+        $zip.Dispose()
+    }
+}
+
+function Test-SamePackageReinstallError {
+    param($ErrorRecord)
+
+    if ($ErrorRecord.Exception.HResult) {
+        $hr = $ErrorRecord.Exception.HResult -band 0xFFFFFFFF
+        if ($hr -eq 0x80073CFB) {
+            return $true
+        }
+    }
+    $msg = [string]$ErrorRecord.Exception.Message
+    return (
+        $msg -match '0x80073CFB' -or
+        $msg -match '禁止重新安装该程序包' -or
+        $msg -match '内容不相同'
+    )
+}
+
+function Remove-InstalledWidgetPackages {
+    param(
+        [string[]]$Names = @($PackageName)
+    )
+
+    foreach ($name in $Names) {
+        $packages = @(
+            Get-AppxPackage -Name $name -AllUsers -ErrorAction SilentlyContinue
+            Get-AppxPackage -Name $name -ErrorAction SilentlyContinue
+        ) | Sort-Object PackageFullName -Unique
+
+        foreach ($pkg in $packages) {
+            Write-Host "  Removing: $($pkg.PackageFullName)"
+            CheckNetIsolation LoopbackExempt -d -n="$($pkg.PackageFamilyName)" 2>$null
+            try {
+                Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
+            } catch {
+                Remove-AppxPackage -Package $pkg.PackageFullName
+            }
+        }
+
+        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq $name } |
+            ForEach-Object {
+                Write-Host "  Removing provisioned: $($_.PackageName)"
+                Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
+            }
+    }
+}
+
+function Invoke-AddAppxPackageAttempt {
+    param(
+        [hashtable]$Params,
+        [switch]$ForceApplicationShutdown
+    )
+
+    $attempt = $Params.Clone()
+    if ($ForceApplicationShutdown) {
+        $attempt.ForceApplicationShutdown = $true
+    }
+    Add-AppxPackage @attempt
+}
+
 function Install-WidgetAppxPackage {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [string[]]$DependencyPaths = @()
+        [string[]]$DependencyPaths = @(),
+        [switch]$SkipSameVersionRemoval
     )
 
     Write-Host "  Package path: $Path"
@@ -117,15 +205,31 @@ function Install-WidgetAppxPackage {
 
     # Faster path first: avoid ForceApplicationShutdown unless the package is in use.
     try {
-        Add-AppxPackage @params
+        Invoke-AddAppxPackageAttempt -Params $params
         return
     } catch {
+        if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
+            Write-Host '  检测到同版本已安装但内容不同，先卸载再重装…' -ForegroundColor Yellow
+            Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
+            Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
+            return
+        }
+
         Write-Host "  Fast install failed, retrying with ForceApplicationShutdown: $($_.Exception.Message)"
         Write-Host '  正在关闭占用资源的应用并重试，请勿关闭此窗口，通常等待 1–3 分钟即可完成。' -ForegroundColor Yellow
     }
 
-    $params.ForceApplicationShutdown = $true
-    Add-AppxPackage @params
+    try {
+        Invoke-AddAppxPackageAttempt -Params $params -ForceApplicationShutdown
+    } catch {
+        if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
+            Write-Host '  检测到同版本已安装但内容不同，先卸载再重装…' -ForegroundColor Yellow
+            Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
+            Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
+            return
+        }
+        throw
+    }
 }
 
 function Test-LoopbackConfigured {
@@ -189,9 +293,15 @@ try {
             }
     }
 
+    $incomingVersion = Get-AppxPackageVersionFromPath -PackagePath $AppxPath
+    Write-Host "  Incoming package version: $incomingVersion"
+
     $existingPkg = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($existingPkg -and (Test-LoopbackConfigured -PackageFamilyName $existingPkg.PackageFamilyName)) {
-        Write-Host "==> Widget already installed v$($existingPkg.Version) with loopback, refreshing package..."
+    if ($existingPkg -and $existingPkg.Version -eq $incomingVersion) {
+        Write-Host "==> Same version v$incomingVersion already installed; uninstalling before reinstall..."
+        Remove-InstalledWidgetPackages -Names @($PackageName)
+    } elseif ($existingPkg -and (Test-LoopbackConfigured -PackageFamilyName $existingPkg.PackageFamilyName)) {
+        Write-Host "==> Widget already installed v$($existingPkg.Version) with loopback, upgrading package..."
     }
 
     Write-Host '==> Install widget package...'

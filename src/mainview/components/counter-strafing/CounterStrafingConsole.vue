@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import CounterStrafingHudSettings from './CounterStrafingHudSettings.vue';
+import GameBarWidgetDisplaySettings from './GameBarWidgetDisplaySettings.vue';
 import GameBarWidgetInstallSection from '../gamebar-widget/GameBarWidgetInstallSection.vue';
 import { openExternalUrl } from '../../native';
 import { showToast } from '../../composables/useCopyFeedback';
@@ -185,7 +186,7 @@ onUnmounted(() => {
 });
 
 const modePanelLayerClass =
-  'absolute inset-x-0 top-0 transform-gpu px-5 pt-4 pb-5 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none will-change-[opacity]';
+  'absolute inset-x-0 top-0 transform-gpu px-5 pt-2.5 pb-4 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none will-change-[opacity]';
 </script>
 
 <template>
@@ -331,7 +332,7 @@ const modePanelLayerClass =
         </div>
       </div>
 
-      <div class="grid gap-3 p-5 sm:grid-cols-2">
+      <div class="grid gap-3 px-5 pt-5 pb-2 sm:grid-cols-2">
         <button
           v-for="option in modeOptions"
           :key="option.id"
@@ -391,7 +392,7 @@ const modePanelLayerClass =
       </div>
 
       <div
-        class="relative overflow-hidden border-t border-border"
+        class="relative overflow-hidden rounded-b-2xl bg-elevated/20"
         :style="modePanelShellHeight !== null ? { height: `${modePanelShellHeight}px` } : undefined"
       >
         <div
@@ -420,13 +421,16 @@ const modePanelLayerClass =
           ]"
           :aria-hidden="displayMode !== 'widget'"
         >
-            <div class="mb-4 flex items-center gap-3">
-              <ListChecks class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
-              <div>
-                <p class="text-[14px] font-semibold text-fg">小组件开启步骤</p>
-                <p class="text-[12px] text-fg-muted">按顺序完成，就能在全屏游戏里看到数据</p>
+            <div class="flex flex-col gap-3">
+              <GameBarWidgetDisplaySettings :cs="cs" />
+
+              <div class="flex items-center gap-3">
+                <ListChecks class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+                <div>
+                  <p class="text-[14px] font-semibold text-fg">小组件开启步骤</p>
+                  <p class="text-[12px] text-fg-muted">按顺序完成，就能在全屏游戏里看到数据</p>
+                </div>
               </div>
-            </div>
 
             <div class="space-y-3">
               <div
@@ -497,7 +501,7 @@ const modePanelLayerClass =
               />
 
               <div
-                class="mt-3 rounded-xl border px-4 py-3.5"
+                class="rounded-xl border px-4 py-3.5"
                 :class="widgetReady ? 'border-accent/25 bg-accent/4' : 'border-border bg-base'"
               >
                 <div class="flex gap-3.5">
@@ -544,6 +548,7 @@ const modePanelLayerClass =
                 <strong class="font-medium text-fg-secondary">cs2.exe</strong>
                 属性中取消勾选「禁用全屏优化」。若仍无法打开，可尝试将游戏改为全屏窗口化。
               </p>
+            </div>
             </div>
         </div>
       </div>

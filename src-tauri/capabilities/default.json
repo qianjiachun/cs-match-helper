@@ -65,6 +65,7 @@
     "allow-install-gamebar-widget-from-local",
     "allow-find-gamebar-widget-dev-dist",
     "allow-uninstall-gamebar-widget",
+    "allow-relaunch-as-admin",
     "opener:default",
     "dialog:default",
     "core:webview:deny-internal-toggle-devtools"

@@ -157,6 +157,10 @@ export interface CounterStrafingSettings {
   assessmentHudY?: number | null;
   assessmentHudWidth?: number | null;
   assessmentHudHeight?: number | null;
+  gamebarShowAssessmentChart: boolean;
+  gamebarShowShootingChart: boolean;
+  gamebarAssessmentRatio: number;
+  gamebarAssessmentOnTop: boolean;
 }
 
 export const DEFAULT_KEY_MAP: CounterStrafingKeyMap = {
@@ -207,6 +211,10 @@ export function mergeCounterStrafingSettings(
     assessmentHudVisible: loaded.assessmentHudVisible ?? true,
     assessmentHudLocked: loaded.assessmentHudLocked ?? false,
     assessmentHudAnchor: loaded.assessmentHudAnchor ?? 'topCenter',
+    gamebarShowAssessmentChart: loaded.gamebarShowAssessmentChart ?? true,
+    gamebarShowShootingChart: loaded.gamebarShowShootingChart ?? true,
+    gamebarAssessmentRatio: loaded.gamebarAssessmentRatio ?? 0.5,
+    gamebarAssessmentOnTop: loaded.gamebarAssessmentOnTop ?? true,
     keyMap: {
       ...DEFAULT_KEY_MAP,
       ...loaded.keyMap,
@@ -255,6 +263,10 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   assessmentHudY: null,
   assessmentHudWidth: null,
   assessmentHudHeight: null,
+  gamebarShowAssessmentChart: true,
+  gamebarShowShootingChart: true,
+  gamebarAssessmentRatio: 0.5,
+  gamebarAssessmentOnTop: true,
 };
 
 export const BINDING_ROLE_LABELS: Record<BindingRole, string> = {
@@ -270,6 +282,7 @@ export type SampleState = 'stable' | 'micro' | 'run';
 
 export function sampleState(record: ShootingErrorRecord): SampleState {
   if (record.crouchGraceActive || record.reason === 'crouchGrace') return 'stable';
+  if (record.reason === 'crouching') return 'stable';
   if (record.reason === 'lowSpeedMovement' || record.speedRatio <= 1) return 'stable';
   if (record.axisConflict || record.speedRatio > 1.5) return 'run';
   if (record.speedRatio > 1) return 'micro';
@@ -316,6 +329,7 @@ export function formatSpeedRatio(record: ShootingErrorRecord): string {
 
 export function formatStopTiming(record: ShootingErrorRecord): string {
   if (record.crouchGraceActive || record.reason === 'crouchGrace') return '蹲起窗口';
+  if (record.reason === 'crouching') return '蹲射';
   if (record.reason === 'lowSpeedMovement') {
     if (record.axisConflict) return '低速摆动';
     if (record.movementKeysDown > 0) return '低速准星';
@@ -391,9 +405,159 @@ export function shotFeedback(record: ShootingErrorRecord): ShotFeedback {
   };
 }
 
-/** 柱状图高度：稳定顶满柱高，超速同样顶满（由颜色区分状态） */
-export function barHeightRatio(_speedRatio: number): number {
-  return 1;
+/** 微动与跑打分界，与后端 `MICRO_SPEED_RATIO` 一致 */
+export const SHOT_BAR_MICRO_RATIO = 1.5;
+
+/** 完全停稳时绿色段最小可见高度（相对整柱轨道） */
+export const SHOT_BAR_MIN_VISIBLE_RATIO = 0.12;
+
+/** 阈值线在轨道中的高度位置：绿色段最多堆到此，超速段从此继续向上 */
+export const SHOT_BAR_THRESHOLD_LINE_RATIO = 0.5;
+
+/** 跑打段可视上限对应的 speedRatio */
+export const SHOT_BAR_MAX_DISPLAY_RATIO = 2;
+
+/** 黄柱开始出现与封顶的 speedRatio（仅影响 HUD 视觉，不改统计） */
+export const SHOT_BAR_YELLOW_START_RATIO = 1.02;
+export const SHOT_BAR_YELLOW_FULL_RATIO = 1.35;
+export const SHOT_BAR_MIN_YELLOW_RATIO = 0.08;
+
+/** 红柱视觉起点与封顶（仅影响 HUD 视觉） */
+export const SHOT_BAR_RED_START_RATIO = 1.35;
+export const SHOT_BAR_RED_FULL_RATIO = 1.8;
+
+export const SHOT_BAR_COLORS = {
+  stable: '#4ade80',
+  crouchGrace: '#5eead4',
+  micro: '#fbbf24',
+  run: '#f87171',
+  threshold: 'rgba(255,255,255,0.22)',
+} as const;
+
+export interface ShotBarSegments {
+  state: SampleState;
+  stableColor: string;
+  /** 自底向上：绿色段高度（相对 blockH） */
+  greenRatio: number;
+  /** 自底向上：黄色段高度（叠在绿色之上） */
+  yellowRatio: number;
+  /** 自底向上：红色段高度（叠在黄色之上） */
+  redRatio: number;
+  thresholdLineRatio: number;
+  isCrouchGrace: boolean;
+  isFireHeld: boolean;
+  isTapFirst: boolean;
+}
+
+/** @deprecated use ShotBarSegments */
+export type ShotBarGeometry = ShotBarSegments & {
+  lowerGreenRatio: number;
+  upperErrorRatio: number;
+  overspeedColor: string;
+};
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function yellowVisualFill(speedRatio: number): number {
+  const yellowRaw = clamp01(
+    (speedRatio - SHOT_BAR_YELLOW_START_RATIO) /
+      (SHOT_BAR_YELLOW_FULL_RATIO - SHOT_BAR_YELLOW_START_RATIO),
+  );
+  return yellowRaw > 0
+    ? Math.max(SHOT_BAR_MIN_YELLOW_RATIO, Math.sqrt(yellowRaw))
+    : 0;
+}
+
+/** 自底向上堆叠柱：绿=阈值内占用，黄=微动超阈，红=跑打/方向冲突 */
+export function shotBarSegments(record: ShootingErrorRecord): ShotBarSegments {
+  const state = sampleState(record);
+  const speedRatio = record.speedRatio;
+  const thresholdFill = clamp01(speedRatio);
+  const upperZone = 1 - SHOT_BAR_THRESHOLD_LINE_RATIO;
+
+  const isCrouchGrace = !!(record.crouchGraceActive || record.reason === 'crouchGrace');
+  const isCrouching = record.reason === 'crouching';
+  const isLowRiskStable = isCrouchGrace || isCrouching;
+  const isFireHeld = record.fireHeld || record.sampleKind === 'fireHeld';
+  const isTapFirst =
+    record.sampleKind === 'fireDown' &&
+    (record.shotSequenceIndex ?? 1) === 1 &&
+    !record.fireHeld;
+
+  let greenRatio = 0;
+  let yellowRatio = 0;
+  let redRatio = 0;
+
+  if (state === 'stable') {
+    greenRatio = isLowRiskStable
+      ? SHOT_BAR_MIN_VISIBLE_RATIO
+      : Math.max(SHOT_BAR_MIN_VISIBLE_RATIO, thresholdFill * SHOT_BAR_THRESHOLD_LINE_RATIO);
+  } else if (state === 'micro') {
+    greenRatio = SHOT_BAR_THRESHOLD_LINE_RATIO;
+    yellowRatio = yellowVisualFill(speedRatio) * upperZone;
+  } else {
+    const severity = record.axisConflict
+      ? Math.max(0.5, clamp01((speedRatio - 1) / (SHOT_BAR_RED_FULL_RATIO - 1)))
+      : Math.max(
+          SHOT_BAR_MIN_YELLOW_RATIO,
+          clamp01((speedRatio - SHOT_BAR_MICRO_RATIO) / (SHOT_BAR_RED_FULL_RATIO - SHOT_BAR_MICRO_RATIO)),
+        );
+    redRatio = Math.max(
+      SHOT_BAR_MIN_VISIBLE_RATIO,
+      SHOT_BAR_THRESHOLD_LINE_RATIO + severity * upperZone,
+    );
+  }
+
+  const stableColor = isCrouchGrace ? SHOT_BAR_COLORS.crouchGrace : SHOT_BAR_COLORS.stable;
+
+  return {
+    state,
+    stableColor,
+    greenRatio,
+    yellowRatio,
+    redRatio,
+    thresholdLineRatio: SHOT_BAR_THRESHOLD_LINE_RATIO,
+    isCrouchGrace,
+    isFireHeld,
+    isTapFirst,
+  };
+}
+
+/** @deprecated use shotBarSegments */
+export function shotBarGeometry(record: ShootingErrorRecord): ShotBarGeometry {
+  const seg = shotBarSegments(record);
+  return {
+    ...seg,
+    lowerGreenRatio: seg.greenRatio,
+    upperErrorRatio: seg.yellowRatio + seg.redRatio,
+    overspeedColor: seg.state === 'micro' ? SHOT_BAR_COLORS.micro : SHOT_BAR_COLORS.run,
+  };
+}
+
+/** @deprecated use shotBarSegments */
+export function barHeightRatio(speedRatio: number): number {
+  const seg = shotBarSegments({
+    speedRatio,
+    error: speedRatio > 1 ? 0.5 : 0,
+    scoreLabel: '',
+    reason: speedRatio <= 1 ? 'noMovement' : 'singleDirectionHeld',
+    movementKeysDown: 0,
+    crouching: false,
+    lastStopAgeMs: 0,
+    timingDiffMs: 0,
+    fireHeld: false,
+    sampleKind: 'fireDown',
+    isStable: speedRatio <= 1,
+    timestampMs: 0,
+    estimatedSpeed: 0,
+    accuracyThreshold: 1,
+    stopSuccessAgeMs: 0,
+    counterStrafeActive: false,
+    axisConflict: speedRatio > SHOT_BAR_MICRO_RATIO,
+  });
+  return seg.greenRatio + seg.yellowRatio + seg.redRatio;
 }
 
 export const ASSESSMENT_COLORS = {

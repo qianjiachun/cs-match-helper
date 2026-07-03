@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import {
-  ArrowDownUp,
   BarChart3,
-  ChartColumn,
+  BookOpen,
   Gauge,
   Keyboard,
-  Layers,
   LayoutDashboard,
-  LineChart,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
@@ -17,6 +14,7 @@ import {
 import { computed, onMounted, ref } from 'vue';
 import CounterStrafingConsole from '../components/counter-strafing/CounterStrafingConsole.vue';
 import CounterStrafingDataPanel from '../components/counter-strafing/CounterStrafingDataPanel.vue';
+import CounterStrafingDataGuide from '../components/counter-strafing/CounterStrafingDataGuide.vue';
 import SettingsCard from '../components/settings/SettingsCard.vue';
 import { useCounterStrafing } from '../composables/useCounterStrafing';
 import { useGameBarWidget } from '../composables/useGameBarWidget';
@@ -26,7 +24,7 @@ defineProps<{
   visible?: boolean;
 }>();
 
-type CounterStrafingTab = 'console' | 'data' | 'keys' | 'advanced';
+type CounterStrafingTab = 'console' | 'data' | 'guide' | 'keys' | 'advanced';
 
 const activeTab = ref<CounterStrafingTab>('console');
 
@@ -35,11 +33,13 @@ const navItems = [
   { id: 'data' as const, label: '数据', icon: BarChart3 },
   { id: 'keys' as const, label: '键位', icon: Keyboard },
   { id: 'advanced' as const, label: '高级设置', icon: SlidersHorizontal },
+  { id: 'guide' as const, label: '说明', icon: BookOpen },
 ];
 
 const contentDesc: Record<CounterStrafingTab, string> = {
   console: '选择显示模式、开启记录并完成准备',
   data: '查看急停和开枪的练习数据',
+  guide: '开枪稳定与急停评估的功能说明与指标释义',
   keys: '自定义方向键、蹲键与开火键',
   advanced: '移速模型、采样校准与判定参数',
 };
@@ -56,6 +56,7 @@ const {
   busy,
   error,
   inputListenNeedsAdmin,
+  relaunchBusy,
   bindingRoles,
   bindingRoleLabels,
   patchNumberSetting,
@@ -66,6 +67,7 @@ const {
   cancelCapture,
   restoreDefaultKeyMap,
   applySettings,
+  restartAsAdmin,
 } = cs;
 
 onMounted(() => {
@@ -203,6 +205,15 @@ const switchTrackClass =
                 <li>右键 → 以管理员身份运行</li>
                 <li>返回急停助手，再次点击「开始记录」</li>
               </ol>
+              <button
+                v-if="inputListenNeedsAdmin"
+                type="button"
+                class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2 text-[12px] font-medium text-warning hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="relaunchBusy"
+                @click="restartAsAdmin()"
+              >
+                {{ relaunchBusy ? '正在重启…' : '以管理员身份重启' }}
+              </button>
             </div>
           </div>
         </div>
@@ -223,6 +234,8 @@ const switchTrackClass =
             :last-shot="lastShot"
             :last-assessment-record="lastAssessmentRecord"
           />
+
+          <CounterStrafingDataGuide v-else-if="activeTab === 'guide'" key="guide" />
 
           <!-- 键位 -->
           <div v-else-if="activeTab === 'keys'" key="keys" class="space-y-5">

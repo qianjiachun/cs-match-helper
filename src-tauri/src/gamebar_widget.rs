@@ -337,21 +337,25 @@ async fn fetch_widget_release_info(client: &reqwest::Client) -> Result<WidgetRel
 }
 
 #[tauri::command]
-pub fn get_gamebar_widget_status() -> Result<GameBarWidgetStatus, String> {
-    let installed = query_installed_package();
-    let loopback_configured = installed
-        .as_ref()
-        .map(|(_, family)| is_loopback_configured(family))
-        .unwrap_or(false);
+pub async fn get_gamebar_widget_status() -> Result<GameBarWidgetStatus, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let installed = query_installed_package();
+        let loopback_configured = installed
+            .as_ref()
+            .map(|(_, family)| is_loopback_configured(family))
+            .unwrap_or(false);
 
-    Ok(GameBarWidgetStatus {
-        installed: installed.is_some(),
-        installed_version: installed.as_ref().map(|(version, _)| version.clone()),
-        package_family_name: installed.map(|(_, family)| family),
-        loopback_configured,
-        display_name: WIDGET_DISPLAY_NAME.to_string(),
-        game_bar_installed: is_game_bar_installed(),
+        Ok(GameBarWidgetStatus {
+            installed: installed.is_some(),
+            installed_version: installed.as_ref().map(|(version, _)| version.clone()),
+            package_family_name: installed.map(|(_, family)| family),
+            loopback_configured,
+            display_name: WIDGET_DISPLAY_NAME.to_string(),
+            game_bar_installed: is_game_bar_installed(),
+        })
     })
+    .await
+    .map_err(|e| format!("查询 Widget 状态失败: {e}"))?
 }
 
 #[tauri::command]

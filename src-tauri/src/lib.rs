@@ -15,8 +15,9 @@ use counter_strafing::{
 use log_watcher::WatcherState;
 use platform::{
     fetch_5e_match_detail, fetch_http_json, fetch_proxied_image, launch_with_cdp,
-    probe_5e_environment, wait_for_cdp_port, P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus,
-    P5eLaunchResult, P5eProbeResult, get_cdp_status, start_cdp_collector, stop_cdp_collector,
+    probe_5e_environment, relaunch_current_exe_as_admin, wait_for_cdp_port,
+    P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
+    get_cdp_status, start_cdp_collector, stop_cdp_collector,
 };
 use std::sync::Mutex;
 use std::thread;
@@ -106,6 +107,15 @@ async fn probe_5e_cdp_active(client_root: Option<String>) -> P5eProbeResult {
         client_root: None,
         message: "探测失败".to_string(),
     })
+}
+
+#[tauri::command]
+async fn relaunch_as_admin(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(relaunch_current_exe_as_admin)
+        .await
+        .map_err(|e| format!("重启任务失败: {e}"))??;
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]
@@ -234,6 +244,7 @@ pub fn run() {
             gamebar_widget::install_gamebar_widget_from_local,
             gamebar_widget::find_gamebar_widget_dev_dist,
             gamebar_widget::uninstall_gamebar_widget,
+            relaunch_as_admin,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

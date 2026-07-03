@@ -23,6 +23,12 @@ namespace CSMatchHelperWidget
             return BuildStreamUrl(port);
         }
 
+        public static string GetPrimaryWidgetLayoutUrl()
+        {
+            var port = ReadDiscoveredPort() ?? DefaultPort;
+            return BuildWidgetLayoutUrl(port);
+        }
+
         public static IReadOnlyList<string> GetFallbackSnapshotUrls()
         {
             var urls = new List<string>();
@@ -129,6 +135,11 @@ namespace CSMatchHelperWidget
         private static string BuildStreamUrl(int port)
         {
             return $"http://{DefaultHost}:{port}/stream";
+        }
+
+        private static string BuildWidgetLayoutUrl(int port)
+        {
+            return $"http://{DefaultHost}:{port}/widget-layout";
         }
 
         private static int? ParsePort(string url)

@@ -4,11 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Transparent">
 
-    <Grid Padding="8,6">
+    <Grid x:Name="RootGrid" Padding="8,6" SizeChanged="OnRootGridSizeChanged">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="4"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition x:Name="AssessmentRow" Height="*"/>
+            <RowDefinition x:Name="SplitterRow" Height="Auto"/>
+            <RowDefinition x:Name="ShootingRow" Height="*"/>
         </Grid.RowDefinitions>
 
         <Grid x:Name="AssessmentPanel" Grid.Row="0">
@@ -17,14 +17,14 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="1,0,1,2">
+            <Grid x:Name="AssessmentStatsRow" Grid.Row="0" Margin="1,0,1,2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                    <StackPanel x:Name="AssessmentAvgStatGroup" Orientation="Horizontal" Margin="0,0,10,0">
                         <Grid Margin="0,0,4,0">
                             <TextBlock Text="平均" Style="{StaticResource HudStatLabelShadowStyle}"/>
                             <TextBlock Text="平均" Style="{StaticResource HudStatLabelStyle}"/>
@@ -34,7 +34,7 @@
                             <TextBlock x:Name="AvgDiffText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
                         </Grid>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                    <StackPanel x:Name="AssessmentSuccessStatGroup" Orientation="Horizontal" Margin="0,0,10,0">
                         <Grid Margin="0,0,4,0">
                             <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelShadowStyle}"/>
                             <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelStyle}"/>
@@ -44,7 +44,7 @@
                             <TextBlock x:Name="SuccessRateText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
                         </Grid>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="AssessmentStdDevStatGroup" Orientation="Horizontal">
                         <Grid Margin="0,0,4,0">
                             <TextBlock Text="标准差" Style="{StaticResource HudStatLabelShadowStyle}"/>
                             <TextBlock Text="标准差" Style="{StaticResource HudStatLabelStyle}"/>
@@ -56,7 +56,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Grid Grid.Column="1" VerticalAlignment="Bottom">
+                <Grid x:Name="AssessmentTendencyGroup" Grid.Column="1" VerticalAlignment="Bottom">
                     <TextBlock x:Name="TendencyTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
                     <TextBlock
                         x:Name="TendencyText"
@@ -107,14 +107,50 @@
             </Grid>
         </Grid>
 
+        <Border
+            x:Name="SplitterHandle"
+            Grid.Row="1"
+            VerticalAlignment="Center"
+            Background="Transparent"
+            Opacity="0.3"
+            ToolTipService.ToolTip="上下拖动调节图表高度"
+            PointerEntered="OnSplitterPointerEntered"
+            PointerExited="OnSplitterPointerExited"
+            PointerPressed="OnSplitterPointerPressed"
+            PointerMoved="OnSplitterPointerMoved"
+            PointerReleased="OnSplitterPointerReleased"
+            PointerCanceled="OnSplitterPointerReleased">
+            <Grid VerticalAlignment="Center">
+                <Border
+                    x:Name="SplitterLine"
+                    Height="2"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    Background="#66FFFFFF"
+                    CornerRadius="1"
+                    Opacity="0.35"/>
+                <StackPanel
+                    x:Name="SplitterGrip"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="3"
+                    Opacity="0"
+                    IsHitTestVisible="False">
+                    <Border Width="14" Height="2" Background="#99FFFFFF" CornerRadius="1"/>
+                    <Border Width="14" Height="2" Background="#99FFFFFF" CornerRadius="1"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <Grid x:Name="ShootingPanel" Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="1,0,1,2">
-                <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+            <StackPanel x:Name="ShootingStatsRow" Grid.Row="0" Orientation="Horizontal" Margin="1,0,1,2">
+                <StackPanel x:Name="ShootingErrorStatGroup" Orientation="Horizontal" Margin="0,0,12,0">
                     <Grid Margin="0,0,4,0">
                         <TextBlock Text="误差" Style="{StaticResource HudStatLabelShadowStyle}"/>
                         <TextBlock Text="误差" Style="{StaticResource HudStatLabelStyle}"/>
@@ -124,7 +160,7 @@
                         <TextBlock x:Name="AvgErrorText" Text="—" Style="{StaticResource HudStatValueStyle}"/>
                     </Grid>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal">
+                <StackPanel x:Name="ShootingStableStatGroup" Orientation="Horizontal">
                     <Grid Margin="0,0,4,0">
                         <TextBlock Text="稳定" Style="{StaticResource HudStatLabelShadowStyle}"/>
                         <TextBlock Text="稳定" Style="{StaticResource HudStatLabelStyle}"/>
@@ -163,7 +199,7 @@
                     TextAlignment="Center"/>
                 <TextBlock
                     x:Name="StatusHintText"
-                    Text="正在连接 CS 匹配助手"
+                    Text="请打开 CS 匹配助手开始记录"
                     FontSize="10"
                     Foreground="#B3FFFFFF"
                     FontFamily="Segoe UI"

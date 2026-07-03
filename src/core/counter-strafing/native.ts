@@ -132,3 +132,7 @@ export async function onCounterStrafingStatus(
     handler(event.payload);
   });
 }
+
+export async function relaunchAsAdmin(): Promise<void> {
+  return invoke<void>('relaunch_as_admin');
+}

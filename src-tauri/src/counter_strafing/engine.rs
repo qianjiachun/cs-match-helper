@@ -413,9 +413,13 @@ impl CounterStrafingEngine {
         }
         self.last_tick_time = time;
         if self.fire_scheduler.exceeds_guard(time) {
-            self.fire_scheduler.force_release();
-            self.fire_pressed = false;
-            return None;
+            if self.fire_pressed {
+                self.fire_scheduler
+                    .on_fire_down(time, self.settings.fire_sample_delay_ms);
+            } else {
+                self.fire_scheduler.force_release();
+                return None;
+            }
         }
         if let Some(record) = self.process_fire_scheduler(time) {
             return Some(record);
@@ -503,9 +507,13 @@ impl CounterStrafingEngine {
 
     fn process_fire_scheduler(&mut self, now: f64) -> Option<ShootingErrorRecord> {
         if self.fire_scheduler.exceeds_guard(now) {
-            self.fire_scheduler.force_release();
-            self.fire_pressed = false;
-            return None;
+            if self.fire_pressed {
+                self.fire_scheduler
+                    .on_fire_down(now, self.settings.fire_sample_delay_ms);
+            } else {
+                self.fire_scheduler.force_release();
+                return None;
+            }
         }
 
         let due = self.fire_scheduler.next_sample_due_time(
@@ -615,6 +623,25 @@ impl CounterStrafingEngine {
                 counter_strafe_active,
                 axis_conflict,
                 crouch_grace_active: true,
+            };
+        }
+
+        if crouching {
+            return SampleEval {
+                error: 0.0,
+                reason: ShootingErrorReason::Crouching,
+                score_label: "蹲射".to_string(),
+                movement_keys_down,
+                crouching: true,
+                last_stop_age_ms: stop_success_age_ms,
+                timing_diff_ms,
+                estimated_speed: round3(speed),
+                accuracy_threshold: round3(threshold),
+                speed_ratio: round3(0.0),
+                stop_success_age_ms,
+                counter_strafe_active,
+                axis_conflict,
+                crouch_grace_active: false,
             };
         }
 
@@ -1370,15 +1397,29 @@ mod tests {
     }
 
     #[test]
-    fn crouch_shot_uses_same_stable_evaluation_as_standing() {
+    fn crouch_shot_uses_crouching_stable_evaluation() {
         let mut engine = CounterStrafingEngine::new(settings());
         build_speed(&mut engine, 0.10);
         engine.handle_event(evt(kb(0x11), true, 0.11));
         let record = fire_down(&mut engine, 0.12);
         assert_eq!(record.error, 0.0);
         assert!(record.crouching);
-        assert_ne!(record.score_label, "蹲射");
-        assert_ne!(record.reason, ShootingErrorReason::Crouching);
+        assert_eq!(record.score_label, "蹲射");
+        assert_eq!(record.reason, ShootingErrorReason::Crouching);
+        assert_eq!(record.speed_ratio, 0.0);
+    }
+
+    #[test]
+    fn crouch_move_shot_stays_low_risk_while_moving() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        engine.handle_event(evt(kb(0x41), true, 0.0));
+        engine.handle_event(evt(kb(0x11), true, 0.05));
+        build_speed(&mut engine, 0.20);
+        let record = fire_down(&mut engine, 0.16);
+        assert!(record.crouching);
+        assert_eq!(record.reason, ShootingErrorReason::Crouching);
+        assert_eq!(record.speed_ratio, 0.0);
+        assert!(record.estimated_speed > 0.0);
     }
 
     #[test]
@@ -1598,7 +1639,7 @@ mod tests {
     }
 
     #[test]
-    fn fire_hold_guard_stops_infinite_auto_samples() {
+    fn fire_hold_guard_rearms_while_fire_still_pressed() {
         let mut s = settings();
         s.tap_max_hold_ms = 50.0;
         s.auto_fire_interval_ms = 10.0;
@@ -1615,7 +1656,10 @@ mod tests {
             }
             t += 0.01;
         }
-        assert!(samples <= MAX_AUTO_FIRE_SAMPLES);
+        assert!(samples > MAX_AUTO_FIRE_SAMPLES);
+        assert!(engine.next_sample_due_time().is_some());
+
+        engine.handle_event(evt(mouse(0), false, t));
         assert!(engine.next_sample_due_time().is_none());
     }
 }

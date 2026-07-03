@@ -57,8 +57,8 @@
                   <Size>
                     <Height>236</Height>
                     <Width>360</Width>
-                    <MinHeight>168</MinHeight>
-                    <MinWidth>260</MinWidth>
+                    <MinHeight>112</MinHeight>
+                    <MinWidth>220</MinWidth>
                     <MaxHeight>480</MaxHeight>
                     <MaxWidth>960</MaxWidth>
                   </Size>

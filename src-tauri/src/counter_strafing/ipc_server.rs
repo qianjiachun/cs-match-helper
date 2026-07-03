@@ -61,6 +61,7 @@ impl IpcServer {
         app: AppHandle,
         get_snapshot: impl Fn() -> GameBarIpcSnapshot + Send + Sync + 'static,
         snapshot_signal: SnapshotSignal,
+        update_widget_layout: impl Fn(f64) -> Result<(), String> + Send + Sync + 'static,
     ) -> Result<(Self, u16), String> {
         let (listener, port) = ipc_port_discovery::bind_ipc_listener()?;
         ipc_port_discovery::write_ipc_port_discovery(port)?;
@@ -74,6 +75,7 @@ impl IpcServer {
         let listener_slot = Arc::new(Mutex::new(Some(listener)));
         let listener_for_thread = Arc::clone(&listener_slot);
         let get_snapshot = Arc::new(get_snapshot);
+        let update_widget_layout = Arc::new(update_widget_layout);
 
         let handle = thread::Builder::new()
             .name("counter-strafing-ipc".into())
@@ -83,6 +85,7 @@ impl IpcServer {
                     app,
                     get_snapshot,
                     snapshot_signal,
+                    update_widget_layout,
                     stop_for_thread,
                 )
             })
@@ -133,6 +136,7 @@ fn server_loop(
     _app: AppHandle,
     get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
     snapshot_signal: SnapshotSignal,
+    update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
 ) {
     let cache = Arc::new(Mutex::new(JsonCache {
@@ -163,12 +167,19 @@ fn server_loop(
                 let signal = snapshot_signal.clone();
                 let stop = Arc::clone(&stop_flag);
                 let generation = Arc::clone(&stream_generation);
+                let update_layout = Arc::clone(&update_widget_layout);
                 thread::Builder::new()
                     .name("counter-strafing-ipc-conn".into())
                     .spawn(move || {
-                        if let Err(e) =
-                            handle_client(stream, get_snapshot, cache, signal, stop, generation)
-                        {
+                        if let Err(e) = handle_client(
+                            stream,
+                            get_snapshot,
+                            cache,
+                            signal,
+                            update_layout,
+                            stop,
+                            generation,
+                        ) {
                             if should_log_connection_error(&e, &Arc::new(AtomicBool::new(false))) {
                                 eprintln!("[counter-strafing-ipc] connection error: {e}");
                             }
@@ -194,6 +205,7 @@ fn handle_client(
     get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
     cache: Arc<Mutex<JsonCache>>,
     snapshot_signal: SnapshotSignal,
+    update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
     stream_generation: Arc<AtomicU64>,
 ) -> std::io::Result<()> {
@@ -225,7 +237,12 @@ fn handle_client(
 
     let request = String::from_utf8_lossy(&buf[..read]);
     let first_line = request.lines().next().unwrap_or_default();
+    let method = first_line.split_whitespace().next().unwrap_or_default();
     let path = first_line.split_whitespace().nth(1).unwrap_or_default();
+
+    if method == "POST" && path == "/widget-layout" {
+        return handle_widget_layout_post(&mut stream, &request, update_widget_layout.as_ref());
+    }
 
     if path == "/stream" {
         let _ = stream.set_read_timeout(None);
@@ -420,7 +437,84 @@ fn snapshot_revision(snapshot: &GameBarIpcSnapshot) -> u64 {
         hash = fold_u64(hash, shooting.stable_rate.to_bits());
         hash = fold_u64(hash, shooting.hud_show_stable_bars as u8 as u64);
     }
+    let layout = &snapshot.layout;
+    hash = fold_u64(hash, layout.show_assessment_chart as u8 as u64);
+    hash = fold_u64(hash, layout.show_shooting_chart as u8 as u64);
+    hash = fold_u64(hash, layout.assessment_ratio.to_bits());
+    hash = fold_u64(hash, layout.assessment_on_top as u8 as u64);
     hash
+}
+
+fn parse_request_body(request: &str) -> Option<String> {
+    let header_end = request.find("\r\n\r\n")?;
+    let body_start = header_end + 4;
+    let headers = &request[..header_end];
+    let mut content_length = None;
+    for line in headers.lines().skip(1) {
+        if let Some(value) = line
+            .strip_prefix("Content-Length:")
+            .or_else(|| line.strip_prefix("content-length:"))
+        {
+            content_length = value.trim().parse::<usize>().ok();
+        }
+    }
+    let body = &request[body_start..];
+    if let Some(len) = content_length {
+        if body.len() >= len {
+            return Some(body[..len].to_string());
+        }
+    } else if !body.is_empty() {
+        return Some(body.to_string());
+    }
+    None
+}
+
+fn handle_widget_layout_post(
+    stream: &mut TcpStream,
+    request: &str,
+    update_widget_layout: &(dyn Fn(f64) -> Result<(), String> + Send + Sync),
+) -> std::io::Result<()> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct WidgetLayoutBody {
+        gamebar_assessment_ratio: Option<f64>,
+    }
+
+    let (status, body) = match parse_request_body(request) {
+        Some(body_text) => match serde_json::from_str::<WidgetLayoutBody>(&body_text) {
+            Ok(payload) => match payload.gamebar_assessment_ratio {
+                Some(ratio) => match update_widget_layout(ratio) {
+                    Ok(()) => ("200 OK", ok_json()),
+                    Err(e) => ("400 Bad Request", error_json(&e)),
+                },
+                None => ("400 Bad Request", error_json("missing gamebarAssessmentRatio")),
+            },
+            Err(e) => ("400 Bad Request", error_json(&e.to_string())),
+        },
+        None => ("400 Bad Request", error_json("missing request body")),
+    };
+
+    let response = format!(
+        "HTTP/1.1 {status}\r\n\
+         Content-Type: application/json; charset=utf-8\r\n\
+         Access-Control-Allow-Origin: *\r\n\
+         Connection: close\r\n\
+         Content-Length: {}\r\n\
+         \r\n\
+         {body}",
+        body.len()
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    Ok(())
+}
+
+fn ok_json() -> String {
+    #[derive(Serialize)]
+    struct OkBody {
+        ok: bool,
+    }
+    serde_json::to_string(&OkBody { ok: true }).unwrap_or_else(|_| r#"{"ok":true}"#.to_string())
 }
 
 fn error_json(message: &str) -> String {
@@ -443,6 +537,7 @@ mod tests {
         let snapshot = GameBarIpcSnapshot {
             assessment: Default::default(),
             shooting: None,
+            layout: Default::default(),
         };
         let body = serde_json::to_string(&snapshot).unwrap();
         assert!(body.contains("\"active\":false"));
@@ -457,6 +552,7 @@ mod tests {
         let mut snapshot = GameBarIpcSnapshot {
             assessment: Default::default(),
             shooting: None,
+            layout: Default::default(),
         };
         let base = snapshot_revision(&snapshot);
         snapshot.assessment.records.push(CounterStrafingAssessmentRecord {

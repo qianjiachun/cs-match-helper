@@ -73,7 +73,6 @@ const emit = defineEmits<{
         v-if="debugEnabled && !debugPanelMounted"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-        title="调试：注入数据与日志输出"
         @click="openDebugPanel"
       >
         <Bug class="h-4 w-4" />
@@ -102,7 +101,6 @@ const emit = defineEmits<{
         "
         :aria-label="view === 'counter-strafing' ? '急停助手（当前）' : '打开急停助手'"
         :aria-current="view === 'counter-strafing' ? 'page' : undefined"
-        title="急停助手"
         @click="view === 'main' && emit('openCounterStrafing')"
       >
         <Gauge class="h-4 w-4" />
@@ -113,7 +111,6 @@ const emit = defineEmits<{
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
         aria-label="打开设置"
-        title="设置"
         @click="emit('openSettings')"
       >
         <Settings class="h-4 w-4" />
@@ -124,7 +121,6 @@ const emit = defineEmits<{
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
         aria-label="返回主页"
-        title="返回"
         @click="emit('goMain')"
       >
         <ArrowLeft class="h-4 w-4" />

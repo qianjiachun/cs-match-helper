@@ -12,9 +12,49 @@ import type { CounterStrafingSnapshot, ShootingErrorRecord } from '@core/counter
 import { formatErrorValue } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useHudWindow, onHudDragPointerDown } from './useHudWindow';
+import {
+  shootingHudStatsVisibility,
+  useHudChartStatsVisibility,
+} from './useHudChartStatsVisibility';
 
 const DEFAULT_CHART_HEIGHT = 88;
 const DEFAULT_CHART_WIDTH = 320;
+const HUD_HISTORY_LIMIT = 64;
+
+function createRafCoalescer<T>(apply: (value: T) => void) {
+  let pending: T | null = null;
+  let rafId: number | null = null;
+
+  const schedule = (value: T) => {
+    pending = value;
+    if (rafId !== null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      if (pending !== null) {
+        apply(pending);
+        pending = null;
+      }
+    });
+  };
+
+  const flush = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (pending !== null) {
+      apply(pending);
+      pending = null;
+    }
+  };
+
+  return { schedule, flush };
+}
+
+function trimHistory<T>(records: T[], limit: number): T[] {
+  if (records.length <= limit) return records;
+  return records.slice(records.length - limit);
+}
 
 const snapshot = ref<CounterStrafingSnapshot>({
   active: false,
@@ -33,9 +73,12 @@ const initError = ref<string | null>(null);
 const chartHeight = ref(DEFAULT_CHART_HEIGHT);
 const chartWidth = ref(DEFAULT_CHART_WIDTH);
 const chartWrapRef = ref<HTMLElement | null>(null);
+const hudRootRef = ref<HTMLElement | null>(null);
+const statsVisibility = useHudChartStatsVisibility(hudRootRef, shootingHudStatsVisibility);
 
 let unlisteners: UnlistenFn[] = [];
 let resizeObserver: ResizeObserver | null = null;
+let flushSnapshotRaf: (() => void) | null = null;
 
 useHudWindow();
 
@@ -70,15 +113,26 @@ onMounted(async () => {
     if (snapshot.value.lastShot) {
       liveSample.value = snapshot.value.lastShot;
     }
+    const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
+      snapshot.value = next;
+    });
+    flushSnapshotRaf = snapshotRaf.flush;
+
     unlisteners = await Promise.all([
       onCounterStrafingShot((record) => {
         liveSample.value = record;
+        const records = trimHistory([...snapshot.value.shotRecords, record], HUD_HISTORY_LIMIT);
+        snapshot.value = {
+          ...snapshot.value,
+          shotRecords: records,
+          lastShot: record,
+        };
       }),
       onCounterStrafingSnapshot((next) => {
-        snapshot.value = next;
+        snapshotRaf.schedule(next);
       }),
       onCounterStrafingStatus((next) => {
-        snapshot.value = next;
+        snapshotRaf.schedule(next);
       }),
     ]);
   } catch (e) {
@@ -90,13 +144,15 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
+  flushSnapshotRaf?.();
   void Promise.all(unlisteners.map((fn) => fn()));
 });
 </script>
 
 <template>
   <div
-    class="hud-root group/hud relative h-full min-h-[80px] min-w-[260px] w-full select-none"
+    ref="hudRootRef"
+    class="hud-root group/hud relative h-full w-full select-none"
     :class="snapshot.hudLocked ? 'pointer-events-none' : ''"
   >
     <div class="hud-frame pointer-events-none absolute inset-0 z-10" aria-hidden="true" />
@@ -112,17 +168,17 @@ onUnmounted(() => {
 
     <div
       v-if="initError"
-      class="hud-error pointer-events-none relative z-1 flex h-full min-h-[80px] items-center justify-center px-4 text-center"
+      class="hud-error pointer-events-none relative z-1 flex h-full items-center justify-center px-4 text-center"
     >
       <p class="hud-stat text-[11px] leading-relaxed text-rose-200/90">{{ initError }}</p>
     </div>
 
     <div
       v-else
-      class="hud-layout pointer-events-none relative z-1 flex h-full min-h-[80px] flex-col gap-0.5 overflow-visible px-2 py-1.5"
+      class="hud-layout pointer-events-none relative z-1 flex h-full flex-col gap-0.5 overflow-hidden px-2 py-1.5"
     >
-      <div class="hud-shooting-stats shrink-0">
-        <div class="hud-shooting-stat">
+      <div v-if="statsVisibility.showBar" class="hud-shooting-stats shrink-0">
+        <div v-if="statsVisibility.showError" class="hud-shooting-stat">
           <span class="hud-shooting-stat-label">误差</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
@@ -131,7 +187,7 @@ onUnmounted(() => {
             {{ snapshot.shotRecords.length ? formatErrorValue(snapshot.avgError) : '—' }}
           </span>
         </div>
-        <div class="hud-shooting-stat">
+        <div v-if="statsVisibility.showStable" class="hud-shooting-stat">
           <span class="hud-shooting-stat-label">稳定</span>
           <span
             class="hud-shooting-stat-value tabular-nums"

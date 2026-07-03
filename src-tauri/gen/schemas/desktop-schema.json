@@ -519,6 +519,12 @@
           "markdownDescription": "允许读取最新日志文件以恢复对局数据"
         },
         {
+          "description": "允许以管理员身份重启应用",
+          "type": "string",
+          "const": "allow-relaunch-as-admin",
+          "markdownDescription": "允许以管理员身份重启应用"
+        },
+        {
           "description": "允许恢复急停默认设置",
           "type": "string",
           "const": "allow-reset-counter-strafing-settings",

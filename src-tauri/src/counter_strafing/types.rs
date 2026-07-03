@@ -205,6 +205,31 @@ pub struct ShootingHudIpcSnapshot {
     pub last_shot: Option<ShootingErrorRecord>,
 }
 
+/// Game Bar Widget 布局：显示开关与上下占比。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameBarWidgetLayout {
+    #[serde(default = "default_true")]
+    pub show_assessment_chart: bool,
+    #[serde(default = "default_true")]
+    pub show_shooting_chart: bool,
+    #[serde(default = "default_gamebar_assessment_ratio")]
+    pub assessment_ratio: f64,
+    #[serde(default = "default_true")]
+    pub assessment_on_top: bool,
+}
+
+impl Default for GameBarWidgetLayout {
+    fn default() -> Self {
+        Self {
+            show_assessment_chart: true,
+            show_shooting_chart: true,
+            assessment_ratio: default_gamebar_assessment_ratio(),
+            assessment_on_top: default_true(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameBarIpcSnapshot {
@@ -212,6 +237,8 @@ pub struct GameBarIpcSnapshot {
     pub assessment: CounterStrafingAssessmentSnapshot,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shooting: Option<ShootingHudIpcSnapshot>,
+    #[serde(default)]
+    pub layout: GameBarWidgetLayout,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -396,6 +423,33 @@ pub struct CounterStrafingSettings {
     pub assessment_hud_width: Option<f64>,
     #[serde(default)]
     pub assessment_hud_height: Option<f64>,
+    #[serde(default = "default_true")]
+    pub gamebar_show_assessment_chart: bool,
+    #[serde(default = "default_true")]
+    pub gamebar_show_shooting_chart: bool,
+    #[serde(default = "default_gamebar_assessment_ratio")]
+    pub gamebar_assessment_ratio: f64,
+    #[serde(default = "default_true")]
+    pub gamebar_assessment_on_top: bool,
+}
+
+pub const GAMEBAR_ASSESSMENT_RATIO_MIN: f64 = 0.05;
+pub const GAMEBAR_ASSESSMENT_RATIO_MAX: f64 = 0.95;
+
+pub fn clamp_gamebar_assessment_ratio(ratio: f64) -> f64 {
+    ratio.clamp(GAMEBAR_ASSESSMENT_RATIO_MIN, GAMEBAR_ASSESSMENT_RATIO_MAX)
+}
+
+pub fn normalize_gamebar_layout(settings: &mut CounterStrafingSettings) {
+    settings.gamebar_assessment_ratio =
+        clamp_gamebar_assessment_ratio(settings.gamebar_assessment_ratio);
+    if !settings.gamebar_show_assessment_chart && !settings.gamebar_show_shooting_chart {
+        settings.gamebar_show_assessment_chart = true;
+    }
+}
+
+fn default_gamebar_assessment_ratio() -> f64 {
+    0.5
 }
 
 fn default_enabled() -> bool {
@@ -508,6 +562,10 @@ impl Default for CounterStrafingSettings {
             assessment_hud_y: None,
             assessment_hud_width: None,
             assessment_hud_height: None,
+            gamebar_show_assessment_chart: default_true(),
+            gamebar_show_shooting_chart: default_true(),
+            gamebar_assessment_ratio: default_gamebar_assessment_ratio(),
+            gamebar_assessment_on_top: default_true(),
         }
     }
 }

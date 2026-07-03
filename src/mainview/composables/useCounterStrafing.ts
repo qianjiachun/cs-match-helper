@@ -14,6 +14,7 @@ import {
   onCounterStrafingShot,
   onCounterStrafingSnapshot,
   onCounterStrafingStatus,
+  relaunchAsAdmin,
   resetKeyMap,
   resetCounterStrafingSettings,
   saveCounterStrafingSettings,
@@ -43,6 +44,41 @@ const BINDING_ROLES: BindingRole[] = ['forward', 'back', 'left', 'right', 'crouc
 const INPUT_LISTEN_ADMIN_HINT = '以管理员身份运行';
 
 const HUD_INIT_RETRY_HINT = '正在初始化';
+
+function createRafCoalescer<T>(apply: (value: T) => void) {
+  let pending: T | null = null;
+  let rafId: number | null = null;
+
+  const schedule = (value: T) => {
+    pending = value;
+    if (rafId !== null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      if (pending !== null) {
+        apply(pending);
+        pending = null;
+      }
+    });
+  };
+
+  const flush = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (pending !== null) {
+      apply(pending);
+      pending = null;
+    }
+  };
+
+  return { schedule, flush };
+}
+
+function trimHistory<T>(records: T[], limit: number): T[] {
+  if (records.length <= limit) return records;
+  return records.slice(records.length - limit);
+}
 
 async function withHudInitRetry<T>(action: () => Promise<T>, attempts = 10): Promise<T> {
   let lastError: unknown;
@@ -89,11 +125,14 @@ export function useCounterStrafing() {
   const lastShot = ref<ShootingErrorRecord | null>(null);
   const lastAssessmentRecord = ref<CounterStrafingAssessmentRecord | null>(null);
   const busy = ref(false);
+  const relaunchBusy = ref(false);
   const error = ref<string | null>(null);
   const inputListenNeedsAdmin = ref(false);
 
   let unlisteners: UnlistenFn[] = [];
   let settingsPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  let flushSnapshotRaf: (() => void) | null = null;
+  let flushAssessmentSnapshotRaf: (() => void) | null = null;
 
   async function refreshAssessment() {
     assessmentSnapshot.value = await getCounterStrafingAssessmentSnapshot();
@@ -295,6 +334,16 @@ export function useCounterStrafing() {
     }
   }
 
+  async function restartAsAdmin() {
+    relaunchBusy.value = true;
+    try {
+      await relaunchAsAdmin();
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e);
+      relaunchBusy.value = false;
+    }
+  }
+
   async function restoreDefaultKeyMap() {
     busy.value = true;
     error.value = null;
@@ -313,21 +362,49 @@ export function useCounterStrafing() {
       await loadSettings();
       await refresh();
       await refreshAssessment();
+
+      const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
+        snapshot.value = next;
+      });
+      const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
+        assessmentSnapshot.value = next;
+      });
+      flushSnapshotRaf = snapshotRaf.flush;
+      flushAssessmentSnapshotRaf = assessmentSnapshotRaf.flush;
+
       unlisteners = await Promise.all([
         onCounterStrafingShot((record) => {
           lastShot.value = record;
+          const records = trimHistory(
+            [...snapshot.value.shotRecords, record],
+            settings.value.historyLimit,
+          );
+          snapshot.value = {
+            ...snapshot.value,
+            shotRecords: records,
+            lastShot: record,
+          };
         }),
         onCounterStrafingSnapshot((next) => {
-          snapshot.value = next;
+          snapshotRaf.schedule(next);
         }),
         onCounterStrafingStatus((next) => {
-          snapshot.value = next;
+          snapshotRaf.schedule(next);
         }),
         onCounterStrafingAssessmentRecord((record) => {
           lastAssessmentRecord.value = record;
+          const records = trimHistory(
+            [...assessmentSnapshot.value.records, record],
+            settings.value.assessmentHistoryLimit,
+          );
+          assessmentSnapshot.value = {
+            ...assessmentSnapshot.value,
+            records,
+            lastRecord: record,
+          };
         }),
         onCounterStrafingAssessmentSnapshot((next) => {
-          assessmentSnapshot.value = next;
+          assessmentSnapshotRaf.schedule(next);
         }),
       ]);
     } catch (e) {
@@ -340,6 +417,8 @@ export function useCounterStrafing() {
       clearTimeout(settingsPersistTimer);
       settingsPersistTimer = null;
     }
+    flushSnapshotRaf?.();
+    flushAssessmentSnapshotRaf?.();
     void Promise.all(unlisteners.map((fn) => fn()));
     if (snapshot.value.capturingBinding) {
       void cancelBindingCapture();
@@ -353,6 +432,7 @@ export function useCounterStrafing() {
     lastShot,
     lastAssessmentRecord,
     busy,
+    relaunchBusy,
     error,
     inputListenNeedsAdmin,
     bindingRoles: BINDING_ROLES,
@@ -374,5 +454,6 @@ export function useCounterStrafing() {
     beginCapture,
     cancelCapture,
     restoreDefaultKeyMap,
+    restartAsAdmin,
   };
 }
