@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Grip } from 'lucide-vue-next';
 import ShootingErrorBars from '../components/counter-strafing/ShootingErrorBars.vue';
 import {
@@ -9,7 +9,7 @@ import {
   onCounterStrafingStatus,
 } from '@core/counter-strafing/native';
 import type { CounterStrafingSnapshot, ShootingErrorRecord } from '@core/counter-strafing/types';
-import { formatErrorValue } from '@core/counter-strafing/types';
+import { formatErrorValue, latestPressSessionAvgError } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useHudWindow, onHudDragPointerDown } from './useHudWindow';
 import {
@@ -76,6 +76,7 @@ const chartWidth = ref(DEFAULT_CHART_WIDTH);
 const chartWrapRef = ref<HTMLElement | null>(null);
 const hudRootRef = ref<HTMLElement | null>(null);
 const statsVisibility = useHudChartStatsVisibility(hudRootRef, shootingHudStatsVisibility);
+const sessionAvgError = computed(() => latestPressSessionAvgError(snapshot.value.shotRecords));
 
 let unlisteners: UnlistenFn[] = [];
 let resizeObserver: ResizeObserver | null = null;
@@ -183,9 +184,9 @@ onUnmounted(() => {
           <span class="hud-shooting-stat-label">误差</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
-            :style="{ color: snapshot.shotRecords.length ? errorColor(snapshot.avgError) : undefined }"
+            :style="{ color: sessionAvgError !== null ? errorColor(sessionAvgError) : undefined }"
           >
-            {{ snapshot.shotRecords.length ? formatErrorValue(snapshot.avgError) : '—' }}
+            {{ sessionAvgError !== null ? formatErrorValue(sessionAvgError) : '—' }}
           </span>
         </div>
         <div v-if="statsVisibility.showStable" class="hud-shooting-stat">

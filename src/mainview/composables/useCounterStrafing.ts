@@ -1,5 +1,6 @@
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
+import { counterStrafingListening } from './useCounterStrafingListening';
 import {
   cancelBindingCapture,
   clearCounterStrafingAssessmentRecords,
@@ -357,6 +358,14 @@ export function useCounterStrafing() {
       busy.value = false;
     }
   }
+
+  watch(
+    () => snapshot.value.listening,
+    (listening) => {
+      counterStrafingListening.value = listening;
+    },
+    { immediate: true },
+  );
 
   onMounted(async () => {
     try {

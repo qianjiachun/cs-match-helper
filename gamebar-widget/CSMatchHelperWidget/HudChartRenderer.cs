@@ -464,6 +464,40 @@ namespace CSMatchHelperWidget
             return sampleKind == "fireDown" && shotSequenceIndex == 1 && !fireHeld;
         }
 
+        public static double? LatestPressSessionAvgError(JsonArray records)
+        {
+            if (records == null || records.Count == 0)
+            {
+                return null;
+            }
+
+            var sum = 0.0;
+            var count = 0;
+            for (var i = records.Count - 1; i >= 0; i--)
+            {
+                if (records[i].ValueType != JsonValueType.Object)
+                {
+                    continue;
+                }
+
+                var record = records[i].GetObject();
+                sum += JsonHelpers.GetNumber(record, "error", 0);
+                count += 1;
+                var sampleKind = JsonHelpers.GetString(record, "sampleKind", "fireDown");
+                if (sampleKind == "fireDown")
+                {
+                    break;
+                }
+            }
+
+            if (count == 0)
+            {
+                return null;
+            }
+
+            return Math.Round(sum / count, 3);
+        }
+
         public static (double Radius, double CenterY) TapFirstMarkerLayout(
             double barBottom,
             double blockW,

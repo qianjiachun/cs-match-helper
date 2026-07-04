@@ -790,10 +790,22 @@ namespace CSMatchHelperWidget
                 return;
             }
 
-            var avgError = JsonHelpers.GetNumber(shooting, "avgError");
+            var sessionAvgError = HudChartRenderer.LatestPressSessionAvgError(shotRecords);
             var stableRate = JsonHelpers.GetNumber(shooting, "stableRate");
 
-            SetShadowedStatValue(AvgErrorText, AvgErrorTextShadow, avgError.ToString("F2"), BrushForError(avgError));
+            if (sessionAvgError.HasValue)
+            {
+                SetShadowedStatValue(
+                    AvgErrorText,
+                    AvgErrorTextShadow,
+                    sessionAvgError.Value.ToString("F2"),
+                    BrushForError(sessionAvgError.Value));
+            }
+            else
+            {
+                ResetShootingStats();
+                return;
+            }
             SetShadowedStatValue(StableRateText, StableRateTextShadow, $"{stableRate:F1}%", BrushForSuccessRate(stableRate));
         }
 

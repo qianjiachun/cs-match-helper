@@ -327,6 +327,32 @@ export function formatErrorValue(error: number): string {
   return error.toFixed(2);
 }
 
+/** 取最近一次鼠标按下（含按住至下次按下前）的采样记录 */
+export function latestPressSessionRecords(records: ShootingErrorRecord[]): ShootingErrorRecord[] {
+  if (records.length === 0) return [];
+
+  const session: ShootingErrorRecord[] = [];
+  for (let i = records.length - 1; i >= 0; i -= 1) {
+    session.unshift(records[i]);
+    if (records[i].sampleKind === 'fireDown') {
+      break;
+    }
+  }
+  return session;
+}
+
+function roundErrorAverage(sum: number, count: number): number {
+  return Math.round((sum / count) * 1000) / 1000;
+}
+
+/** 最近一次鼠标按下期间的平均误差；无记录时返回 null */
+export function latestPressSessionAvgError(records: ShootingErrorRecord[]): number | null {
+  const session = latestPressSessionRecords(records);
+  if (session.length === 0) return null;
+  const sum = session.reduce((acc, record) => acc + record.error, 0);
+  return roundErrorAverage(sum, session.length);
+}
+
 export function formatSpeedRatio(record: ShootingErrorRecord): string {
   return `${record.speedRatio.toFixed(2)}x`;
 }

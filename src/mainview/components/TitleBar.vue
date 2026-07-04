@@ -21,8 +21,9 @@ function openDebugPanel() {
   emit('debugOpen');
 }
 
-defineProps<{
+const props = defineProps<{
   view: 'main' | 'settings' | 'counter-strafing';
+  counterStrafingListening: boolean;
   injectMatch: (data: Record<string, unknown>) => void;
   injectAiResult: (raw: string) => Promise<string | null>;
   p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
@@ -41,6 +42,14 @@ const emit = defineEmits<{
   openUpdateDialog: [];
   debugOpen: [];
 }>();
+
+function counterStrafingAriaLabel(): string {
+  const onPage = props.view === 'counter-strafing';
+  if (props.counterStrafingListening) {
+    return onPage ? '急停助手（当前，记录中）' : '急停助手（记录中）';
+  }
+  return onPage ? '急停助手（当前）' : '打开急停助手';
+}
 </script>
 
 <template>
@@ -93,18 +102,57 @@ const emit = defineEmits<{
       <button
         v-if="view === 'main' || view === 'counter-strafing'"
         type="button"
-        class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] transition-colors duration-200"
+        class="cs-header-strafing-btn relative flex h-full cursor-pointer items-center gap-1.5 px-3 text-[12px] transition-[background-color,color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
         :class="
           view === 'counter-strafing'
-            ? 'bg-elevated text-fg'
-            : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
+            ? counterStrafingListening
+              ? 'bg-emerald-500/8 text-fg cs-header-strafing-btn--listening'
+              : 'bg-elevated text-fg'
+            : counterStrafingListening
+              ? 'text-emerald-700 hover:bg-emerald-500/8 cs-header-strafing-btn--listening'
+              : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
         "
-        :aria-label="view === 'counter-strafing' ? '急停助手（当前）' : '打开急停助手'"
+        :aria-label="counterStrafingAriaLabel()"
         :aria-current="view === 'counter-strafing' ? 'page' : undefined"
         @click="view === 'main' && emit('openCounterStrafing')"
       >
-        <Gauge class="h-4 w-4" />
-        <span class="hidden sm:inline">急停助手</span>
+        <span class="relative shrink-0">
+          <Gauge
+            class="h-4 w-4 transition-[color,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            :class="counterStrafingListening ? 'scale-105 text-emerald-600' : 'scale-100'"
+            aria-hidden="true"
+          />
+          <Transition name="cs-header-status-dot">
+            <span
+              v-if="counterStrafingListening"
+              class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-surface motion-safe:animate-pulse sm:hidden"
+              aria-hidden="true"
+            />
+          </Transition>
+        </span>
+        <span class="hidden shrink-0 whitespace-nowrap sm:inline">急停助手</span>
+        <div
+          class="hidden sm:grid transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          :class="counterStrafingListening ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
+          aria-hidden="true"
+        >
+          <div class="overflow-hidden">
+            <span
+              class="cs-header-status-badge inline-flex w-max shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+              :class="
+                counterStrafingListening
+                  ? 'cs-header-status-badge--visible'
+                  : 'cs-header-status-badge--hidden'
+              "
+            >
+              <span
+                class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                aria-hidden="true"
+              />
+              记录中
+            </span>
+          </div>
+        </div>
       </button>
       <button
         v-if="view === 'main'"
@@ -156,3 +204,69 @@ const emit = defineEmits<{
     </div>
   </header>
 </template>
+
+<style scoped>
+.cs-header-strafing-btn--listening {
+  box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.18);
+}
+
+.cs-header-status-badge {
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cs-header-status-badge--visible {
+  opacity: 1;
+  transform: translateX(0);
+  filter: blur(0);
+  transition-delay: 200ms;
+}
+
+.cs-header-status-badge--hidden {
+  opacity: 0;
+  transform: translateX(-4px);
+  filter: blur(2px);
+  pointer-events: none;
+  transition-delay: 0ms;
+}
+
+.cs-header-status-dot-enter-active,
+.cs-header-status-dot-leave-active {
+  transition:
+    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cs-header-status-dot-enter-from,
+.cs-header-status-dot-leave-to {
+  opacity: 0;
+  transform: scale(0.25);
+}
+
+.cs-header-status-dot-enter-to,
+.cs-header-status-dot-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-header-strafing-btn,
+  .cs-header-status-badge,
+  .cs-header-status-badge--visible {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .cs-header-status-dot-enter-active,
+  .cs-header-status-dot-leave-active {
+    transition-duration: 0.01ms;
+  }
+
+  .cs-header-status-dot-enter-from,
+  .cs-header-status-dot-leave-to {
+    transform: none;
+  }
+}
+</style>

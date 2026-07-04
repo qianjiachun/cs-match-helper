@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { defineAsyncComponent, onMounted, ref, watch } from 'vue';
+import { getCounterStrafingSnapshot } from '@core/counter-strafing/native';
 import CopyToast from './components/CopyToast.vue';
 import TitleBar from './components/TitleBar.vue';
+import { useCounterStrafingListening } from './composables/useCounterStrafingListening';
 import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
 import { useComments } from './composables/useComments';
@@ -54,6 +56,7 @@ const {
   retryDownload,
 } = useUpdateCheck();
 const { closeConfirmOpen, cancelClose, confirmClose } = useCloseConfirm();
+const counterStrafingListening = useCounterStrafingListening();
 
 const commentsDrawerMounted = ref(false);
 const updateDialogMounted = ref(false);
@@ -99,6 +102,13 @@ onMounted(() => {
 
   void ensureVersion();
   window.setTimeout(() => void check(), 12000);
+  void getCounterStrafingSnapshot()
+    .then((snap) => {
+      counterStrafingListening.value = snap.listening;
+    })
+    .catch(() => {
+      // 急停模块未就绪时忽略
+    });
 });
 
 startupMark('app setup end');
@@ -164,6 +174,7 @@ function onBackFromP5e() {
   <div class="flex h-full flex-col bg-base">
     <TitleBar
       :view="currentView"
+      :counter-strafing-listening="counterStrafingListening"
       :inject-match="injectMatch"
       :inject-ai-result="injectAiResult"
       :p5e="p5e"
