@@ -812,15 +812,17 @@ namespace CSMatchHelperWidget
             if (_showShootingChart)
             {
                 var showStableBars = true;
+                var showTapMarkers = true;
                 var shotRecords = new JsonArray();
                 if (root.TryGetValue("shooting", out var shootingValue) && shootingValue.ValueType == JsonValueType.Object)
                 {
                     var shooting = shootingValue.GetObject();
                     shotRecords = JsonHelpers.GetArray(shooting, "shotRecords");
                     showStableBars = JsonHelpers.GetBool(shooting, "hudShowStableBars", true);
+                    showTapMarkers = JsonHelpers.GetBool(shooting, "hudShowTapMarkers", true);
                 }
 
-                _shootingChart.Update(shotRecords, showStableBars);
+                _shootingChart.Update(shotRecords, showStableBars, showTapMarkers);
             }
             else
             {
@@ -833,11 +835,13 @@ namespace CSMatchHelperWidget
             var assessmentRecords = JsonHelpers.GetArray(root, "records");
             var shootingRecords = new JsonArray();
             var showStableBars = true;
+            var showTapMarkers = true;
             if (root.TryGetValue("shooting", out var shootingValue) && shootingValue.ValueType == JsonValueType.Object)
             {
                 var shooting = shootingValue.GetObject();
                 shootingRecords = JsonHelpers.GetArray(shooting, "shotRecords");
                 showStableBars = JsonHelpers.GetBool(shooting, "hudShowStableBars", true);
+                showTapMarkers = JsonHelpers.GetBool(shooting, "hudShowTapMarkers", true);
             }
 
             return new ChartFingerprint
@@ -847,6 +851,7 @@ namespace CSMatchHelperWidget
                 ShootingCount = (uint)shootingRecords.Count,
                 ShootingLastTimestamp = GetLastTimestamp(shootingRecords),
                 ShowStableBars = showStableBars,
+                ShowTapMarkers = showTapMarkers,
                 ShowAssessmentChart = _showAssessmentChart,
                 ShowShootingChart = _showShootingChart,
                 AssessmentRatio = _assessmentRatio,
@@ -914,6 +919,7 @@ namespace CSMatchHelperWidget
             public uint ShootingCount;
             public ulong ShootingLastTimestamp;
             public bool ShowStableBars;
+            public bool ShowTapMarkers;
             public bool ShowAssessmentChart;
             public bool ShowShootingChart;
             public double AssessmentRatio;
@@ -929,6 +935,7 @@ namespace CSMatchHelperWidget
                     && ShootingCount == other.ShootingCount
                     && ShootingLastTimestamp == other.ShootingLastTimestamp
                     && ShowStableBars == other.ShowStableBars
+                    && ShowTapMarkers == other.ShowTapMarkers
                     && ShowAssessmentChart == other.ShowAssessmentChart
                     && ShowShootingChart == other.ShowShootingChart
                     && Math.Abs(AssessmentRatio - other.AssessmentRatio) < 0.001
@@ -953,6 +960,7 @@ namespace CSMatchHelperWidget
                     hash = hash * 31 + ShootingCount.GetHashCode();
                     hash = hash * 31 + ShootingLastTimestamp.GetHashCode();
                     hash = hash * 31 + ShowStableBars.GetHashCode();
+                    hash = hash * 31 + ShowTapMarkers.GetHashCode();
                     hash = hash * 31 + ShowAssessmentChart.GetHashCode();
                     hash = hash * 31 + ShowShootingChart.GetHashCode();
                     hash = hash * 31 + AssessmentRatio.GetHashCode();

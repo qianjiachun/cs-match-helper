@@ -212,6 +212,8 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     const lines = [
       'CS 匹配助手 小组件诊断',
       `gameBarInstalled: ${status.value?.gameBarInstalled ?? 'unknown'}`,
+      `gameBarOpenShortcut: ${status.value?.gameBarOpenShortcut ?? '-'}`,
+      `gameBarOpenShortcutFromRegistry: ${status.value?.gameBarOpenShortcutFromRegistry ?? 'unknown'}`,
       `installed: ${status.value?.installed ?? 'unknown'}`,
       `installedVersion: ${status.value?.installedVersion ?? '-'}`,
       `loopbackConfigured: ${status.value?.loopbackConfigured ?? 'unknown'}`,

@@ -31,6 +31,8 @@ pub fn load_counter_strafing_settings() -> Result<CounterStrafingSettings, Strin
             if let Some(obj) = value.as_object_mut() {
                 obj.entry("hudShowStableBars")
                     .or_insert(serde_json::Value::Bool(true));
+                obj.entry("hudShowTapMarkers")
+                    .or_insert(serde_json::Value::Bool(true));
             }
             serde_json::from_value(value).map_err(|e| format!("解析急停设置失败: {e}"))
         }

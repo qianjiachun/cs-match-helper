@@ -5,6 +5,10 @@ export interface GameBarWidgetStatus {
   loopbackConfigured: boolean;
   displayName: string;
   gameBarInstalled: boolean;
+  /** 打开 Xbox 游戏栏的快捷键，如 Win+G */
+  gameBarOpenShortcut: string;
+  /** 是否从注册表读取（false 表示回退为默认 Win+G） */
+  gameBarOpenShortcutFromRegistry: boolean;
 }
 
 export interface GameBarWidgetUpdateCheck {

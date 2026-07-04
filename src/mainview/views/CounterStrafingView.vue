@@ -2,9 +2,11 @@
 import {
   BarChart3,
   BookOpen,
+  ChartColumn,
   Gauge,
   Keyboard,
   LayoutDashboard,
+  LineChart,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
@@ -311,67 +313,6 @@ const switchTrackClass =
                   <div class="overflow-hidden rounded-xl border border-border bg-elevated/25">
                     <div class="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
                       <div
-                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      >
-                        <ChartColumn class="h-4 w-4" aria-hidden="true" />
-                      </div>
-                      <div class="min-w-0">
-                        <p class="text-[13px] font-semibold text-fg">开枪稳定</p>
-                        <p class="text-[11px] text-fg-muted">速度达标与误差判定</p>
-                      </div>
-                    </div>
-                    <div class="divide-y divide-border-subtle">
-                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
-                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">起步低速窗口</span>
-                        <div :class="settingValueColumnClass">
-                          <input
-                            :value="settings.lowSpeedMovementWindowMs"
-                            type="number"
-                            min="60"
-                            max="400"
-                            step="10"
-                            aria-label="起步低速窗口"
-                            :class="compactNumberInputClass"
-                            @input="
-                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value)
-                            "
-                            @change="
-                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value, 0)
-                            "
-                          />
-                          <span :class="settingUnitClass">ms</span>
-                        </div>
-                      </label>
-                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
-                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
-                        <div :class="settingValueColumnClass">
-                          <input
-                            :value="settings.successErrorThreshold"
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            aria-label="稳定误差阈值"
-                            :class="compactNumberInputClass"
-                            @input="
-                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value)
-                            "
-                            @change="
-                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value, 0)
-                            "
-                          />
-                          <span :class="settingUnitClass" aria-hidden="true">&nbsp;</span>
-                        </div>
-                      </label>
-                    </div>
-                    <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
-                      低速窗口默认 180ms；误差阈值默认 0.35，越低越难判绿
-                    </p>
-                  </div>
-
-                  <div class="overflow-hidden rounded-xl border border-border bg-elevated/25">
-                    <div class="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
-                      <div
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"
                       >
                         <LineChart class="h-4 w-4" aria-hidden="true" />
@@ -511,6 +452,67 @@ const switchTrackClass =
                     </div>
                     <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
                       偏差分级自上而下收紧；超出有效窗口的切换不计入评估
+                    </p>
+                  </div>
+
+                  <div class="overflow-hidden rounded-xl border border-border bg-elevated/25">
+                    <div class="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
+                      <div
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <ChartColumn class="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-[13px] font-semibold text-fg">开枪稳定</p>
+                        <p class="text-[11px] text-fg-muted">速度达标与误差判定</p>
+                      </div>
+                    </div>
+                    <div class="divide-y divide-border-subtle">
+                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">起步低速窗口</span>
+                        <div :class="settingValueColumnClass">
+                          <input
+                            :value="settings.lowSpeedMovementWindowMs"
+                            type="number"
+                            min="60"
+                            max="400"
+                            step="10"
+                            aria-label="起步低速窗口"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass">ms</span>
+                        </div>
+                      </label>
+                      <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
+                        <div :class="settingValueColumnClass">
+                          <input
+                            :value="settings.successErrorThreshold"
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            aria-label="稳定误差阈值"
+                            :class="compactNumberInputClass"
+                            @input="
+                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value)
+                            "
+                            @change="
+                              patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value, 0)
+                            "
+                          />
+                          <span :class="settingUnitClass" aria-hidden="true">&nbsp;</span>
+                        </div>
+                      </label>
+                    </div>
+                    <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
+                      低速窗口默认 180ms；误差阈值默认 0.35，越低越难判绿
                     </p>
                   </div>
                 </div>

@@ -4,9 +4,10 @@ use crate::counter_strafing::ipc_server;
 use super::hud_window;
 use crate::counter_strafing::settings::{load_counter_strafing_settings, save_counter_strafing_settings};
 use crate::counter_strafing::types::{
-    BindingRole, CounterStrafingAssessmentSnapshot, CounterStrafingSettings, CounterStrafingSnapshot,
-    GameBarIpcSnapshot, GameBarWidgetLayout, HudAnchor, InputBinding, InputEvent, InputSource,
-    ShootingHudIpcSnapshot, clamp_gamebar_assessment_ratio, normalize_gamebar_layout,
+    BindingRole, CounterStrafingAssessmentRecord, CounterStrafingAssessmentSnapshot,
+    CounterStrafingSettings, CounterStrafingSnapshot, GameBarIpcSnapshot, GameBarWidgetLayout,
+    HudAnchor, InputBinding, InputEvent, InputSource, ShootingErrorRecord, ShootingHudIpcSnapshot,
+    clamp_gamebar_assessment_ratio, normalize_gamebar_layout,
 };
 use crate::counter_strafing::win_input::{self, InputListener, ScreenRect};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -113,6 +114,7 @@ impl CounterStrafingRuntime {
         let mut inner = self.inner.lock().unwrap();
         if inner.listening {
             drop(inner);
+            stop_flag.store(true, Ordering::SeqCst);
             let _ = consumer.join();
             let mut input = input;
             input.stop();
@@ -446,35 +448,6 @@ impl CounterStrafingRuntime {
         snap
     }
 
-    pub fn show_hud(&self, app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
-        if app.get_webview_window(HUD_WINDOW_LABEL).is_none() {
-            init_hud_window(app)?;
-        }
-
-        let mut settings = load_counter_strafing_settings()?;
-
-        let window = app
-            .get_webview_window(HUD_WINDOW_LABEL)
-            .ok_or_else(|| "HUD 窗口不存在".to_string())?;
-
-        apply_hud_bounds(&window, &settings);
-        window
-            .show()
-            .map_err(|e| format!("显示 HUD 失败: {e}"))?;
-        sync_hud_window(&window, &settings);
-
-        let snap = {
-            let mut inner = self.inner.lock().unwrap();
-            inner.hud_visible = true;
-            settings.hud_visible = true;
-            inner.settings = settings;
-            let _ = save_counter_strafing_settings(&inner.settings);
-            build_snapshot(&inner)
-        };
-        let _ = app.emit("counter-strafing-status", snap.clone());
-        Ok(snap)
-    }
-
     pub fn hide_assessment_hud(&self, app: &AppHandle) -> Result<CounterStrafingAssessmentSnapshot, String> {
         {
             let mut inner = self.inner.lock().unwrap();
@@ -490,46 +463,6 @@ impl CounterStrafingRuntime {
         let inner = self.inner.lock().unwrap();
         let snap = build_assessment_snapshot(&inner);
         drop(inner);
-        let _ = app.emit("counter-strafing-assessment-snapshot", snap.clone());
-        Ok(snap)
-    }
-
-    pub fn show_assessment_hud(&self, app: &AppHandle) -> Result<CounterStrafingAssessmentSnapshot, String> {
-        if app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL).is_none() {
-            init_assessment_hud_window(app)?;
-        }
-
-        let mut settings = load_counter_strafing_settings()?;
-
-        let window = app
-            .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
-            .ok_or_else(|| "急停评估 HUD 窗口不存在".to_string())?;
-
-        apply_assessment_hud_bounds(&window, &settings);
-        window
-            .show()
-            .map_err(|e| format!("显示急停评估 HUD 失败: {e}"))?;
-        settings.assessment_hud_visible = true;
-        sync_assessment_hud_window(&window, &settings);
-
-        let shooting_visible = {
-            let inner = self.inner.lock().unwrap();
-            inner.hud_visible
-        };
-        if shooting_visible && settings.hud_x.is_none() && settings.hud_y.is_none() {
-            if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
-                sync_hud_window(&shooting, &settings);
-            }
-        }
-
-        let snap = {
-            let mut inner = self.inner.lock().unwrap();
-            inner.assessment_hud_visible = true;
-            settings.assessment_hud_visible = true;
-            inner.settings = settings;
-            let _ = save_counter_strafing_settings(&inner.settings);
-            build_assessment_snapshot(&inner)
-        };
         let _ = app.emit("counter-strafing-assessment-snapshot", snap.clone());
         Ok(snap)
     }
@@ -690,54 +623,99 @@ fn compute_recv_timeout(engine: Option<&CounterStrafingEngine>) -> Duration {
     MAX_RECV_TIMEOUT
 }
 
-fn dispatch_consumer_event(
-    app: &AppHandle,
-    shared: &Arc<Mutex<ConsumerShared>>,
-    event: InputEvent,
-) {
-    let (shot, assessment_record) = {
-        let runtime = app.state::<CounterStrafingRuntime>();
-        let mut inner = runtime.inner.lock().unwrap();
-        let binding = event_to_binding(&event);
+struct ConsumerDispatchOutput {
+    shots: Vec<ShootingErrorRecord>,
+    assessment_records: Vec<CounterStrafingAssessmentRecord>,
+    had_records: bool,
+}
+
+fn process_input_events_locked(
+    inner: &mut RuntimeInner,
+    events: &[InputEvent],
+    now: f64,
+) -> ConsumerDispatchOutput {
+    let mut shots = Vec::new();
+    let mut assessment_records = Vec::new();
+
+    for event in events {
+        let binding = event_to_binding(event);
         let role = inner.settings.key_map.role_for_binding(&binding);
-        let assessment_record = role.and_then(|role| {
-            matches!(
+        if let Some(role) = role {
+            if matches!(
                 role,
                 BindingRole::Left | BindingRole::Right | BindingRole::Forward | BindingRole::Back
-            )
-            .then(|| {
-                inner.assessment_engine.as_mut().and_then(|engine| {
+            ) {
+                if let Some(record) = inner.assessment_engine.as_mut().and_then(|engine| {
                     engine.handle_movement(role, event.is_down, event.time_secs)
-                })
-            })
-            .flatten()
-        });
-        let shot = inner
-            .engine
-            .as_mut()
-            .and_then(|engine| engine.handle_event(event));
-        (shot, assessment_record)
-    };
+                }) {
+                    assessment_records.push(record);
+                }
+            }
+        }
+        if let Some(engine) = inner.engine.as_mut() {
+            if let Some(record) = engine.handle_event(*event) {
+                shots.push(record);
+            }
+        }
+    }
 
-    let had_assessment = assessment_record.is_some();
-    let had_shot = shot.is_some();
+    if let Some(engine) = inner.engine.as_mut() {
+        let logical_now = events
+            .iter()
+            .map(|event| event.time_secs)
+            .fold(now, f64::max);
+        engine.drain_due_samples(logical_now, &mut shots);
+    }
 
-    if let Some(record) = assessment_record {
+    let had_records = !assessment_records.is_empty() || !shots.is_empty();
+    ConsumerDispatchOutput {
+        shots,
+        assessment_records,
+        had_records,
+    }
+}
+
+fn emit_dispatch_output(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    output: ConsumerDispatchOutput,
+) {
+    for record in output.assessment_records {
         let _ = app.emit("counter-strafing-assessment-record", record);
     }
 
-    if let Some(record) = shot {
+    for record in output.shots {
         let _ = app.emit("counter-strafing-shot", record);
     }
 
-    if had_assessment || had_shot {
+    if output.had_records {
         bump_snapshot_signal(shared);
     } else {
         let runtime = app.state::<CounterStrafingRuntime>();
-        let mut inner = runtime.inner.lock().unwrap();
-        maybe_emit_snapshot(app, &mut inner);
-        maybe_emit_assessment_snapshot(app, &mut inner);
+        let pending = {
+            let mut inner = runtime.inner.lock().unwrap();
+            collect_periodic_emissions(&mut inner)
+        };
+        flush_periodic_emissions(app, pending);
     }
+}
+
+fn dispatch_consumer_events(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    events: Vec<InputEvent>,
+) {
+    if events.is_empty() {
+        return;
+    }
+
+    let now = win_input::qpc_secs();
+    let output = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        process_input_events_locked(&mut inner, &events, now)
+    };
+    emit_dispatch_output(app, shared, output);
 }
 
 fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, now: f64) {
@@ -748,17 +726,23 @@ fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, 
             .engine
             .as_ref()
             .map(|engine| {
-                engine.collect_stuck_releases(
+                let mut events = engine.collect_stuck_presses(
                     &inner.settings.key_map,
                     win_input::is_binding_physically_pressed,
                     now,
-                )
+                );
+                events.extend(engine.collect_stuck_releases(
+                    &inner.settings.key_map,
+                    win_input::is_binding_physically_pressed,
+                    now,
+                ));
+                events
             })
             .unwrap_or_default()
     };
 
-    for event in stuck_events {
-        dispatch_consumer_event(app, shared, event);
+    if !stuck_events.is_empty() {
+        dispatch_consumer_events(app, shared, stuck_events);
     }
 
     let assessment_records = {
@@ -855,28 +839,38 @@ fn consumer_loop(
                     continue;
                 }
 
-                dispatch_consumer_event(&app, &shared, event);
+                let mut batch = vec![event];
+                while let Ok(next) = rx.try_recv() {
+                    batch.push(next);
+                }
+                dispatch_consumer_events(&app, &shared, batch);
             }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                 let now = win_input::qpc_secs();
                 reconcile_stuck_inputs(&app, &shared, now);
 
+                let mut tick_shots = Vec::new();
                 let runtime = app.state::<CounterStrafingRuntime>();
                 let mut inner = runtime.inner.lock().unwrap();
                 if inner.capturing_binding.is_none() {
-                    let tick_record = inner
-                        .engine
-                        .as_mut()
-                        .and_then(|engine| engine.tick(now));
-                    if let Some(record) = tick_record {
-                        drop(inner);
-                        let _ = app.emit("counter-strafing-shot", record);
-                        bump_snapshot_signal(&shared);
-                        continue;
+                    if let Some(engine) = inner.engine.as_mut() {
+                        engine.drain_due_samples(now, &mut tick_shots);
                     }
                 }
-                maybe_emit_snapshot(&app, &mut inner);
-                maybe_emit_assessment_snapshot(&app, &mut inner);
+                let pending = if tick_shots.is_empty() {
+                    collect_periodic_emissions(&mut inner)
+                } else {
+                    PeriodicEmissions::default()
+                };
+                drop(inner);
+                flush_periodic_emissions(&app, pending);
+                let had_tick_shots = !tick_shots.is_empty();
+                for record in tick_shots {
+                    let _ = app.emit("counter-strafing-shot", record);
+                }
+                if had_tick_shots {
+                    bump_snapshot_signal(&shared);
+                }
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
         }
@@ -890,31 +884,49 @@ fn event_to_binding(event: &InputEvent) -> InputBinding {
     }
 }
 
-fn maybe_emit_assessment_snapshot(app: &AppHandle, inner: &mut RuntimeInner) {
-    let should_emit = inner
-        .last_assessment_snapshot_emit
-        .map(|t| t.elapsed() >= SNAPSHOT_EMIT_INTERVAL)
-        .unwrap_or(true);
-    if should_emit {
-        inner.last_assessment_snapshot_emit = Some(Instant::now());
-        let snap = build_assessment_snapshot(inner);
-        let _ = app.emit("counter-strafing-assessment-snapshot", snap);
-        if let Some(signal) = inner.snapshot_signal.clone() {
-            signal.bump();
-        }
-    }
+#[derive(Default)]
+struct PeriodicEmissions {
+    snapshot: Option<CounterStrafingSnapshot>,
+    assessment_snapshot: Option<CounterStrafingAssessmentSnapshot>,
+    snapshot_signal: Option<ipc_server::SnapshotSignal>,
 }
 
-fn maybe_emit_snapshot(app: &AppHandle, inner: &mut RuntimeInner) {
-    let should_emit = inner
+fn collect_periodic_emissions(inner: &mut RuntimeInner) -> PeriodicEmissions {
+    let mut pending = PeriodicEmissions::default();
+    let should_emit_snapshot = inner
         .last_snapshot_emit
         .map(|t| t.elapsed() >= SNAPSHOT_EMIT_INTERVAL)
         .unwrap_or(true);
-    if should_emit {
+    if should_emit_snapshot {
         inner.last_snapshot_emit = Some(Instant::now());
-        let snap = build_snapshot(inner);
+        pending.snapshot = Some(build_snapshot(inner));
+    }
+
+    let should_emit_assessment = inner
+        .last_assessment_snapshot_emit
+        .map(|t| t.elapsed() >= SNAPSHOT_EMIT_INTERVAL)
+        .unwrap_or(true);
+    if should_emit_assessment {
+        inner.last_assessment_snapshot_emit = Some(Instant::now());
+        pending.assessment_snapshot = Some(build_assessment_snapshot(inner));
+    }
+
+    if pending.snapshot.is_some() || pending.assessment_snapshot.is_some() {
+        pending.snapshot_signal = inner.snapshot_signal.clone();
+    }
+    pending
+}
+
+fn flush_periodic_emissions(app: &AppHandle, pending: PeriodicEmissions) {
+    let should_bump = pending.snapshot.is_some() || pending.assessment_snapshot.is_some();
+    if let Some(snap) = pending.snapshot {
         let _ = app.emit("counter-strafing-snapshot", snap);
-        if let Some(signal) = inner.snapshot_signal.clone() {
+    }
+    if let Some(snap) = pending.assessment_snapshot {
+        let _ = app.emit("counter-strafing-assessment-snapshot", snap);
+    }
+    if should_bump {
+        if let Some(signal) = pending.snapshot_signal {
             signal.bump();
         }
     }
@@ -939,6 +951,7 @@ fn build_snapshot(inner: &RuntimeInner) -> CounterStrafingSnapshot {
     };
     snap.hud_locked = inner.settings.hud_locked;
     snap.hud_show_stable_bars = inner.settings.hud_show_stable_bars;
+    snap.hud_show_tap_markers = inner.settings.hud_show_tap_markers;
     snap.assessment_hud_visible = inner.assessment_hud_visible;
     snap.assessment_hud_locked = inner.settings.assessment_hud_locked;
     snap
@@ -983,6 +996,7 @@ fn build_gamebar_ipc_snapshot(inner: &RuntimeInner) -> GameBarIpcSnapshot {
         avg_error: shooting_snap.avg_error,
         stable_rate: shooting_snap.stable_rate,
         hud_show_stable_bars: shooting_snap.hud_show_stable_bars,
+        hud_show_tap_markers: shooting_snap.hud_show_tap_markers,
         last_shot: shooting_snap.last_shot,
     };
     let layout = GameBarWidgetLayout {
@@ -999,41 +1013,127 @@ fn build_gamebar_ipc_snapshot(inner: &RuntimeInner) -> GameBarIpcSnapshot {
 }
 
 fn schedule_deferred_hud_show(app: AppHandle, show_shooting: bool, show_assessment: bool) {
-    tauri::async_runtime::spawn(async move {
-        let app_init = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            if show_assessment {
-                let _ = init_assessment_hud_window(&app_init);
-            }
-            if show_shooting {
-                let _ = init_hud_window(&app_init);
-            }
-        });
+    if !show_shooting && !show_assessment {
+        return;
+    }
 
-        for _ in 0..50 {
-            let shooting_ready =
-                !show_shooting || app.get_webview_window(HUD_WINDOW_LABEL).is_some();
-            let assessment_ready = !show_assessment
-                || app
-                    .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
-                    .is_some();
-            if shooting_ready && assessment_ready {
-                break;
+    std::thread::Builder::new()
+        .name("counter-strafing-hud-show".into())
+        .spawn(move || {
+            for _ in 0..50 {
+                let app_for_main = app.clone();
+                let show_shooting = show_shooting;
+                let show_assessment = show_assessment;
+                let result = app.run_on_main_thread(move || {
+                    if show_assessment {
+                        let _ = show_assessment_hud_inner(&app_for_main);
+                    }
+                    if show_shooting {
+                        let _ = show_hud_inner(&app_for_main);
+                    }
+                });
+                if result.is_ok() {
+                    let shooting_ready =
+                        !show_shooting || app.get_webview_window(HUD_WINDOW_LABEL).is_some();
+                    let assessment_ready = !show_assessment
+                        || app
+                            .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
+                            .is_some();
+                    if shooting_ready && assessment_ready {
+                        break;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(100));
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+        })
+        .ok();
+}
+
+fn show_hud_inner(app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
+    if app.get_webview_window(HUD_WINDOW_LABEL).is_none() {
+        init_hud_window(app)?;
+    }
+
+    let mut settings = load_counter_strafing_settings()?;
+
+    let window = app
+        .get_webview_window(HUD_WINDOW_LABEL)
+        .ok_or_else(|| "HUD 窗口不存在".to_string())?;
+
+    apply_hud_bounds(&window, &settings);
+    window
+        .show()
+        .map_err(|e| format!("显示 HUD 失败: {e}"))?;
+    sync_hud_window(&window, &settings);
+
+    let snap = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        inner.hud_visible = true;
+        settings.hud_visible = true;
+        inner.settings = settings;
+        let _ = save_counter_strafing_settings(&inner.settings);
+        build_snapshot(&inner)
+    };
+    let _ = app.emit("counter-strafing-status", snap.clone());
+    Ok(snap)
+}
+
+fn show_assessment_hud_inner(app: &AppHandle) -> Result<CounterStrafingAssessmentSnapshot, String> {
+    if app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL).is_none() {
+        init_assessment_hud_window(app)?;
+    }
+
+    let mut settings = load_counter_strafing_settings()?;
+
+    let window = app
+        .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
+        .ok_or_else(|| "急停评估 HUD 窗口不存在".to_string())?;
+
+    apply_assessment_hud_bounds(&window, &settings);
+    window
+        .show()
+        .map_err(|e| format!("显示急停评估 HUD 失败: {e}"))?;
+    settings.assessment_hud_visible = true;
+    sync_assessment_hud_window(&window, &settings);
+
+    let shooting_visible = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let inner = runtime.inner.lock().unwrap();
+        inner.hud_visible
+    };
+    if shooting_visible && settings.hud_x.is_none() && settings.hud_y.is_none() {
+        if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
+            sync_hud_window(&shooting, &settings);
         }
+    }
 
-        let app_for_main = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            let runtime = app_for_main.state::<CounterStrafingRuntime>();
-            if show_assessment {
-                let _ = runtime.show_assessment_hud(&app_for_main);
-            }
-            if show_shooting {
-                let _ = runtime.show_hud(&app_for_main);
-            }
-        });
-    });
+    let snap = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        inner.assessment_hud_visible = true;
+        settings.assessment_hud_visible = true;
+        inner.settings = settings;
+        let _ = save_counter_strafing_settings(&inner.settings);
+        build_assessment_snapshot(&inner)
+    };
+    let _ = app.emit("counter-strafing-assessment-snapshot", snap.clone());
+    Ok(snap)
+}
+
+fn run_hud_command_on_main_thread<T, F>(app: &AppHandle, f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&AppHandle) -> Result<T, String> + Send + 'static,
+{
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Result<T, String>>(1);
+    let app_for_main = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(f(&app_for_main));
+    })
+    .map_err(|e| format!("调度 HUD 主线程任务失败: {e}"))?;
+    rx.recv()
+        .map_err(|e| format!("HUD 主线程任务未返回: {e}"))?
 }
 
 pub fn init_hud_window(app: &AppHandle) -> Result<(), String> {
@@ -1354,11 +1454,14 @@ pub async fn stop_counter_strafing(
 }
 
 #[tauri::command]
-pub fn show_counter_strafing_hud(
-    state: State<'_, CounterStrafingRuntime>,
+pub async fn show_counter_strafing_hud(
     app: AppHandle,
 ) -> Result<CounterStrafingSnapshot, String> {
-    state.show_hud(&app)
+    tauri::async_runtime::spawn_blocking(move || {
+        run_hud_command_on_main_thread(&app, show_hud_inner)
+    })
+    .await
+    .map_err(|e| format!("显示 HUD 失败: {e}"))?
 }
 
 #[tauri::command]
@@ -1423,11 +1526,14 @@ pub fn clear_counter_strafing_assessment_records(
 }
 
 #[tauri::command]
-pub fn show_counter_strafing_assessment_hud(
-    state: State<'_, CounterStrafingRuntime>,
+pub async fn show_counter_strafing_assessment_hud(
     app: AppHandle,
 ) -> Result<CounterStrafingAssessmentSnapshot, String> {
-    state.show_assessment_hud(&app)
+    tauri::async_runtime::spawn_blocking(move || {
+        run_hud_command_on_main_thread(&app, show_assessment_hud_inner)
+    })
+    .await
+    .map_err(|e| format!("显示急停评估 HUD 失败: {e}"))?
 }
 
 #[tauri::command]

@@ -44,7 +44,7 @@ const assessmentLegend = [
 <template>
   <div class="space-y-5">
     <section
-      class="overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/6 via-surface to-surface px-5 py-5"
+      class="overflow-hidden rounded-2xl border border-accent/20 bg-linear-to-br from-accent/6 via-surface to-surface px-5 py-5"
     >
       <div class="flex items-start gap-3">
         <div
@@ -135,7 +135,9 @@ const assessmentLegend = [
     >
       <div class="space-y-4">
         <p class="text-[13px] leading-relaxed text-fg-secondary">
-          在同一移动轴上完成方向切换时（如先释放 A 再按下 D），系统测量两次按键之间的时间差，单位为毫秒。折线图纵轴表示该次切换的时间偏差，数值越接近零表示衔接越理想。
+          在同一移动轴上完成方向切换时（如先释放 A 再按下 D），系统测量两次按键之间的时间差，单位为毫秒。折线图纵轴表示该次切换的时间偏差，数值越接近零表示衔接越理想。亦可对照反馈调节
+          <span class="font-medium text-fg">磁轴键盘的按下与抬起触发高度</span>
+          （如 RT 行程），找到更顺手的急停节奏。
         </p>
 
         <div class="grid gap-2 sm:grid-cols-2">
@@ -199,14 +201,14 @@ const assessmentLegend = [
           <span>
             在控制台选择 HUD 或小组件显示方式，点击
             <span class="font-medium text-fg">开始记录</span>
-            后进入练习场景，即可同步查看实时反馈。
+            ，即可同步查看实时反馈。
           </span>
         </li>
         <li class="flex gap-2.5">
           <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
           <span>
             开枪稳定侧重
-            <span class="font-medium text-fg">制动后开火</span>
+            <span class="font-medium text-fg">急停后开枪</span>
             ；急停评估侧重
             <span class="font-medium text-fg">方向键切换衔接</span>
             。两项指标相互独立，建议分开练习与复盘。

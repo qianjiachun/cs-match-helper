@@ -16,6 +16,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import CounterStrafingHudSettings from './CounterStrafingHudSettings.vue';
 import GameBarWidgetDisplaySettings from './GameBarWidgetDisplaySettings.vue';
 import GameBarWidgetInstallSection from '../gamebar-widget/GameBarWidgetInstallSection.vue';
+import GameBarShortcutKbd from '../gamebar-widget/GameBarShortcutKbd.vue';
+import { DEFAULT_GAME_BAR_OPEN_SHORTCUT } from '@core/gamebar-widget/shortcut';
 import { openExternalUrl } from '../../native';
 import { showToast } from '../../composables/useCopyFeedback';
 import {
@@ -52,6 +54,14 @@ const recordSessionSummary = computed(() => {
 });
 
 const widgetStatus = props.widget.status;
+
+const gameBarOpenShortcut = computed(
+  () => widgetStatus.value?.gameBarOpenShortcut?.trim() || DEFAULT_GAME_BAR_OPEN_SHORTCUT,
+);
+
+const gameBarOpenShortcutFromRegistry = computed(
+  () => widgetStatus.value?.gameBarOpenShortcutFromRegistry ?? false,
+);
 
 const widgetReady = computed(
   () =>
@@ -516,9 +526,7 @@ const modePanelLayerClass =
                       <li>回到这里，点<strong class="font-medium text-fg">开始记录</strong></li>
                       <li>
                         进入 CS2，按
-                        <kbd class="mx-0.5 rounded border border-border bg-elevated px-1.5 py-0.5 text-[11px] font-semibold">Win</kbd>
-                        +
-                        <kbd class="mx-0.5 rounded border border-border bg-elevated px-1.5 py-0.5 text-[11px] font-semibold">G</kbd>
+                        <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" />
                         打开游戏栏
                       </li>
                       <li>在「小组件」里找到 <strong class="font-medium text-fg">CS 匹配助手</strong> 并固定</li>
@@ -541,12 +549,21 @@ const modePanelLayerClass =
 
               <p class="rounded-xl border border-border-subtle bg-elevated/50 px-3 py-2.5 text-[11px] leading-relaxed text-fg-muted">
                 如果游戏内按
-                <kbd class="mx-0.5 rounded border border-border bg-base px-1 py-0.5 text-[10px] font-semibold">Win</kbd>
-                +
-                <kbd class="mx-0.5 rounded border border-border bg-base px-1 py-0.5 text-[10px] font-semibold">G</kbd>
+                <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" size="sm" />
                 没有出现菜单，请到
                 <strong class="font-medium text-fg-secondary">cs2.exe</strong>
                 属性中取消勾选「禁用全屏优化」。若仍无法打开，可尝试将游戏改为全屏窗口化。
+                <span v-if="!gameBarOpenShortcutFromRegistry">
+                  若你已在系统里改过游戏栏快捷键，请以
+                  <button
+                    type="button"
+                    class="font-medium text-fg-secondary underline-offset-2 hover:underline"
+                    @click="openGameBarSettings()"
+                  >
+                    系统设置
+                  </button>
+                  为准。
+                </span>
               </p>
             </div>
             </div>

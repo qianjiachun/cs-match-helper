@@ -436,6 +436,7 @@ fn snapshot_revision(snapshot: &GameBarIpcSnapshot) -> u64 {
         hash = fold_u64(hash, shooting.avg_error.to_bits());
         hash = fold_u64(hash, shooting.stable_rate.to_bits());
         hash = fold_u64(hash, shooting.hud_show_stable_bars as u8 as u64);
+        hash = fold_u64(hash, shooting.hud_show_tap_markers as u8 as u64);
     }
     let layout = &snapshot.layout;
     hash = fold_u64(hash, layout.show_assessment_chart as u8 as u64);

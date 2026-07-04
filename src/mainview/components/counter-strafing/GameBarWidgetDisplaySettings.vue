@@ -181,6 +181,43 @@ function patchAssessmentRatio(raw: string) {
             </span>
           </label>
 
+          <label
+            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
+          >
+            <span class="flex min-w-0 flex-col gap-0.5">
+              <span class="text-[12px] font-medium text-fg-secondary">开枪稳定：显示绿色稳定柱</span>
+              <span class="text-[10px] leading-relaxed text-fg-muted">关闭后只高亮失误，稳定射击留空位</span>
+            </span>
+            <span class="relative inline-flex shrink-0 items-center">
+              <input
+                type="checkbox"
+                class="peer sr-only"
+                :checked="settings.hudShowStableBars"
+                aria-label="开枪稳定：显示绿色稳定柱"
+                @change="props.cs.applySettings({ hudShowStableBars: ($event.target as HTMLInputElement).checked })"
+              />
+              <span :class="switchTrackClass" aria-hidden="true" />
+            </span>
+          </label>
+          <label
+            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
+          >
+            <span class="flex min-w-0 flex-col gap-0.5">
+              <span class="text-[12px] font-medium text-fg-secondary">开枪稳定：显示首枪白点标记</span>
+              <span class="text-[10px] leading-relaxed text-fg-muted">柱底小白点表示每次按下的第一枪，连发不显示</span>
+            </span>
+            <span class="relative inline-flex shrink-0 items-center">
+              <input
+                type="checkbox"
+                class="peer sr-only"
+                :checked="settings.hudShowTapMarkers"
+                aria-label="开枪稳定：显示首枪白点标记"
+                @change="props.cs.applySettings({ hudShowTapMarkers: ($event.target as HTMLInputElement).checked })"
+              />
+              <span :class="switchTrackClass" aria-hidden="true" />
+            </span>
+          </label>
+
           <div class="space-y-2.5 px-4 py-3">
             <div class="flex items-center justify-between gap-3">
               <span class="text-[12px] font-medium text-fg-secondary">上下顺序</span>

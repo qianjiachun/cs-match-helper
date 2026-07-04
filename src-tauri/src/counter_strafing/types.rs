@@ -201,6 +201,8 @@ pub struct ShootingHudIpcSnapshot {
     pub stable_rate: f64,
     #[serde(default = "default_true")]
     pub hud_show_stable_bars: bool,
+    #[serde(default = "default_true")]
+    pub hud_show_tap_markers: bool,
     #[serde(default)]
     pub last_shot: Option<ShootingErrorRecord>,
 }
@@ -302,6 +304,8 @@ pub struct CounterStrafingSnapshot {
     pub hud_locked: bool,
     #[serde(default = "default_true")]
     pub hud_show_stable_bars: bool,
+    #[serde(default = "default_true")]
+    pub hud_show_tap_markers: bool,
     #[serde(default)]
     pub shot_records: Vec<ShootingErrorRecord>,
     #[serde(default)]
@@ -328,6 +332,7 @@ impl Default for CounterStrafingSnapshot {
             hud_visible: false,
             hud_locked: false,
             hud_show_stable_bars: true,
+            hud_show_tap_markers: true,
             shot_records: Vec::new(),
             avg_error: 0.0,
             stable_rate: 0.0,
@@ -385,6 +390,8 @@ pub struct CounterStrafingSettings {
     pub hud_locked: bool,
     #[serde(default = "default_true")]
     pub hud_show_stable_bars: bool,
+    #[serde(default = "default_true")]
+    pub hud_show_tap_markers: bool,
     #[serde(default)]
     pub hud_anchor: HudAnchor,
     #[serde(default)]
@@ -513,7 +520,7 @@ fn default_assessment_success_threshold_ms() -> f64 {
     10.0
 }
 fn default_assessment_max_diff_ms() -> f64 {
-    150.0
+    120.0
 }
 fn default_assessment_history_limit() -> usize {
     300
@@ -543,6 +550,7 @@ impl Default for CounterStrafingSettings {
             hud_visible: default_true(),
             hud_locked: false,
             hud_show_stable_bars: default_true(),
+            hud_show_tap_markers: default_true(),
             hud_anchor: HudAnchor::default(),
             hud_x: None,
             hud_y: None,

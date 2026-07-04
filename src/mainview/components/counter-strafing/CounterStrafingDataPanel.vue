@@ -128,7 +128,15 @@ const assessmentDiffExtremes = computed(() => {
           {{ lastShotFeedback.shortLabel }}
         </p>
       </div>
-      <ShootingErrorBars :records="snapshot.shotRecords" :height="104" show-legend show-hud-feedback />
+      <ShootingErrorBars
+        :records="snapshot.shotRecords"
+        :max-points="32"
+        :height="104"
+        :show-stable-bars="snapshot.hudShowStableBars"
+        :show-tap-markers="snapshot.hudShowTapMarkers"
+        show-legend
+        show-hud-feedback
+      />
       <div class="mt-4 grid grid-cols-3 gap-3">
         <div class="rounded-xl border border-border bg-surface px-3 py-2.5">
           <p class="text-[11px] text-fg-muted">平均误差</p>

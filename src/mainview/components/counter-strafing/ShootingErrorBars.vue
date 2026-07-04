@@ -18,6 +18,7 @@ const props = withDefaults(
     showLegend?: boolean;
     showHudFeedback?: boolean;
     showStableBars?: boolean;
+    showTapMarkers?: boolean;
   }>(),
   {
     maxPoints: 12,
@@ -28,10 +29,17 @@ const props = withDefaults(
     showLegend: false,
     showHudFeedback: false,
     showStableBars: true,
+    showTapMarkers: true,
   },
 );
 
 const STROKE_INSET = 1;
+
+function tapFirstMarkerLayout(barBottom: number, blockW: number, blockH: number) {
+  const radius = Math.max(0.85, Math.min(1.8, Math.min(blockW * 0.14, blockH * 0.024)));
+  const gap = 0.75;
+  return { radius, cy: barBottom + gap + radius };
+}
 
 const blocks = computed(() => props.records.slice(-props.maxPoints));
 const latest = computed(() => blocks.value.at(-1) ?? null);
@@ -74,6 +82,9 @@ const chart = computed(() => {
     const yellowY = barBottom - greenH - yellowH;
     const redY = barBottom - greenH - yellowH - redH;
 
+    const markerCenterX = x + blockW / 2;
+    const { radius: markerRadius, cy: markerCy } = tapFirstMarkerLayout(barBottom, blockW, blockH);
+
     return {
       x,
       y,
@@ -91,7 +102,10 @@ const chart = computed(() => {
       isLatest,
       isStableHidden,
       isCrouchGrace: seg.isCrouchGrace,
-      isTapFirst: !isStableHidden && seg.isTapFirst,
+      isTapFirst: props.showTapMarkers && !isStableHidden && seg.isTapFirst,
+      markerCenterX,
+      markerCy,
+      markerRadius,
       showGreen: greenH > 0 && !isStableHidden,
       showYellow: yellowH > 0 && !isStableHidden,
       showRed: redH > 0 && !isStableHidden,
@@ -204,10 +218,13 @@ const chart = computed(() => {
           :filter="block.isLatest && ghost ? 'url(#instrument-glow)' : undefined"
         />
 
-        <polygon
+        <circle
           v-if="block.isTapFirst"
-          :points="`${block.x + block.w / 2},${block.y + block.h + 2} ${block.x + block.w / 2 - 3},${block.y + block.h + 6} ${block.x + block.w / 2 + 3},${block.y + block.h + 6}`"
+          :cx="block.markerCenterX"
+          :cy="block.markerCy"
+          :r="block.markerRadius"
           fill="white"
+          opacity="0.92"
         />
       </g>
     </svg>

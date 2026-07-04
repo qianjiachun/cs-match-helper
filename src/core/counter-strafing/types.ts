@@ -64,6 +64,7 @@ export interface CounterStrafingSnapshot {
   hudVisible: boolean;
   hudLocked?: boolean;
   hudShowStableBars: boolean;
+  hudShowTapMarkers: boolean;
   shotRecords: ShootingErrorRecord[];
   avgError: number;
   stableRate: number;
@@ -138,6 +139,7 @@ export interface CounterStrafingSettings {
   hudVisible: boolean;
   hudLocked?: boolean;
   hudShowStableBars: boolean;
+  hudShowTapMarkers: boolean;
   hudAnchor: HudAnchor;
   hudX?: number | null;
   hudY?: number | null;
@@ -202,12 +204,13 @@ export function mergeCounterStrafingSettings(
     historyLimit,
     assessmentHistoryLimit: historyLimit,
     hudShowStableBars: loaded.hudShowStableBars ?? true,
+    hudShowTapMarkers: loaded.hudShowTapMarkers ?? true,
     assessmentEnabled: loaded.assessmentEnabled ?? true,
     assessmentHorizontalEnabled: loaded.assessmentHorizontalEnabled ?? true,
     assessmentVerticalEnabled: loaded.assessmentVerticalEnabled ?? true,
     assessmentPerfectThresholdMs: loaded.assessmentPerfectThresholdMs ?? 2,
     assessmentSuccessThresholdMs: loaded.assessmentSuccessThresholdMs ?? 10,
-    assessmentMaxDiffMs: loaded.assessmentMaxDiffMs ?? 150,
+    assessmentMaxDiffMs: loaded.assessmentMaxDiffMs ?? 120,
     assessmentHudVisible: loaded.assessmentHudVisible ?? true,
     assessmentHudLocked: loaded.assessmentHudLocked ?? false,
     assessmentHudAnchor: loaded.assessmentHudAnchor ?? 'topCenter',
@@ -244,6 +247,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   hudVisible: true,
   hudLocked: false,
   hudShowStableBars: true,
+  hudShowTapMarkers: true,
   hudAnchor: 'topCenter',
   hudX: null,
   hudY: null,
@@ -254,7 +258,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   assessmentVerticalEnabled: true,
   assessmentPerfectThresholdMs: 2,
   assessmentSuccessThresholdMs: 10,
-  assessmentMaxDiffMs: 150,
+  assessmentMaxDiffMs: 120,
   assessmentHistoryLimit: 300,
   assessmentHudVisible: true,
   assessmentHudLocked: false,

@@ -1,7 +1,7 @@
 #[cfg(windows)]
 mod platform {
     use crate::counter_strafing::types::{InputBinding, InputEvent, InputSource};
-    use crossbeam_channel::{bounded, Receiver, Sender};
+    use crossbeam_channel::{unbounded, Receiver, Sender};
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,7 +26,6 @@ mod platform {
     };
 
     const CLASS_NAME: &str = "CSMatchHelperRawInput";
-    const CHANNEL_CAPACITY: usize = 256;
     const HID_USAGE_PAGE_GENERIC: u16 = 0x01;
     const HID_USAGE_GENERIC_KEYBOARD: u16 = 0x06;
     const HID_USAGE_GENERIC_MOUSE: u16 = 0x02;
@@ -114,7 +113,7 @@ mod platform {
 
     impl InputListener {
         pub fn start() -> Result<Self, String> {
-            let (tx, rx) = bounded(CHANNEL_CAPACITY);
+            let (tx, rx) = unbounded();
             let running = Arc::new(AtomicBool::new(true));
             let ready = Arc::new(AtomicBool::new(false));
             let init_error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
@@ -341,7 +340,7 @@ mod platform {
                         events = parse_raw_input_from_handle(HRAWINPUT(lparam.0 as _));
                     }
                     for event in events {
-                        let _ = state.tx.try_send(event);
+                        let _ = state.tx.send(event);
                     }
                 }
                 LRESULT(0)
@@ -358,6 +357,7 @@ mod platform {
     unsafe fn drain_raw_input_buffer() -> Vec<InputEvent> {
         let header_size = std::mem::size_of::<RAWINPUTHEADER>() as u32;
         let mut events = Vec::new();
+        let mut seq_time = qpc_secs();
 
         loop {
             let mut size = 0u32;
@@ -382,7 +382,8 @@ mod platform {
             let end = buf.as_ptr().add(read_size as usize);
 
             while (ptr as *const u8) < end {
-                events.extend(parse_raw_input_record(&*ptr));
+                events.extend(parse_raw_input_record(&*ptr, seq_time));
+                seq_time += 1e-7;
                 ptr = next_raw_input_block(ptr);
             }
         }
@@ -417,7 +418,7 @@ mod platform {
         }
 
         let raw = &*(buf.as_ptr() as *const RAWINPUT);
-        parse_raw_input_record(raw)
+        parse_raw_input_record(raw, qpc_secs())
     }
 
     unsafe fn next_raw_input_block(ptr: *const RAWINPUT) -> *const RAWINPUT {
@@ -427,9 +428,7 @@ mod platform {
         (ptr as *const u8).add(aligned_size) as *const RAWINPUT
     }
 
-    unsafe fn parse_raw_input_record(raw: &RAWINPUT) -> Vec<InputEvent> {
-        let time = qpc_secs();
-
+    unsafe fn parse_raw_input_record(raw: &RAWINPUT, time: f64) -> Vec<InputEvent> {
         if raw.header.dwType == RIM_TYPEKEYBOARD.0 as u32 {
             let kb = raw.data.keyboard;
             let is_down = kb.Flags & 0x01 == 0;

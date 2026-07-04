@@ -62,6 +62,7 @@ const snapshot = ref<CounterStrafingSnapshot>({
   hudVisible: true,
   hudLocked: false,
   hudShowStableBars: true,
+  hudShowTapMarkers: true,
   shotRecords: [],
   avgError: 0,
   stableRate: 0,
@@ -204,6 +205,7 @@ onUnmounted(() => {
           :width="chartWidth"
           :height="chartHeight"
           :show-stable-bars="snapshot.hudShowStableBars"
+          :show-tap-markers="snapshot.hudShowTapMarkers"
           ghost
           compact
           class="h-full w-full"

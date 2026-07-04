@@ -1,6 +1,7 @@
 mod ai;
 mod comments;
 mod counter_strafing;
+mod gamebar_shortcut;
 mod gamebar_widget;
 mod log_watcher;
 mod platform;

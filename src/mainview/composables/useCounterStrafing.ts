@@ -104,6 +104,7 @@ export function useCounterStrafing() {
     listening: false,
     hudVisible: false,
     hudShowStableBars: true,
+    hudShowTapMarkers: true,
     shotRecords: [],
     avgError: 0,
     stableRate: 0,

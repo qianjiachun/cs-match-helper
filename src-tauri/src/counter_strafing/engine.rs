@@ -96,6 +96,10 @@ impl FireScheduler {
         self.active && !self.first_sample_emitted
     }
 
+    fn is_pending_first_sample(&self) -> bool {
+        self.active && !self.first_sample_emitted
+    }
+
     fn finalize_tap(&mut self, sample_time: f64) {
         self.first_sample_emitted = true;
         self.last_sample_time = sample_time;
@@ -396,6 +400,7 @@ impl CounterStrafingEngine {
             hud_visible,
             hud_locked: false,
             hud_show_stable_bars: true,
+            hud_show_tap_markers: true,
             shot_records: self.shot_records.clone(),
             avg_error: stats.avg_error,
             stable_rate: stats.stable_rate,
@@ -407,25 +412,34 @@ impl CounterStrafingEngine {
         }
     }
 
+    /// Single-sample tick; prefer [`Self::drain_due_samples`] when multiple samples may be due.
+    #[allow(dead_code)]
     pub fn tick(&mut self, time: f64) -> Option<ShootingErrorRecord> {
-        if time + TIME_EPS < self.last_tick_time {
-            return None;
+        let mut drained = Vec::new();
+        self.drain_due_samples(time, &mut drained);
+        drained.into_iter().next()
+    }
+
+    /// Flush every fire sample whose due time is `<= now` into `out`.
+    pub fn drain_due_samples(&mut self, now: f64, out: &mut Vec<ShootingErrorRecord>) {
+        if now + TIME_EPS < self.last_tick_time {
+            return;
         }
-        self.last_tick_time = time;
-        if self.fire_scheduler.exceeds_guard(time) {
+        self.last_tick_time = now;
+        if self.fire_scheduler.exceeds_guard(now) {
             if self.fire_pressed {
                 self.fire_scheduler
-                    .on_fire_down(time, self.settings.fire_sample_delay_ms);
+                    .on_fire_down(now, self.settings.fire_sample_delay_ms);
             } else {
                 self.fire_scheduler.force_release();
-                return None;
+                self.advance_movement(now);
+                return;
             }
         }
-        if let Some(record) = self.process_fire_scheduler(time) {
-            return Some(record);
+        while let Some(record) = self.process_fire_scheduler(now) {
+            out.push(record);
         }
-        self.advance_movement(time);
-        None
+        self.advance_movement(now);
     }
 
     /// 返回下一次待处理的开火采样时间（秒），供 runtime 动态等待。
@@ -442,15 +456,25 @@ impl CounterStrafingEngine {
         }
 
         let role = self.resolve_role(&event.source)?;
+        let mut fire_up_edge = false;
 
         match role {
             BindingRole::Fire if event.is_down => {
-                self.fire_pressed = true;
-                self.fire_scheduler
-                    .on_fire_down(event.time_secs, self.settings.fire_sample_delay_ms);
+                if !self.fire_pressed {
+                    self.fire_pressed = true;
+                    self.fire_scheduler
+                        .on_fire_down(event.time_secs, self.settings.fire_sample_delay_ms);
+                } else if !self.fire_scheduler.is_pending_first_sample() {
+                    // 已采样或调度空闲时的重复 DOWN：视为新一轮开火（连发/测试里未配对的 UP）
+                    self.fire_scheduler
+                        .on_fire_down(event.time_secs, self.settings.fire_sample_delay_ms);
+                }
             }
             BindingRole::Fire => {
-                self.fire_pressed = false;
+                if self.fire_pressed {
+                    self.fire_pressed = false;
+                    fire_up_edge = true;
+                }
             }
             BindingRole::Crouch => {
                 if self.crouch_pressed && !event.is_down {
@@ -484,6 +508,9 @@ impl CounterStrafingEngine {
 
         match role {
             BindingRole::Fire if !event.is_down => {
+                if !fire_up_edge {
+                    return self.process_fire_scheduler(event.time_secs);
+                }
                 let record = if self.fire_scheduler.needs_tap_finalize() {
                     let sample_time = self.fire_scheduler.first_due_time();
                     self.advance_movement(sample_time);
@@ -940,6 +967,33 @@ impl CounterStrafingEngine {
         }
 
         events
+    }
+
+    /// 引擎认为未按下、但系统仍按下的绑定，合成 DOWN 以校正漏掉的 Raw Input。
+    pub fn collect_stuck_presses(
+        &self,
+        key_map: &CounterStrafingKeyMap,
+        is_pressed: impl Fn(&InputBinding) -> bool,
+        time: f64,
+    ) -> Vec<InputEvent> {
+        let mut events = Vec::new();
+
+        if !self.fire_pressed && is_pressed(key_map.binding_for_role(BindingRole::Fire)) {
+            events.push(stuck_press_event(
+                key_map.binding_for_role(BindingRole::Fire),
+                time,
+            ));
+        }
+
+        events
+    }
+}
+
+fn stuck_press_event(binding: &InputBinding, time: f64) -> InputEvent {
+    InputEvent {
+        source: binding_to_source(binding),
+        is_down: true,
+        time_secs: time,
     }
 }
 
@@ -1661,5 +1715,120 @@ mod tests {
 
         engine.handle_event(evt(mouse(0), false, t));
         assert!(engine.next_sample_due_time().is_none());
+    }
+
+    fn process_batch_at(
+        engine: &mut CounterStrafingEngine,
+        events: &[InputEvent],
+        now: f64,
+    ) -> Vec<ShootingErrorRecord> {
+        let mut shots = Vec::new();
+        for event in events {
+            if let Some(record) = engine.handle_event(*event) {
+                shots.push(record);
+            }
+        }
+        engine.drain_due_samples(now, &mut shots);
+        shots
+    }
+
+    #[test]
+    fn rapid_taps_within_100ms_all_recorded() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        let taps = [(0.0, 0.04), (0.05, 0.09), (0.10, 0.14)];
+        let mut total = 0usize;
+        for (down, up) in taps {
+            let records = process_batch_at(
+                &mut engine,
+                &[evt(mouse(0), true, down), evt(mouse(0), false, up)],
+                up + 0.001,
+            );
+            total += records.len();
+        }
+        assert_eq!(total, 3);
+        assert_eq!(engine.snapshot(true, true, false, None).shot_records.len(), 3);
+    }
+
+    #[test]
+    fn keyboard_mouse_same_batch_records_fire() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        let events = [
+            evt(kb(0x41), true, 0.0),
+            evt(kb(0x11), true, 0.0),
+            evt(mouse(0), true, 0.0),
+        ];
+        let delay = settings().fire_sample_delay_ms / 1000.0;
+        let records = process_batch_at(&mut engine, &events, delay + 0.001);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].sample_kind, FireSampleKind::FireDown);
+    }
+
+    #[test]
+    fn simultaneous_a_crouch_and_fire_tap_records_shot() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        let events = [
+            evt(kb(0x41), true, 0.10),
+            evt(kb(0x11), true, 0.10),
+            evt(mouse(0), true, 0.10),
+            evt(mouse(0), false, 0.12),
+        ];
+        let records = process_batch_at(&mut engine, &events, 0.12);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].sample_kind, FireSampleKind::FireDown);
+    }
+
+    #[test]
+    fn duplicate_fire_down_before_up_still_records_shot() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        engine.handle_event(evt(mouse(0), true, 0.0));
+        engine.handle_event(evt(mouse(0), true, 0.005));
+        let records = process_batch_at(&mut engine, &[evt(mouse(0), false, 0.04)], 0.04);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].sample_kind, FireSampleKind::FireDown);
+    }
+
+    #[test]
+    fn collect_stuck_presses_synthesizes_fire_down_when_physically_pressed() {
+        let engine = CounterStrafingEngine::new(settings());
+        let key_map = settings().key_map.clone();
+        let stuck = engine.collect_stuck_presses(&key_map, |_| true, 0.05);
+        assert_eq!(stuck.len(), 1);
+        assert!(stuck[0].is_down);
+        match stuck[0].source {
+            InputSource::Mouse(0) => {}
+            _ => panic!("expected mouse left"),
+        }
+    }
+
+    #[test]
+    fn stuck_press_recovery_records_missed_fire_down() {
+        let mut engine = CounterStrafingEngine::new(settings());
+        let key_map = settings().key_map.clone();
+        let stuck = engine.collect_stuck_presses(&key_map, |_| true, 0.10);
+        assert_eq!(stuck.len(), 1);
+        let records = process_batch_at(
+            &mut engine,
+            &[stuck[0], evt(mouse(0), false, 0.12)],
+            0.12,
+        );
+        assert_eq!(records.len(), 1);
+    }
+
+    #[test]
+    fn drain_due_samples_flushes_multiple_auto_fire_samples() {
+        let mut s = settings();
+        s.tap_max_hold_ms = 50.0;
+        s.auto_fire_interval_ms = 10.0;
+        s.fire_sample_delay_ms = 5.0;
+        let mut engine = CounterStrafingEngine::new(s);
+        engine.handle_event(evt(mouse(0), true, 0.0));
+        engine.tick(0.006).expect("first sample");
+
+        let mut drained = Vec::new();
+        engine.drain_due_samples(0.08, &mut drained);
+        assert!(drained.len() >= 2);
+        for record in &drained {
+            assert_eq!(record.sample_kind, FireSampleKind::FireHeld);
+        }
     }
 }

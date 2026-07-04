@@ -1,3 +1,4 @@
+use crate::gamebar_shortcut::read_game_bar_open_shortcut;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -26,6 +27,10 @@ pub struct GameBarWidgetStatus {
     pub loopback_configured: bool,
     pub display_name: String,
     pub game_bar_installed: bool,
+    /// 打开 Xbox 游戏栏的快捷键，如 `Win+G`
+    pub game_bar_open_shortcut: String,
+    /// 是否从注册表读取（`false` 表示使用系统默认 `Win+G`）
+    pub game_bar_open_shortcut_from_registry: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -345,6 +350,7 @@ pub async fn get_gamebar_widget_status() -> Result<GameBarWidgetStatus, String> 
             .map(|(_, family)| is_loopback_configured(family))
             .unwrap_or(false);
 
+        let shortcut = read_game_bar_open_shortcut();
         Ok(GameBarWidgetStatus {
             installed: installed.is_some(),
             installed_version: installed.as_ref().map(|(version, _)| version.clone()),
@@ -352,6 +358,8 @@ pub async fn get_gamebar_widget_status() -> Result<GameBarWidgetStatus, String> 
             loopback_configured,
             display_name: WIDGET_DISPLAY_NAME.to_string(),
             game_bar_installed: is_game_bar_installed(),
+            game_bar_open_shortcut: shortcut.display,
+            game_bar_open_shortcut_from_registry: shortcut.from_registry,
         })
     })
     .await
@@ -1156,8 +1164,9 @@ async fn install_from_prepared_root(
             })
         } else if let Some(version) = query_installed_package().map(|(version, _)| version) {
             emit_progress(app, "complete", 0, None, Some("安装完成"));
+            let shortcut = read_game_bar_open_shortcut().display;
             let message = format!(
-                "{WIDGET_DISPLAY_NAME} 小组件安装成功。请在游戏中 Win+G 固定小组件。"
+                "{WIDGET_DISPLAY_NAME} 小组件安装成功。请在游戏中按 {shortcut} 打开游戏栏并固定小组件。"
             );
             Ok(GameBarWidgetInstallResult {
                 success: true,

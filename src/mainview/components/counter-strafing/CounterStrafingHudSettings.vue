@@ -111,6 +111,14 @@ const panels = [
       @update:model-value="cs.applySettings({ hudShowStableBars: $event })"
     />
 
+    <SettingsToggle
+      :model-value="settings.hudShowTapMarkers"
+      label="开枪稳定：显示首枪白点标记"
+      description="柱底的小白点表示每次按下的第一枪，连发后续采样不显示"
+      :disabled="busy"
+      @update:model-value="cs.applySettings({ hudShowTapMarkers: $event })"
+    />
+
     <p class="text-[11px] leading-relaxed text-fg-muted">
       两个悬浮窗可同时打开。拖右下角把手移动；锁定后鼠标可穿透，不影响游戏操作。
     </p>

@@ -199,6 +199,7 @@ namespace CSMatchHelperWidget
         private readonly Rectangle[] _yellowBars;
         private readonly Rectangle[] _redBars;
         private readonly Line[] _thresholdLines;
+        private readonly Ellipse[] _tapMarkers;
         private readonly SolidColorBrush[] _greenBrushes;
         private readonly SolidColorBrush[] _yellowBrushes;
         private readonly SolidColorBrush[] _redBrushes;
@@ -213,6 +214,7 @@ namespace CSMatchHelperWidget
             _yellowBars = new Rectangle[MaxPoints];
             _redBars = new Rectangle[MaxPoints];
             _thresholdLines = new Line[MaxPoints];
+            _tapMarkers = new Ellipse[MaxPoints];
             _greenBrushes = new SolidColorBrush[MaxPoints];
             _yellowBrushes = new SolidColorBrush[MaxPoints];
             _redBrushes = new SolidColorBrush[MaxPoints];
@@ -242,6 +244,13 @@ namespace CSMatchHelperWidget
                     Visibility = Visibility.Collapsed,
                 };
                 _canvas.Children.Add(_thresholdLines[i]);
+
+                _tapMarkers[i] = new Ellipse
+                {
+                    Fill = new SolidColorBrush(Color.FromArgb(0xEB, 0xFF, 0xFF, 0xFF)),
+                    Visibility = Visibility.Collapsed,
+                };
+                _canvas.Children.Add(_tapMarkers[i]);
             }
         }
 
@@ -264,10 +273,11 @@ namespace CSMatchHelperWidget
                 _yellowBars[i].Visibility = Visibility.Collapsed;
                 _redBars[i].Visibility = Visibility.Collapsed;
                 _thresholdLines[i].Visibility = Visibility.Collapsed;
+                _tapMarkers[i].Visibility = Visibility.Collapsed;
             }
         }
 
-        public void Update(JsonArray records, bool showStableBars)
+        public void Update(JsonArray records, bool showStableBars, bool showTapMarkers)
         {
             var width = _canvas.ActualWidth;
             var height = _canvas.ActualHeight;
@@ -292,6 +302,7 @@ namespace CSMatchHelperWidget
                 _yellowBars[slot].Visibility = Visibility.Collapsed;
                 _redBars[slot].Visibility = Visibility.Collapsed;
                 _thresholdLines[slot].Visibility = Visibility.Collapsed;
+                _tapMarkers[slot].Visibility = Visibility.Collapsed;
             }
 
             for (var i = 0; i < data.Count; i++)
@@ -316,7 +327,6 @@ namespace CSMatchHelperWidget
                 }
 
                 var x = padX + slot * (blockW + gap);
-                var y = padY;
 
                 var greenH = seg.GreenRatio * blockH;
                 var yellowH = seg.YellowRatio * blockH;
@@ -357,6 +367,18 @@ namespace CSMatchHelperWidget
                     Canvas.SetLeft(_redBars[slot], x);
                     Canvas.SetTop(_redBars[slot], barBottom - greenH - yellowH - redH);
                     _redBars[slot].Visibility = Visibility.Visible;
+                }
+
+                if (showTapMarkers && !isStableHidden && HudChartRenderer.IsTapFirst(record))
+                {
+                    var centerX = x + blockW / 2.0;
+                    var (radius, centerY) = HudChartRenderer.TapFirstMarkerLayout(barBottom, blockW, blockH);
+                    var diameter = radius * 2.0;
+                    _tapMarkers[slot].Width = diameter;
+                    _tapMarkers[slot].Height = diameter;
+                    Canvas.SetLeft(_tapMarkers[slot], centerX - radius);
+                    Canvas.SetTop(_tapMarkers[slot], centerY - radius);
+                    _tapMarkers[slot].Visibility = Visibility.Visible;
                 }
             }
         }
@@ -432,6 +454,24 @@ namespace CSMatchHelperWidget
             if (state == "stable") return Color.FromArgb(0xFF, 0x4A, 0xDE, 0x80);
             if (state == "micro") return Color.FromArgb(0xFF, 0xFB, 0xBF, 0x24);
             return Color.FromArgb(0xFF, 0xF8, 0x71, 0x71);
+        }
+
+        public static bool IsTapFirst(JsonObject record)
+        {
+            var sampleKind = JsonHelpers.GetString(record, "sampleKind", "fireDown");
+            var shotSequenceIndex = (int)JsonHelpers.GetNumber(record, "shotSequenceIndex", 1);
+            var fireHeld = JsonHelpers.GetBool(record, "fireHeld");
+            return sampleKind == "fireDown" && shotSequenceIndex == 1 && !fireHeld;
+        }
+
+        public static (double Radius, double CenterY) TapFirstMarkerLayout(
+            double barBottom,
+            double blockW,
+            double blockH)
+        {
+            var radius = Math.Max(0.85, Math.Min(1.8, Math.Min(blockW * 0.14, blockH * 0.024)));
+            const double markerGap = 0.75;
+            return (radius, barBottom + markerGap + radius);
         }
 
         public static ShotBarSegments ShotBarSegments(JsonObject record)
