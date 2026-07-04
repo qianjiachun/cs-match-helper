@@ -38,6 +38,10 @@ export async function closeWindow(): Promise<void> {
   await appWindow.close();
 }
 
+export async function closeApp(): Promise<void> {
+  await invoke('close_app');
+}
+
 export async function getLogStatus(): Promise<WatcherStatus> {
   return invoke<WatcherStatus>('get_log_status');
 }

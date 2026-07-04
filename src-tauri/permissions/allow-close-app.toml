@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-close-app"
+description = "允许确认后退出应用"
+commands.allow = ["close_app"]

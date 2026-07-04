@@ -23,7 +23,7 @@ use platform::{
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 #[tauri::command]
 fn get_log_status(state: tauri::State<'_, AppState>) -> log_watcher::WatcherStatus {
@@ -108,6 +108,12 @@ async fn probe_5e_cdp_active(client_root: Option<String>) -> P5eProbeResult {
         client_root: None,
         message: "探测失败".to_string(),
     })
+}
+
+#[tauri::command]
+fn close_app(app: tauri::AppHandle) {
+    shutdown_app(&app);
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -246,6 +252,7 @@ pub fn run() {
             gamebar_widget::find_gamebar_widget_dev_dist,
             gamebar_widget::uninstall_gamebar_widget,
             relaunch_as_admin,
+            close_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -287,8 +294,13 @@ pub fn run() {
                     }
                 }
                 RunEvent::WindowEvent { label, event, .. } if label == "main" => {
-                    if matches!(event, WindowEvent::CloseRequested { .. }) {
-                        shutdown_app(app_handle);
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        if shutdown::is_app_shutting_down() {
+                            shutdown_app(app_handle);
+                        } else {
+                            api.prevent_close();
+                            let _ = app_handle.emit("app-close-requested", ());
+                        }
                     }
                 }
                 _ => {}

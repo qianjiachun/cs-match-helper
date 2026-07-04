@@ -381,6 +381,12 @@
           "markdownDescription": "允许清空急停记录"
         },
         {
+          "description": "允许确认后退出应用",
+          "type": "string",
+          "const": "allow-close-app",
+          "markdownDescription": "允许确认后退出应用"
+        },
+        {
           "description": "允许关闭应用内 WebView 开发者工具",
           "type": "string",
           "const": "allow-close-app-devtools",
