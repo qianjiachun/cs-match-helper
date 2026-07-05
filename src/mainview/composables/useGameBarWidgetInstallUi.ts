@@ -52,6 +52,7 @@ export function useGameBarWidgetInstallUi(
   const widgetUpdate = widget.updateCheck;
   const widgetBusy = widget.busy;
   const widgetStatusRefreshing = widget.statusRefreshing;
+  const widgetDetecting = widget.isDetecting;
   const widgetError = widget.error;
   const widgetPhase = widget.phase;
   const widgetProgress = widget.progress;
@@ -79,6 +80,7 @@ export function useGameBarWidgetInstallUi(
   });
 
   const widgetStep2Title = computed(() => {
+    if (widgetDetecting.value) return '正在扫描小组件';
     if (widgetReady.value) return '小组件已安装';
     if (!widgetStatus.value?.installed) return '小组件未安装';
     if (!widgetStatus.value?.loopbackConfigured) return '小组件连接未就绪';
@@ -86,6 +88,7 @@ export function useGameBarWidgetInstallUi(
   });
 
   const widgetStep2Badge = computed(() => {
+    if (widgetDetecting.value) return '检测中';
     if (widgetReady.value) return '已就绪';
     if (!widgetStatus.value?.installed) return '未安装';
     return '待修复';
@@ -133,9 +136,12 @@ export function useGameBarWidgetInstallUi(
   );
 
   const widgetDetectHint = computed(() => {
+    if (widgetDetecting.value) {
+      return '正在扫描 Game Bar 与小组件，约需数秒，不影响其他操作';
+    }
     if (!widgetStatus.value) return '尚未检测，请点击「重新检测」';
     if (!widgetStatus.value.gameBarInstalled && !options?.gameBarInstalledAssumed) {
-      return '请先完成第 1 步：安装 Xbox 游戏栏';
+      return '请先完成第 1 步：安装 Game Bar';
     }
     if (!widgetStatus.value.installed) {
       return '点击下方「安装小组件」完成安装，装好后点「重新检测」';
@@ -239,6 +245,7 @@ export function useGameBarWidgetInstallUi(
     widgetStatus,
     widgetBusy,
     widgetStatusRefreshing,
+    widgetDetecting,
     widgetError,
     gameBarInstalled,
     downloadSources,

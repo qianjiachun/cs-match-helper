@@ -49,6 +49,7 @@ const {
   widgetStatus,
   widgetBusy,
   widgetStatusRefreshing,
+  widgetDetecting,
   widgetError,
   gameBarInstalled,
   downloadSources,
@@ -87,11 +88,13 @@ defineExpose({ openInstallPanel });
   <div
     class="rounded-xl border px-4 py-3.5 transition-colors duration-200"
     :class="[
-      widgetReady
-        ? 'border-emerald-500/25 bg-emerald-500/6'
-        : widgetSetupStep === 2
-          ? 'border-accent/30 bg-accent/5'
-          : 'border-border bg-base',
+      widgetDetecting
+        ? 'border-accent/40 bg-accent/8 ring-1 ring-accent/20'
+        : widgetReady
+          ? 'border-emerald-500/25 bg-emerald-500/6'
+          : widgetSetupStep === 2
+            ? 'border-accent/30 bg-accent/5'
+            : 'border-border bg-base',
       contentClass,
     ]"
   >
@@ -101,9 +104,11 @@ defineExpose({ openInstallPanel });
           v-if="showStepNumber"
           class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
           :class="
-            widgetReady
-              ? 'bg-emerald-500/15 text-emerald-700'
-              : 'bg-accent/12 text-accent'
+            widgetDetecting
+              ? 'bg-accent/15 text-accent'
+              : widgetReady
+                ? 'bg-emerald-500/15 text-emerald-700'
+                : 'bg-accent/12 text-accent'
           "
         >
           2
@@ -116,15 +121,22 @@ defineExpose({ openInstallPanel });
         </div>
       </div>
       <span
-        class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+        class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
         :class="
-          widgetReady
-            ? 'bg-emerald-500/12 text-emerald-700'
-            : !widgetStatus?.installed
-              ? 'bg-warning/12 text-amber-700'
-              : 'bg-elevated text-fg-muted'
+          widgetDetecting
+            ? 'bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent'
+            : widgetReady
+              ? 'bg-emerald-500/12 text-emerald-700'
+              : !widgetStatus?.installed
+                ? 'bg-warning/12 text-amber-700'
+                : 'bg-elevated text-fg-muted'
         "
       >
+        <Loader2
+          v-if="widgetDetecting"
+          class="h-3 w-3 animate-spin"
+          aria-hidden="true"
+        />
         {{ widgetStep2Badge }}
       </span>
     </div>

@@ -28,6 +28,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
   const progress = ref<GameBarWidgetProgressEvent | null>(null);
   const busy = ref(false);
   const statusRefreshing = ref(false);
+  const statusLoaded = ref(false);
   const checkingUpdate = ref(false);
   const error = ref<string | null>(null);
   const lastMessage = ref<string | null>(null);
@@ -64,6 +65,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       status.value = await getGameBarWidgetStatus();
     } finally {
       statusRefreshing.value = false;
+      statusLoaded.value = true;
     }
   }
 
@@ -270,6 +272,10 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     return true;
   }
 
+  const isDetecting = computed(
+    () => statusRefreshing.value || checkingUpdate.value || !statusLoaded.value,
+  );
+
   if (autoInit) {
     void refreshStatus();
     ensureSessionUpdateCheck();
@@ -286,6 +292,8 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     progress,
     busy,
     statusRefreshing,
+    statusLoaded,
+    isDetecting,
     checkingUpdate,
     error,
     lastMessage,

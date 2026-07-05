@@ -7,6 +7,7 @@ import {
   LayoutPanelTop,
   ListChecks,
   Monitor,
+  Loader2,
   Play,
   Power,
   RotateCcw,
@@ -54,6 +55,7 @@ const recordSessionSummary = computed(() => {
 });
 
 const widgetStatus = props.widget.status;
+const widgetDetecting = props.widget.isDetecting;
 
 const gameBarOpenShortcut = computed(
   () => widgetStatus.value?.gameBarOpenShortcut?.trim() || DEFAULT_GAME_BAR_OPEN_SHORTCUT,
@@ -130,13 +132,13 @@ async function openGameBarStore() {
 }
 
 const showWidgetInstallReminder = computed(
-  () => displayMode.value === 'widget' && !widgetReady.value,
+  () => displayMode.value === 'widget' && !widgetReady.value && !widgetDetecting.value,
 );
 
 const widgetInstallReminderText = computed(() => {
   const status = widgetStatus.value;
   if (!status?.gameBarInstalled) {
-    return '全屏模式下需在下方安装 Xbox 游戏栏和小组件，才能在游戏里看到实时数据。';
+    return '全屏模式下需在下方安装 Game Bar 和小组件，才能在游戏里看到实时数据。';
   }
   if (!status.installed) {
     return '全屏模式下建议在下方安装小组件，才能在游戏里看到实时数据。';
@@ -201,6 +203,31 @@ const modePanelLayerClass =
 
 <template>
   <div class="space-y-5">
+    <div
+      v-if="widgetDetecting"
+      class="relative overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-r from-accent/12 via-accent/6 to-accent/2 px-4 py-3.5 shadow-sm ring-1 ring-accent/15"
+      role="status"
+      aria-live="polite"
+    >
+      <div
+        class="absolute inset-y-0 left-0 w-1 animate-pulse bg-accent motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      <div class="flex items-center gap-3 pl-2">
+        <div
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/18 text-accent shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+        >
+          <Loader2 class="h-5 w-5 animate-spin" aria-hidden="true" />
+        </div>
+        <div class="min-w-0">
+          <p class="text-[14px] font-semibold tracking-tight text-fg">正在检测环境</p>
+          <p class="mt-0.5 text-[12px] leading-snug text-fg-secondary">
+            正在扫描 Game Bar 与小组件状态，约需数秒，不影响下方操作
+          </p>
+        </div>
+      </div>
+    </div>
+
     <section
       class="overflow-hidden rounded-2xl border bg-surface shadow-sm transition-colors duration-200"
       :class="snapshot.listening ? 'border-emerald-500/30' : 'border-border'"
@@ -446,9 +473,11 @@ const modePanelLayerClass =
               <div
                 class="rounded-xl border px-4 py-3.5 transition-colors duration-200"
                 :class="
-                  widgetStatus?.gameBarInstalled
-                    ? 'border-emerald-500/25 bg-emerald-500/6'
-                    : 'border-warning/30 bg-warning/5'
+                  widgetDetecting
+                    ? 'border-accent/40 bg-accent/8 ring-1 ring-accent/20'
+                    : widgetStatus?.gameBarInstalled
+                      ? 'border-emerald-500/25 bg-emerald-500/6'
+                      : 'border-warning/30 bg-warning/5'
                 "
               >
                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -456,36 +485,53 @@ const modePanelLayerClass =
                     <span
                       class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
                       :class="
-                        widgetStatus?.gameBarInstalled
-                          ? 'bg-emerald-500/15 text-emerald-700'
-                          : 'bg-warning/15 text-amber-700'
+                        widgetDetecting
+                          ? 'bg-accent/15 text-accent'
+                          : widgetStatus?.gameBarInstalled
+                            ? 'bg-emerald-500/15 text-emerald-700'
+                            : 'bg-warning/15 text-amber-700'
                       "
                     >
                       1
                     </span>
                     <div>
-                      <p class="text-[13px] font-semibold text-fg">安装 Xbox 游戏栏</p>
+                      <p class="text-[13px] font-semibold text-fg">安装 Game Bar</p>
                       <p class="mt-1 text-[12px] leading-relaxed text-fg-muted">
                         {{
-                          widgetStatus?.gameBarInstalled
-                            ? '已检测到，可以继续下一步'
-                            : '微软自带的游戏工具，小组件运行基础'
+                          widgetDetecting
+                            ? '正在扫描本机是否已安装…'
+                            : widgetStatus?.gameBarInstalled
+                              ? '已检测到，可以继续下一步'
+                              : '微软自带的游戏工具，小组件运行基础'
                         }}
                       </p>
                     </div>
                   </div>
                   <span
-                    class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                     :class="
-                      widgetStatus?.gameBarInstalled
-                        ? 'bg-emerald-500/12 text-emerald-700'
-                        : 'bg-warning/12 text-amber-700'
+                      widgetDetecting
+                        ? 'bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent'
+                        : widgetStatus?.gameBarInstalled
+                          ? 'bg-emerald-500/12 text-emerald-700'
+                          : 'bg-warning/12 text-amber-700'
                     "
                   >
-                    {{ widgetStatus?.gameBarInstalled ? '已就绪' : '待安装' }}
+                    <Loader2
+                      v-if="widgetDetecting"
+                      class="h-3 w-3 animate-spin"
+                      aria-hidden="true"
+                    />
+                    {{
+                      widgetDetecting
+                        ? '检测中'
+                        : widgetStatus?.gameBarInstalled
+                          ? '已就绪'
+                          : '待安装'
+                    }}
                   </span>
                 </div>
-                <div v-if="!widgetStatus?.gameBarInstalled" class="mt-3 flex flex-wrap gap-2">
+                <div v-if="!widgetDetecting && !widgetStatus?.gameBarInstalled" class="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
@@ -527,7 +573,7 @@ const modePanelLayerClass =
                       <li>
                         进入 CS2，按
                         <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" />
-                        打开游戏栏
+                        打开 Game Bar
                       </li>
                       <li>在「小组件」里找到 <strong class="font-medium text-fg">CS 匹配助手</strong> 并固定</li>
                     </ol>
@@ -554,7 +600,7 @@ const modePanelLayerClass =
                 <strong class="font-medium text-fg-secondary">cs2.exe</strong>
                 属性中取消勾选「禁用全屏优化」。若仍无法打开，可尝试将游戏改为全屏窗口化。
                 <span v-if="!gameBarOpenShortcutFromRegistry">
-                  若你已在系统里改过游戏栏快捷键，请以
+                  若你已在系统里改过 Game Bar 快捷键，请以
                   <button
                     type="button"
                     class="font-medium text-fg-secondary underline-offset-2 hover:underline"
