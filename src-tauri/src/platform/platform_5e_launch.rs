@@ -2,7 +2,6 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-#[cfg(not(windows))]
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -21,6 +20,10 @@ const CDP_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const CDP_PROBE_QUICK: Duration = Duration::from_millis(200);
 /// 启动页环境探测：仅查默认端口，超时尽量短。
 const PROBE_ENV_TIMEOUT: Duration = Duration::from_millis(120);
+/// 结束 5E 进程后等待退出与端口释放。
+const TERMINATE_5E_MAX_WAIT: Duration = Duration::from_secs(12);
+const TERMINATE_5E_POLL: Duration = Duration::from_millis(300);
+const TERMINATE_5E_SETTLE: Duration = Duration::from_millis(1500);
 
 pub const P5E_DEFAULT_CDP_PORT: u16 = 9222;
 const MAX_CDP_PORT_SCAN: u16 = 40;
@@ -320,6 +323,92 @@ fn is_cdp_active_on_port(port: u16) -> bool {
     !is_port_available(port) && is_cdp_port_blocking_with_timeout(port, PROBE_ENV_TIMEOUT)
 }
 
+fn any_cdp_active_in_scan_range(preferred: u16) -> bool {
+    let end = scan_end(preferred);
+    (preferred..=end).any(is_cdp_active_on_port)
+}
+
+fn wait_cdp_ports_clear(preferred: u16) -> bool {
+    let start = std::time::Instant::now();
+    while start.elapsed() < TERMINATE_5E_MAX_WAIT {
+        if !is_5e_process_running() && !any_cdp_active_in_scan_range(preferred) {
+            std::thread::sleep(TERMINATE_5E_SETTLE);
+            if !is_5e_process_running() && !any_cdp_active_in_scan_range(preferred) {
+                return true;
+            }
+        }
+        std::thread::sleep(TERMINATE_5E_POLL);
+    }
+    false
+}
+
+#[cfg(windows)]
+fn terminate_5e_processes(force: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let mut args = vec!["/IM", CLIENT_EXE, "/T"];
+    if force {
+        args.insert(0, "/F");
+    }
+    let output = std::process::Command::new("taskkill")
+        .args(&args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("TERMINATE_5E_FAILED: 结束 5E 进程失败: {e}"))?;
+
+    if !output.status.success() {
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .to_lowercase();
+        let not_found = combined.contains("not found")
+            || combined.contains("没有找到")
+            || combined.contains("no tasks");
+        if !not_found && is_5e_process_running() {
+            return Err(
+                "TERMINATE_5E_FAILED: 无法结束 5E 进程，请手动完全退出 5E 后重试".into(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn ensure_5e_stopped(preferred_port: u16) -> Result<(), String> {
+    if !is_5e_process_running() && !any_cdp_active_in_scan_range(preferred_port) {
+        return Ok(());
+    }
+
+    #[cfg(windows)]
+    {
+        if is_5e_process_running() {
+            let _ = terminate_5e_processes(false);
+            if is_5e_process_running() {
+                terminate_5e_processes(true)?;
+            }
+        }
+    }
+
+    if wait_cdp_ports_clear(preferred_port) {
+        return Ok(());
+    }
+
+    if is_5e_process_running() {
+        return Err(
+            "TERMINATE_5E_FAILED: 无法自动结束 5E 进程，请手动完全退出 5E 后重试".into(),
+        );
+    }
+    if any_cdp_active_in_scan_range(preferred_port) {
+        return Err(
+            "TERMINATE_5E_FAILED: 5E 调试端口仍被占用，请手动完全退出 5E 后重试".into(),
+        );
+    }
+
+    Ok(())
+}
+
 /// 探测 5E 运行环境与 CDP 状态（快速路径：安装目录 + 进程 + 默认端口）。
 pub fn probe_5e_environment(preferred: u16, client_root_hint: Option<&str>) -> P5eProbeResult {
     let client_root = detect_client_root(client_root_hint).ok();
@@ -349,11 +438,7 @@ pub fn probe_5e_environment(preferred: u16, client_root_hint: Option<&str>) -> P
             cdp_port,
             installed: true,
             client_root: Some(root),
-            message: if cdp_port.is_some() {
-                "检测到 5E 正在运行".to_string()
-            } else {
-                "检测到 5E 正在运行".to_string()
-            },
+            message: "检测到 5E 正在运行，点击启动将自动结束并重新启动".to_string(),
         };
     }
 
@@ -364,7 +449,7 @@ pub fn probe_5e_environment(preferred: u16, client_root_hint: Option<&str>) -> P
             cdp_port,
             installed: true,
             client_root: Some(root),
-            message: "检测到 5E 正在运行".to_string(),
+            message: "检测到 5E 调试端口占用，点击启动将尝试结束后重新启动".to_string(),
         };
     }
 
@@ -380,10 +465,6 @@ pub fn probe_5e_environment(preferred: u16, client_root_hint: Option<&str>) -> P
 
 /// 为启动 5E 选择 CDP 端口：优先默认端口，仅在非 CDP 占用时顺延。
 pub fn resolve_cdp_launch_port(preferred: u16) -> Result<u16, String> {
-    if is_5e_process_running() {
-        return Err("5E 已在运行，请先完全退出".to_string());
-    }
-
     let end = scan_end(preferred);
 
     match port_state(preferred) {
@@ -433,6 +514,82 @@ pub async fn wait_for_cdp_port(port: u16, max_wait: Duration) -> bool {
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
     false
+}
+
+#[cfg(windows)]
+fn is_current_process_elevated() -> bool {
+    use std::mem::MaybeUninit;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    unsafe {
+        let mut token = windows::Win32::Foundation::HANDLE::default();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
+            return false;
+        }
+        let mut elevation = MaybeUninit::<TOKEN_ELEVATION>::uninit();
+        let mut size = 0u32;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            Some(elevation.as_mut_ptr().cast()),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut size,
+        )
+        .is_ok();
+        let _ = CloseHandle(token);
+        if !ok {
+            return false;
+        }
+        elevation.assume_init().TokenIsElevated != 0
+    }
+}
+
+#[cfg(not(windows))]
+fn is_current_process_elevated() -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn launch_5e_standard(exe: &Path, root: &Path, port: u16) -> Result<u32, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let child = std::process::Command::new(exe)
+        .current_dir(root)
+        .arg(format!("--remote-debugging-port={port}"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| format!("启动 5E 失败: {e}"))?;
+
+    Ok(child.id())
+}
+
+#[cfg(windows)]
+fn launch_5e_windows(exe: &Path, root: &Path, port: u16) -> Result<Option<u32>, String> {
+    if is_current_process_elevated() {
+        return Ok(Some(launch_5e_standard(exe, root, port)?));
+    }
+
+    match launch_5e_standard(exe, root, port) {
+        Ok(pid) => Ok(Some(pid)),
+        Err(first_err) => {
+            let lower = first_err.to_lowercase();
+            if lower.contains("740") || lower.contains("elevation") || lower.contains("拒绝访问") {
+                launch_5e_elevated(exe, root, port)
+            } else {
+                Err(first_err)
+            }
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -512,13 +669,24 @@ fn launch_5e_standard(exe: &Path, root: &Path, port: u16) -> Result<u32, String>
 pub fn launch_with_cdp(client_root: Option<&str>, preferred_port: u16) -> Result<P5eLaunchResult, String> {
     let root = detect_client_root(client_root)?;
     let exe = root.join(CLIENT_EXE);
+
+    let had_running =
+        is_5e_process_running() || is_cdp_active_on_port(preferred_port);
+    ensure_5e_stopped(preferred_port)?;
+
     let port = resolve_cdp_launch_port(preferred_port)?;
 
     #[cfg(windows)]
-    let pid = launch_5e_elevated(&exe, &root, port)?;
+    let pid = launch_5e_windows(&exe, &root, port)?;
 
     #[cfg(not(windows))]
     let pid = Some(launch_5e_standard(&exe, &root, port)?);
+
+    let message = if had_running {
+        format!("已结束旧进程并启动 5E，等待端口 {port} 就绪…")
+    } else {
+        format!("已启动 5E 客户端，等待端口 {port} 就绪…")
+    };
 
     Ok(P5eLaunchResult {
         launched: true,
@@ -526,13 +694,21 @@ pub fn launch_with_cdp(client_root: Option<&str>, preferred_port: u16) -> Result
         client_root: Some(root.display().to_string()),
         pid,
         cdp_ready: false,
-        message: format!("已启动 5E 客户端，等待端口 {port} 就绪…"),
+        message,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ensure_stopped_noop_when_process_not_running() {
+        if is_5e_process_running() || is_cdp_active_on_port(P5E_DEFAULT_CDP_PORT) {
+            return;
+        }
+        assert!(ensure_5e_stopped(P5E_DEFAULT_CDP_PORT).is_ok());
+    }
 
     #[test]
     fn resolve_launch_uses_preferred_when_available() {

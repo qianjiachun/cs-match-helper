@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-5e-player-home"
+description = "允许拉取 5E 玩家主页数据（player/home，HMAC 签名）"
+commands.allow = ["fetch_5e_player_home", "fetch_5e_player_home_batch"]

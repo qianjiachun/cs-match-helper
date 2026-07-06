@@ -1,22 +1,28 @@
 use super::platform_5e_launch::{
-    detect_client_root, is_cdp_port_reachable, P5E_DEFAULT_CDP_PORT,
+    detect_client_root, is_5e_process_running, is_cdp_port_reachable, P5E_DEFAULT_CDP_PORT,
 };
 use super::platform_5e_sink::{
-    build_http_event, is_whitelisted_url, parse_json_body, P5eHttpEvent,
+    build_http_event_with_mode, is_whitelisted_url, parse_json_body, should_capture_url,
+    P5eHttpEvent,
 };
-use std::collections::HashMap;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
 use tokio_tungstenite::tungstenite::Message;
 
 const ARENA_HOST: &str = "view-arena.5eplay.com";
-const RECONNECT_DELAY_MS: u64 = 2000;
-const MAX_PENDING_REQUESTS: usize = 256;
+const RECONNECT_BASE_MS: u64 = 2000;
+const RECONNECT_MAX_MS: u64 = 30_000;
+const MAX_PENDING_REQUESTS: usize = 512;
+const MAX_BODY_RETRIES: u8 = 2;
+const GATE_DEBUG_BODY_CAP: usize = 64 * 1024;
+const EMIT_THROTTLE_MS: u128 = 200;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +35,8 @@ pub struct P5eCdpStatus {
     pub target_title: Option<String>,
     pub events_emitted: u64,
     pub last_error: Option<String>,
+    pub gate_debug_mode: bool,
+    pub client_exited: bool,
 }
 
 struct RuntimeInner {
@@ -39,6 +47,7 @@ struct RuntimeInner {
     target_url: Option<String>,
     target_title: Option<String>,
     last_error: Option<String>,
+    client_exited: bool,
     stop_tx: Option<oneshot::Sender<()>>,
 }
 
@@ -52,6 +61,7 @@ impl Default for RuntimeInner {
             target_url: None,
             target_title: None,
             last_error: None,
+            client_exited: false,
             stop_tx: None,
         }
     }
@@ -60,6 +70,7 @@ impl Default for RuntimeInner {
 struct CdpShared {
     inner: Mutex<RuntimeInner>,
     events_emitted: AtomicU64,
+    gate_debug_mode: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -73,13 +84,126 @@ impl Default for P5eCdpRuntime {
             shared: Arc::new(CdpShared {
                 inner: Mutex::new(RuntimeInner::default()),
                 events_emitted: AtomicU64::new(0),
+                gate_debug_mode: AtomicBool::new(false),
             }),
         }
     }
 }
 
+fn lock_runtime(m: &Mutex<RuntimeInner>) -> MutexGuard<'_, RuntimeInner> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn reconnect_delay_ms(attempt: u32) -> u64 {
+    let exp = attempt.min(4);
+    (RECONNECT_BASE_MS.saturating_mul(1u64 << exp)).min(RECONNECT_MAX_MS)
+}
+
+#[derive(Clone)]
+struct PendingRequest {
+    url: String,
+    method: String,
+    post: Option<String>,
+    is_whitelist: bool,
+}
+
+struct PendingBody {
+    url: String,
+    method: String,
+    post: Option<String>,
+    network_request_id: String,
+    retries: u8,
+}
+
+struct PendingRequestQueue {
+    map: HashMap<String, PendingRequest>,
+    order: Vec<String>,
+}
+
+impl PendingRequestQueue {
+    fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+            order: Vec::new(),
+        }
+    }
+
+    fn evict_one(&mut self) {
+        if self.order.is_empty() {
+            return;
+        }
+        let evict_idx = self
+            .order
+            .iter()
+            .position(|id| self.map.get(id).is_some_and(|entry| !entry.is_whitelist))
+            .unwrap_or(0);
+        let id = self.order.remove(evict_idx);
+        self.map.remove(&id);
+    }
+
+    fn has_non_whitelist(&self) -> bool {
+        self.order
+            .iter()
+            .any(|id| self.map.get(id).is_some_and(|entry| !entry.is_whitelist))
+    }
+
+    fn insert(&mut self, req_id: String, entry: PendingRequest) {
+        if self.map.len() >= MAX_PENDING_REQUESTS && !self.map.contains_key(&req_id) {
+            if entry.is_whitelist {
+                // 白名单请求不因队列满而丢弃；仅淘汰非白名单条目，必要时允许白名单溢出。
+                if self.has_non_whitelist() {
+                    self.evict_one();
+                }
+            } else {
+                self.evict_one();
+            }
+        }
+        if !self.map.contains_key(&req_id) {
+            self.order.push(req_id.clone());
+        }
+        self.map.insert(req_id, entry);
+    }
+
+    fn remove(&mut self, req_id: &str) -> Option<PendingRequest> {
+        let entry = self.map.remove(req_id)?;
+        if let Some(pos) = self.order.iter().position(|id| id == req_id) {
+            self.order.remove(pos);
+        }
+        Some(entry)
+    }
+
+    fn take(&mut self, req_id: &str) -> Option<PendingRequest> {
+        let entry = self.map.remove(req_id)?;
+        if let Some(pos) = self.order.iter().position(|id| id == req_id) {
+            self.order.remove(pos);
+        }
+        Some(entry)
+    }
+}
+
+fn cap_gate_debug_body(url: &str, gate_debug_mode: bool, body: Option<Value>) -> Option<Value> {
+    if !gate_debug_mode || is_whitelisted_url(url) {
+        return body;
+    }
+    let Some(value) = body else {
+        return None;
+    };
+    let serialized = value.to_string();
+    if serialized.len() <= GATE_DEBUG_BODY_CAP {
+        return Some(value);
+    }
+    Some(Value::String(format!(
+        "[truncated gate debug body: {} bytes]",
+        serialized.len()
+    )))
+}
+
 impl P5eCdpRuntime {
-    fn status_from_guard(g: &RuntimeInner, events_emitted: u64) -> P5eCdpStatus {
+    fn status_from_guard(
+        g: &RuntimeInner,
+        events_emitted: u64,
+        gate_debug_mode: bool,
+    ) -> P5eCdpStatus {
         P5eCdpStatus {
             running: g.running,
             port: g.port,
@@ -89,13 +213,22 @@ impl P5eCdpRuntime {
             target_title: g.target_title.clone(),
             events_emitted,
             last_error: g.last_error.clone(),
+            gate_debug_mode,
+            client_exited: g.client_exited,
         }
     }
 
     pub fn status(&self) -> P5eCdpStatus {
-        let g = self.shared.inner.lock().unwrap();
+        let g = lock_runtime(&self.shared.inner);
         let events = self.shared.events_emitted.load(Ordering::Relaxed);
-        Self::status_from_guard(&g, events)
+        let gate_debug_mode = self.shared.gate_debug_mode.load(Ordering::Relaxed);
+        Self::status_from_guard(&g, events, gate_debug_mode)
+    }
+
+    pub fn set_gate_debug_mode(&self, enabled: bool) {
+        self.shared
+            .gate_debug_mode
+            .store(enabled, Ordering::Relaxed);
     }
 
     pub async fn start(
@@ -115,30 +248,33 @@ impl P5eCdpRuntime {
         let root = detect_client_root(client_root.as_deref())?;
 
         {
-            let mut g = self.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&self.shared.inner);
             if g.running {
                 let events = self.shared.events_emitted.load(Ordering::Relaxed);
-                return Ok(Self::status_from_guard(&g, events));
+                let gate_debug_mode = self.shared.gate_debug_mode.load(Ordering::Relaxed);
+                return Ok(Self::status_from_guard(&g, events, gate_debug_mode));
             }
             g.running = true;
             g.port = resolved_port;
             g.phase = "collecting".to_string();
             g.client_root = Some(root.display().to_string());
             g.last_error = None;
+            g.client_exited = false;
             g.target_url = None;
             g.target_title = None;
         }
 
         let (stop_tx, stop_rx) = oneshot::channel();
         {
-            let mut g = self.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&self.shared.inner);
             g.stop_tx = Some(stop_tx);
         }
 
         let worker = self.clone();
         let app_clone = app.clone();
         tokio::spawn(async move {
-            if let Err(err) = collector_loop(app_clone, worker, resolved_port, root, stop_rx).await {
+            if let Err(err) = collector_loop(app_clone, worker, resolved_port, root, stop_rx).await
+            {
                 eprintln!("[5e-cdp] {err}");
             }
         });
@@ -148,11 +284,12 @@ impl P5eCdpRuntime {
 
     pub fn stop(&self) -> P5eCdpStatus {
         let (snapshot, stop_tx) = {
-            let mut g = self.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&self.shared.inner);
             g.running = false;
             g.phase = "stopped".to_string();
             let events = self.shared.events_emitted.load(Ordering::Relaxed);
-            let snapshot = Self::status_from_guard(&g, events);
+            let gate_debug_mode = self.shared.gate_debug_mode.load(Ordering::Relaxed);
+            let snapshot = Self::status_from_guard(&g, events, gate_debug_mode);
             let stop_tx = g.stop_tx.take();
             (snapshot, stop_tx)
         };
@@ -180,6 +317,14 @@ pub fn stop_cdp_collector(state: tauri::State<'_, P5eCdpRuntime>) -> P5eCdpStatu
     state.stop()
 }
 
+pub fn set_cdp_gate_debug_mode(
+    state: tauri::State<'_, P5eCdpRuntime>,
+    enabled: bool,
+) -> P5eCdpStatus {
+    state.set_gate_debug_mode(enabled);
+    state.status()
+}
+
 async fn collector_loop(
     app: AppHandle,
     runtime: P5eCdpRuntime,
@@ -187,9 +332,11 @@ async fn collector_loop(
     _root: PathBuf,
     mut stop_rx: oneshot::Receiver<()>,
 ) -> Result<(), String> {
+    let mut reconnect_attempt: u32 = 0;
+
     loop {
         {
-            let mut g = runtime.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&runtime.shared.inner);
             if !g.running {
                 break;
             }
@@ -198,14 +345,30 @@ async fn collector_loop(
         emit_status(&app, &runtime);
 
         if !is_cdp_port_reachable(port).await {
+            if !is_5e_process_running() {
+                {
+                    let mut g = lock_runtime(&runtime.shared.inner);
+                    g.last_error = Some("5E 进程已退出".to_string());
+                    g.client_exited = true;
+                    g.phase = "stopped".to_string();
+                    g.running = false;
+                }
+                emit_status(&app, &runtime);
+                break;
+            }
+
+            let delay = reconnect_delay_ms(reconnect_attempt);
+            reconnect_attempt = reconnect_attempt.saturating_add(1);
             tokio::select! {
                 _ = &mut stop_rx => break,
-                _ = tokio::time::sleep(tokio::time::Duration::from_millis(RECONNECT_DELAY_MS)) => continue,
+                _ = tokio::time::sleep(tokio::time::Duration::from_millis(delay)) => continue,
             }
         }
 
+        reconnect_attempt = 0;
+
         {
-            let mut g = runtime.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&runtime.shared.inner);
             g.phase = "cdpReady".to_string();
         }
         emit_status(&app, &runtime);
@@ -214,35 +377,41 @@ async fn collector_loop(
             Ok(t) => t,
             Err(err) => {
                 {
-                    let mut g = runtime.shared.inner.lock().unwrap();
+                    let mut g = lock_runtime(&runtime.shared.inner);
                     g.last_error = Some(err);
                     g.phase = "error".to_string();
                 }
                 emit_status(&app, &runtime);
+                let delay = reconnect_delay_ms(reconnect_attempt);
+                reconnect_attempt = reconnect_attempt.saturating_add(1);
                 tokio::select! {
                     _ = &mut stop_rx => break,
-                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(RECONNECT_DELAY_MS)) => continue,
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(delay)) => continue,
                 }
             }
         };
 
         {
-            let mut g = runtime.shared.inner.lock().unwrap();
+            let mut g = lock_runtime(&runtime.shared.inner);
             g.phase = "collecting".to_string();
             g.target_url = Some(target.url.clone());
             g.target_title = Some(target.title.clone());
         }
         emit_status(&app, &runtime);
 
-        if run_cdp_session(&app, &runtime, &target.ws_url, &mut stop_rx).await == SessionEnd::Stopped {
+        if run_cdp_session(&app, &runtime, &target.ws_url, &mut stop_rx).await
+            == SessionEnd::Stopped
+        {
             break;
         }
     }
 
     {
-        let mut g = runtime.shared.inner.lock().unwrap();
-        g.running = false;
-        g.phase = "stopped".to_string();
+        let mut g = lock_runtime(&runtime.shared.inner);
+        if g.running {
+            g.running = false;
+            g.phase = "stopped".to_string();
+        }
     }
     emit_status(&app, &runtime);
     Ok(())
@@ -307,6 +476,111 @@ async fn pick_target(port: u16) -> Result<CdpTarget, String> {
     best.ok_or_else(|| "未找到可监听的 5E 页面目标".to_string())
 }
 
+async fn request_response_body(
+    write: &mut futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
+    msg_id: &mut i64,
+    pending_bodies: &mut HashMap<i64, PendingBody>,
+    network_request_id: &str,
+    url: String,
+    method: String,
+    post: Option<String>,
+    retries: u8,
+) {
+    let body_id = *msg_id;
+    *msg_id += 1;
+    pending_bodies.insert(
+        body_id,
+        PendingBody {
+            url,
+            method,
+            post,
+            network_request_id: network_request_id.to_string(),
+            retries,
+        },
+    );
+    let cmd = serde_json::json!({
+        "id": body_id,
+        "method": "Network.getResponseBody",
+        "params": { "requestId": network_request_id }
+    });
+    let _ = write.send(Message::Text(cmd.to_string().into())).await;
+}
+
+async fn handle_body_response(
+    app: &AppHandle,
+    runtime: &P5eCdpRuntime,
+    write: &mut futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
+    msg_id: &mut i64,
+    pending_bodies: &mut HashMap<i64, PendingBody>,
+    id: i64,
+    value: &Value,
+) {
+    let Some(pending) = pending_bodies.remove(&id) else {
+        return;
+    };
+
+    let cdp_error = value.get("error").is_some();
+    let body = value
+        .get("result")
+        .and_then(|r| r.get("body"))
+        .and_then(|b| b.as_str())
+        .unwrap_or("");
+    let body_missing = body.is_empty();
+
+    if (cdp_error || body_missing) && pending.retries < MAX_BODY_RETRIES {
+        let next_retry = pending.retries + 1;
+        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        request_response_body(
+            write,
+            msg_id,
+            pending_bodies,
+            &pending.network_request_id,
+            pending.url,
+            pending.method,
+            pending.post,
+            next_retry,
+        )
+        .await;
+        return;
+    }
+
+    let capture_error = if cdp_error || body_missing {
+        let err_msg = value
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("empty body");
+        Some(format!("getResponseBody failed: {err_msg}"))
+    } else {
+        None
+    };
+
+    let req_json = pending.post.as_deref().and_then(parse_json_body);
+    let resp_json = parse_json_body(body);
+    let gate_debug_mode = runtime.shared.gate_debug_mode.load(Ordering::Relaxed);
+    let resp_json = cap_gate_debug_body(&pending.url, gate_debug_mode, resp_json);
+    if let Some(event) = build_http_event_with_mode(
+        pending.url,
+        pending.method,
+        req_json,
+        resp_json,
+        gate_debug_mode,
+        capture_error,
+    ) {
+        emit_event(app, runtime, event);
+    }
+}
+
 async fn run_cdp_session(
     app: &AppHandle,
     runtime: &P5eCdpRuntime,
@@ -317,7 +591,7 @@ async fn run_cdp_session(
         Ok(v) => v,
         Err(err) => {
             {
-                let mut g = runtime.shared.inner.lock().unwrap();
+                let mut g = lock_runtime(&runtime.shared.inner);
                 g.last_error = Some(format!("CDP WebSocket 连接失败: {err}"));
                 g.phase = "error".to_string();
             }
@@ -331,7 +605,11 @@ async fn run_cdp_session(
     let enable_cmd = serde_json::json!({
         "id": msg_id,
         "method": "Network.enable",
-        "params": {}
+        "params": {
+            "maxTotalBufferSize": 5242880,
+            "maxResourceBufferSize": 524288,
+            "maxPostDataSize": 65536
+        }
     });
     msg_id += 1;
     if write
@@ -342,16 +620,27 @@ async fn run_cdp_session(
         return SessionEnd::Reconnect;
     }
 
-    let mut pending_requests: HashMap<String, (String, String, Option<String>)> = HashMap::new();
-    let mut pending_bodies: HashMap<i64, (String, String, Option<String>)> = HashMap::new();
+    let mut pending_requests = PendingRequestQueue::new();
+    let mut pending_bodies: HashMap<i64, PendingBody> = HashMap::new();
 
     loop {
         tokio::select! {
             _ = &mut *stop_rx => return SessionEnd::Stopped,
             msg = read.next() => {
-                let Some(msg) = msg else { return SessionEnd::Reconnect; };
+                let Some(msg) = msg else {
+                    if !is_5e_process_running() {
+                        let mut g = lock_runtime(&runtime.shared.inner);
+                        g.last_error = Some("5E 进程已退出".to_string());
+                        g.client_exited = true;
+                        g.phase = "stopped".to_string();
+                        g.running = false;
+                        emit_status(app, runtime);
+                        return SessionEnd::Stopped;
+                    }
+                    return SessionEnd::Reconnect;
+                };
                 let Ok(Message::Text(text)) = msg else { continue; };
-                let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else { continue; };
+                let Ok(value) = serde_json::from_str::<Value>(&text) else { continue; };
 
                 if let Some(method) = value.get("method").and_then(|m| m.as_str()) {
                     match method {
@@ -365,28 +654,46 @@ async fn run_cdp_session(
                                     .and_then(|r| r.get("postData"))
                                     .and_then(|p| p.as_str())
                                     .map(|s| s.to_string());
-                                if is_whitelisted_url(&url) {
-                                    if pending_requests.len() >= MAX_PENDING_REQUESTS {
-                                        pending_requests.clear();
-                                    }
-                                    pending_requests.insert(req_id, (url, method, post));
+                                let gate_debug_mode =
+                                    runtime.shared.gate_debug_mode.load(Ordering::Relaxed);
+                                if should_capture_url(&url, gate_debug_mode) {
+                                    let is_whitelist = is_whitelisted_url(&url);
+                                    pending_requests.insert(
+                                        req_id,
+                                        PendingRequest {
+                                            url,
+                                            method,
+                                            post,
+                                            is_whitelist,
+                                        },
+                                    );
                                 }
                             }
                         }
                         "Network.loadingFinished" => {
                             if let Some(params) = value.get("params") {
                                 let req_id = params.get("requestId").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                if let Some((url, method, post)) = pending_requests.remove(&req_id)
+                                if let Some(PendingRequest { url, method, post, .. }) =
+                                    pending_requests.take(&req_id)
                                 {
-                                    let body_id = msg_id;
-                                    msg_id += 1;
-                                    pending_bodies.insert(body_id, (url, method, post));
-                                    let cmd = serde_json::json!({
-                                        "id": body_id,
-                                        "method": "Network.getResponseBody",
-                                        "params": { "requestId": req_id }
-                                    });
-                                    let _ = write.send(Message::Text(cmd.to_string().into())).await;
+                                    request_response_body(
+                                        &mut write,
+                                        &mut msg_id,
+                                        &mut pending_bodies,
+                                        &req_id,
+                                        url,
+                                        method,
+                                        post,
+                                        0,
+                                    ).await;
+                                }
+                            }
+                        }
+                        "Network.loadingFailed" => {
+                            if let Some(params) = value.get("params") {
+                                let req_id = params.get("requestId").and_then(|v| v.as_str()).unwrap_or("");
+                                if pending_requests.remove(req_id).is_some() {
+                                    // loadingFailed — pending entry dropped
                                 }
                             }
                         }
@@ -395,18 +702,15 @@ async fn run_cdp_session(
                 }
 
                 if let Some(id) = value.get("id").and_then(|v| v.as_i64()) {
-                    if let Some((url, method, post)) = pending_bodies.remove(&id) {
-                        let body = value
-                            .get("result")
-                            .and_then(|r| r.get("body"))
-                            .and_then(|b| b.as_str())
-                            .unwrap_or("");
-                        let req_json = post.as_deref().and_then(parse_json_body);
-                        let resp_json = parse_json_body(body);
-                        if let Some(event) = build_http_event(url, method, req_json, resp_json) {
-                            emit_event(app, runtime, event);
-                        }
-                    }
+                    handle_body_response(
+                        app,
+                        runtime,
+                        &mut write,
+                        &mut msg_id,
+                        &mut pending_bodies,
+                        id,
+                        &value,
+                    ).await;
                 }
             }
         }
@@ -414,6 +718,25 @@ async fn run_cdp_session(
 }
 
 fn emit_event(app: &AppHandle, runtime: &P5eCdpRuntime, event: P5eHttpEvent) {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    use std::time::Instant;
+
+    static EMIT_LAST: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    let throttle = EMIT_LAST.get_or_init(|| Mutex::new(HashMap::new()));
+
+    if !is_whitelisted_url(&event.url) {
+        let key = event.url.to_lowercase();
+        let now = Instant::now();
+        let mut guard = throttle.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(last) = guard.get(&key) {
+            if now.duration_since(*last).as_millis() < EMIT_THROTTLE_MS {
+                return;
+            }
+        }
+        guard.insert(key, now);
+    }
+
     runtime
         .shared
         .events_emitted

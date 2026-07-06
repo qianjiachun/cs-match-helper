@@ -24,6 +24,7 @@ futures-util = "0.3"
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"

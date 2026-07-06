@@ -399,6 +399,12 @@
           "markdownDescription": "允许通过 match_code 拉取 5E 对局详情（地图等）"
         },
         {
+          "description": "允许拉取 5E 玩家主页数据（player/home，HMAC 签名）",
+          "type": "string",
+          "const": "allow-fetch-5e-player-home",
+          "markdownDescription": "允许拉取 5E 玩家主页数据（player/home，HMAC 签名）"
+        },
+        {
           "description": "允许通过 Rust 后端代理 HTTPS JSON 请求（平台留言板等）",
           "type": "string",
           "const": "allow-fetch-http-json",
@@ -571,6 +577,12 @@
           "type": "string",
           "const": "allow-save-p5e-client-root",
           "markdownDescription": "允许保存 5E 客户端路径设置"
+        },
+        {
+          "description": "允许切换 5E CDP gate.5eplay.com 调试采集",
+          "type": "string",
+          "const": "allow-set-5e-cdp-gate-debug-mode",
+          "markdownDescription": "允许切换 5E CDP gate.5eplay.com 调试采集"
         },
         {
           "description": "允许显示急停评估 HUD",
