@@ -91,6 +91,7 @@ export function buildP5eCoreMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eComp
     { key: 'adpr', label: '平均 ADR', shortLabel: 'ADR', field: 'adpr', isPct: false, decimals: 1 },
     { key: 'rws', label: '平均 RWS', shortLabel: 'RWS', field: 'weRaw', isPct: false, decimals: 1 },
     { key: 'mapWinRate', label: '地图胜率', shortLabel: '地图胜', field: 'mapWinRate', isPct: true, decimals: 0 },
+    { key: 'seasonWinRate', label: '赛季胜率', shortLabel: '赛季胜', field: 'seasonWinRate', isPct: true, decimals: 0 },
     { key: 'recentWinRate', label: '近期胜率', shortLabel: '近期胜', field: 'recentWinRate', isPct: true, decimals: 0 },
   ];
 

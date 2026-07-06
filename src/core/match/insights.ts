@@ -35,7 +35,11 @@ function avgWeRaw(team: MatchTeam): number | undefined {
 function sumTeamStats(team: MatchTeam, platformId: MatchPlatformId = 'perfect'): void {
   const players = team.players;
   team.avgScore = avg(players.map((p) => p.score).filter((n): n is number => n != null));
-  team.avgRating = avg(players.map((p) => p.rating).filter((n): n is number => n != null));
+  if (platformId === '5e') {
+    team.avgRating = avgSeasonRating(team);
+  } else {
+    team.avgRating = avg(players.map((p) => p.rating).filter((n): n is number => n != null));
+  }
   team.avgWe = avg(players.map((p) => p.weAvg).filter((n): n is number => n != null));
   team.avgAdpr = avg(players.map((p) => p.adpr).filter((n): n is number => n != null));
   team.recentWinRate = avg(players.map((p) => p.recentWinRate).filter((n): n is number => n != null));

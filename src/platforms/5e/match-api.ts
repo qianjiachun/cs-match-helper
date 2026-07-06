@@ -73,6 +73,28 @@ export function resolveMapFromMatchDetail(detail: P5eMatchDetailResponse | undef
   return typeof map === 'string' && map.length > 0 ? map : undefined;
 }
 
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options?: { times?: number; delayMs?: number },
+): Promise<T> {
+  const times = options?.times ?? 2;
+  const delayMs = options?.delayMs ?? 400;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= times; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < times) await sleep(delayMs * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 /** 通过 match 接口实时拉取地图并写入 bundle */
 export async function enrichP5eBundleWithLiveMap(bundle: P5eMatchBundle): Promise<P5eMatchBundle> {
   if (bundle.mapName) return bundle;
@@ -84,7 +106,7 @@ export async function enrichP5eBundleWithLiveMap(bundle: P5eMatchBundle): Promis
   if (!matchCode) return bundle;
 
   try {
-    const detail = await fetchP5eMatchDetailCached(matchCode);
+    const detail = await withRetry(() => fetchP5eMatchDetailCached(matchCode));
     const mapName = resolveMapFromMatchDetail(detail);
     return {
       ...bundle,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildP5ePlayer, parseP5eSpecialData, pickMapStats, resolveMatchMap } from './field-mapper';
+import homeFixture from './fixtures/5e-player-home.fixture.json';
 import type { P5eMatchBundle } from './types';
 
 const UUID_JERRY = '4ac0324d-66e6-11f1-bfd6-043f72fd82b0';
@@ -214,9 +215,9 @@ describe('P5e field mapper', () => {
     const player = buildP5ePlayer(UUID_JERRY, 0, bundle, 'de_dust2');
     expect(player.nickname).toBe('match详情昵称');
     expect(player.teamSide).toBe(1);
-    expect(player.seasonRating).toBe(1.28);
-    expect(player.adpr).toBe(92.5);
-    expect(player.weRaw).toBe(10.2);
+    expect(player.seasonRating).toBe(0.74);
+    expect(player.adpr).toBe(59.29);
+    expect(player.weRaw).toBe(6.34);
     expect(player.kd).toBe(2);
     expect(player.hsRate).toBe(0.42);
     expect(player.firstKillSuccessRate).toBeCloseTo(4 / 6);
@@ -224,5 +225,68 @@ describe('P5e field mapper', () => {
     expect(player.rankDesc).toBe('S+ #999');
     expect(player.rankLevel).toBe('S+');
     expect(player.rankNum).toBe(999);
+  });
+
+  it('prefers player/home season_data over map-ext career stats', () => {
+    const uuid = 'ed954be0-7222-11ee-9ce2-ec0d9a495494';
+    const bundle = makeBundle({
+      mapName: 'de_mirage',
+      playerHome: {
+        [uuid]: homeFixture,
+      },
+      eloInfo: {
+        responseBody: {
+          data: {
+            [uuid]: {
+              modes: {
+                '9': {
+                  elo: 1795.46,
+                  matchTotal: 2,
+                  season: '2026s3',
+                  specialData:
+                    '{"match_data":[{"is_win":-1,"match_id":"g1","change_elo":-10},{"is_win":1,"match_id":"g2","change_elo":20}]}',
+                },
+              },
+            },
+          },
+        },
+      },
+      mapExt: {
+        responseBody: {
+          data: {
+            [uuid]: {
+              de_mirage: {
+                matchTotal: '572',
+                winTotal: '264',
+                perWin: 0.46,
+                rating: 1.07,
+                adr: 73.72,
+                rws: 8.8,
+              },
+            },
+          },
+        },
+      },
+      userInfo: {
+        responseBody: {
+          data: {
+            [uuid]: { username: '压力队友Die_family', steam_id: '76561198000000001' },
+          },
+        },
+      },
+    });
+
+    const player = buildP5ePlayer(uuid, 0, bundle, 'de_mirage');
+    expect(player.seasonRating).toBeCloseTo(1.14, 2);
+    expect(player.adpr).toBeCloseTo(87.44, 1);
+    expect(player.weRaw).toBeCloseTo(12.37, 1);
+    expect(player.seasonTotalNum).toBe(2);
+    expect(player.seasonWinRate).toBe(0.5);
+    expect(player.seasonWinNum).toBe(1);
+    expect(player.kd).toBeCloseTo(35 / 31, 2);
+    expect(player.mapWinRate).toBe(0.46);
+    expect(player.mapTotalNum).toBe(572);
+    expect(player.rating).toBeCloseTo(1.056, 2);
+    expect(player.recentRatings).toEqual([-10, 20]);
   });
 });

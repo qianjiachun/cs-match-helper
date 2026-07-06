@@ -368,7 +368,7 @@ export const P5E_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
     key: 'seasonRating',
     label: 'Rating',
-    description: 'match.fight.rating，无当局时回退地图 Rating',
+    description: '优先排位赛季 Rating（player/home season_data）',
     category: 'combat',
     align: 'center',
     width: '7%',
@@ -378,7 +378,7 @@ export const P5E_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
     key: 'rating',
     label: '近期Rating',
-    description: 'special_data / 地图 Rating',
+    description: '赛季场均 Rating（player/home season_data.avg_rating）',
     category: 'recent',
     align: 'center',
     width: '8%',
@@ -402,6 +402,7 @@ export const P5E_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
     key: 'mapWinRate',
     label: '地图胜率',
+    description: '当前地图胜率（map-ext）',
     category: 'season',
     align: 'center',
     width: '7%',
@@ -458,6 +459,17 @@ export const P5E_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
     key: 'seasonTotalNum',
     label: '赛季场次',
+    description: '优先排位本赛季场次（contrast_data.match_total）',
+    category: 'season',
+    align: 'center',
+    width: '7%',
+    defaultVisible: false,
+    sortable: true,
+  },
+  {
+    key: 'seasonWinRate',
+    label: '赛季胜率',
+    description: '优先排位本赛季胜率（contrast_data.per_win_match）',
     category: 'season',
     align: 'center',
     width: '7%',

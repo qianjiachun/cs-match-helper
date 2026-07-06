@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { P5eMatchAggregator } from './aggregator';
 import fixture from './fixtures/5e-match-success.fixture.json';
 import type { P5eApiPayload } from './types';
@@ -26,5 +26,37 @@ describe('P5eMatchAggregator', () => {
     expect(bundle!.userInfo).toBeTruthy();
     expect(bundle!.eloInfo).toBeTruthy();
     expect(bundle!.mapExt).toBeTruthy();
+  });
+
+  it('emits partial bundle after window expires with incomplete flag', () => {
+    vi.useFakeTimers();
+    const onMatch = vi.fn();
+    const agg = new P5eMatchAggregator({ windowMs: 1000, onMatch });
+
+    const uuids = ['a', 'b', 'c'];
+    agg.ingest({
+      kind: 'http',
+      url: 'https://platform-api.5eplay.com/api/user/info',
+      method: 'POST',
+      capturedAt: new Date().toISOString(),
+      requestBody: { uuids },
+      responseBody: { code: 0 },
+    });
+
+    vi.advanceTimersByTime(1001);
+
+    agg.ingest({
+      kind: 'http',
+      url: 'https://platform-api.5eplay.com/api/user/info',
+      method: 'POST',
+      capturedAt: new Date().toISOString(),
+      requestBody: { uuids: ['x', 'y'] },
+      responseBody: { code: 0 },
+    });
+
+    expect(onMatch).toHaveBeenCalledTimes(1);
+    expect(onMatch.mock.calls[0][0].incomplete).toBe(true);
+    expect(onMatch.mock.calls[0][0].uuids).toEqual(uuids);
+    vi.useRealTimers();
   });
 });

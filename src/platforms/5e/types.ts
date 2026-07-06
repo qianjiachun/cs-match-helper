@@ -6,6 +6,10 @@ export interface P5eHttpEvent {
   capturedAt: string;
   requestBody?: unknown;
   responseBody?: unknown;
+  /** gate.5eplay.com 调试采集，不参与匹配聚合 */
+  gateDebug?: boolean;
+  /** CDP getResponseBody 失败时的错误摘要 */
+  captureError?: string;
 }
 
 export type P5eRawEvent = P5eHttpEvent;
@@ -31,6 +35,12 @@ export interface P5eMatchBundle {
   userInfo?: P5eApiPayload;
   eloInfo?: P5eApiPayload;
   mapExt?: P5eApiPayload;
+  /** uuid → player/home 原始响应 */
+  playerHome?: Record<string, P5eApiPayload>;
+  /** home enrich 失败时的错误信息（调试用） */
+  homeEnrichError?: string;
+  /** 三份 CDP API 未全部到齐 */
+  incomplete?: boolean;
 }
 
 export interface P5eProbeResult {
@@ -69,4 +79,6 @@ export interface P5eCdpStatus {
   targetTitle?: string;
   eventsEmitted: number;
   lastError?: string;
+  gateDebugMode?: boolean;
+  clientExited?: boolean;
 }

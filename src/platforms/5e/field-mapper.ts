@@ -1,6 +1,10 @@
 import type { MatchPlayer } from '@core/match/models';
 import type { P5eMatchBundle } from './types';
 import {
+  getP5eHomeData,
+  recentResultsFromMatchList,
+} from './home-api';
+import {
   buildUuidTeamSideMap,
   calcFirstKillSuccessRate,
   calcHsRate,
@@ -273,6 +277,9 @@ export function buildP5ePlayer(
   const playerMaps = getApiData(bundle.mapExt)?.[uuid];
   const mapStats = pickMapStats(playerMaps, mapName);
 
+  const homeData = getP5eHomeData(bundle, uuid);
+  const seasonBlock = homeData?.seasonData;
+
   const special = parseP5eSpecialData(modeInfo?.specialData);
 
   const matchNickname = extractNicknameFromMatchEntry(matchEntry ?? {});
@@ -283,39 +290,69 @@ export function buildP5ePlayer(
 
   const score =
     roundScore(numOrUndef(modeInfo?.elo))
+    ?? roundScore(numOrUndef(homeData?.eloMode?.elo))
     ?? roundScore(numOrUndef(userData?.csgo_elo_9))
     ?? roundScore(numOrUndef(userData?.csgo_elo));
 
-  const fightRating = numOrUndef(fight?.rating);
   const level9Rating = parseLevel9Rating(userData);
   const mapRating = mapStats?.rating;
   const csgoRating = numOrUndef(userData?.csgo_rating);
 
-  const seasonRating = fightRating ?? mapRating;
+  const seasonRating = seasonBlock?.rating ?? mapRating;
+
   const rating =
-    level9Rating
+    seasonBlock?.avgRating
+    ?? level9Rating
     ?? mapRating
     ?? (csgoRating && csgoRating > 0 ? csgoRating : undefined);
 
-  const adpr = numOrUndef(fight?.adr) ?? mapStats?.adr;
-  const weRaw = numOrUndef(fight?.rws) ?? mapStats?.rws;
-  const kd = calcKd(fight);
-  const hsRate = calcHsRate(fight);
+  const adpr = seasonBlock?.adr ?? mapStats?.adr;
+  const weRaw = seasonBlock?.rws ?? mapStats?.rws;
+  const seasonKd =
+    seasonBlock?.kill != null
+      ? calcKd({ kill: seasonBlock.kill, death: seasonBlock.death })
+      : undefined;
+  const kd = seasonKd ?? calcKd(fight);
+  const hsRate = calcHsRate(fight) ?? seasonBlock?.perHeadshot;
   const firstKillSuccessRate = calcFirstKillSuccessRate(fight);
 
   const mapTotal = mapStats?.matchTotal;
-  const mapWin = mapStats?.winTotal;
   const mapWinRate =
     mapStats?.perWin != null
       ? mapStats.perWin
-      : mapTotal && mapTotal > 0 && mapWin != null
-        ? mapWin / mapTotal
+      : mapTotal && mapTotal > 0 && mapStats?.winTotal != null
+        ? mapStats.winTotal / mapTotal
         : undefined;
+  const mapWin =
+    mapTotal != null && mapWinRate != null && mapTotal > 0
+      ? Math.round(mapWinRate * mapTotal)
+      : mapStats?.winTotal;
+
+  const seasonMatchTotal = seasonBlock?.matchTotal;
+  const seasonWinRate =
+    seasonBlock?.perWinMatch != null
+      ? seasonBlock.perWinMatch
+      : seasonMatchTotal != null && seasonMatchTotal > 0 && seasonBlock?.winMatchTotal != null
+        ? seasonBlock.winMatchTotal / seasonMatchTotal
+        : undefined;
+
+  const seasonWinNum = seasonBlock?.winMatchTotal;
+
+  const homeRecentResults = recentResultsFromMatchList(homeData?.matchList, 5);
+  const mergedRecentResults =
+    homeRecentResults.length > 0 ? homeRecentResults : special.recentResults;
 
   const recentWinRate = special.recentWinRate ?? mapStats?.recentPerWin ?? mapStats?.perWin;
 
-  const levelId = numOrUndef(modeInfo?.levelId) ?? numOrUndef(levelInfo?.level_id);
-  const rank = numOrUndef(sts?.rank) ?? numOrUndef(levelInfo?.rank) ?? numOrUndef(modeInfo?.rank);
+  const levelId =
+    numOrUndef(modeInfo?.levelId)
+    ?? numOrUndef(homeData?.eloMode?.level_id)
+    ?? numOrUndef(levelInfo?.level_id);
+  const rank =
+    numOrUndef(homeData?.eloMode?.rank)
+    ?? numOrUndef(sts?.rank)
+    ?? numOrUndef(levelInfo?.rank)
+    ?? numOrUndef(modeInfo?.rank);
   const maxElo = roundScore(numOrUndef(modeInfo?.maxElo));
   const season = typeof modeInfo?.season === 'string' ? modeInfo.season : undefined;
   const eloChange = roundScore(numOrUndef(sts?.change_elo));
@@ -332,6 +369,13 @@ export function buildP5ePlayer(
   if (rank != null && rank > 0) tags.push(`#${rank}`);
   if (maxElo != null && maxElo > 0 && score != null && maxElo > score) {
     tags.push(`峰值 ${maxElo}`);
+  }
+  const careerElo = numOrUndef(homeData?.career?.elo);
+  if (careerElo != null && careerElo > 0 && score != null && careerElo > score) {
+    tags.push(`生涯 ${Math.round(careerElo)}`);
+  }
+  if (seasonBlock?.losingStreak != null && seasonBlock.losingStreak > 1) {
+    tags.push(`${seasonBlock.losingStreak} 连败`);
   }
   if (eloChange != null && eloChange !== 0) {
     tags.push(eloChange > 0 ? `+${eloChange} ELO` : `${eloChange} ELO`);
@@ -392,7 +436,12 @@ export function buildP5ePlayer(
     weRaw,
     recentWinRate,
     recentDrawCount: special.recentDrawCount,
-    seasonTotalNum: numOrUndef(modeInfo?.matchTotal) ?? numOrUndef(userData?.csgo_match_count_9),
+    seasonTotalNum:
+      seasonMatchTotal
+      ?? numOrUndef(modeInfo?.matchTotal)
+      ?? numOrUndef(userData?.csgo_match_count_9),
+    seasonWinRate,
+    seasonWinNum,
     mapWinRate,
     mapWinNum: mapWin,
     mapTotalNum: mapTotal,
@@ -405,7 +454,7 @@ export function buildP5ePlayer(
     rankLevel,
     rankNum,
     radar: {},
-    recentResults: special.recentResults,
+    recentResults: mergedRecentResults,
     recentRatings: special.recentRatings,
     tags,
     platformBoardId,

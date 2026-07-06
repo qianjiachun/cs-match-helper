@@ -8,6 +8,7 @@ import { isAiAnalysisActive } from '@core/ai/types';
 import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import type { useComments } from '../composables/useComments';
+import { useMatchHeaderMetaCompaction } from '../composables/useMatchHeaderMetaCompaction';
 import { useMatchRevealAnimation } from '../composables/useMatchRevealAnimation';
 import { useTeamTableColumns } from '../composables/useTeamTableColumns';
 import AiAnalysisPanel from './AiAnalysisPanel.vue';
@@ -187,6 +188,30 @@ function formatTime(seconds: number) {
 }
 
 const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <= 10);
+
+const metaRowRef = ref<HTMLElement | null>(null);
+const { hideEloDiff, hideRecentWin } = useMatchHeaderMetaCompaction(metaRowRef, () => [
+  props.match.id,
+  mapName.value,
+  teamEloCompare.value,
+  teamRatingCompare.value,
+  teamMapWinCompare.value,
+  teamRecentWinCompare.value,
+  timeLeft.value,
+  isCountdownUrgent.value,
+  aiStatusCapsule.value?.text,
+  activeTab.value,
+  visibleKeys.value.length,
+]);
+
+function eloCompareTitle(
+  compare: NonNullable<typeof teamEloCompare.value>,
+): string {
+  const diffPart = `差 ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`;
+  return hideEloDiff.value
+    ? `两队平均匹配分，${diffPart}`
+    : '两队平均匹配分';
+}
 </script>
 
 <template>
@@ -202,7 +227,10 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
       data-match-reveal="header"
       class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5"
     >
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px]">
+      <div
+        ref="metaRowRef"
+        class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2.5 overflow-hidden text-[12px]"
+      >
         <div data-match-reveal="meta" class="flex items-center gap-1.5 text-slate-600">
           <PlatformLogo :platform-id="platformId" size="sm" />
           <span class="font-medium text-slate-800">{{ mapName }}</span>
@@ -244,12 +272,12 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
           <span
             data-match-reveal="meta"
             class="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5"
-            title="两队平均匹配分"
+            :title="eloCompareTitle(teamEloCompare)"
           >
             <span class="font-semibold text-blue-600">A {{ teamEloCompare.a }}</span>
             <span class="text-[9px] font-semibold uppercase text-slate-400">vs</span>
             <span class="font-semibold text-orange-500">B {{ teamEloCompare.b }}</span>
-            <span class="ml-1 text-slate-500">
+            <span v-if="!hideEloDiff" class="ml-1 text-slate-500">
               差
               <b :class="teamEloCompare.leader === 'A' ? 'text-blue-600' : teamEloCompare.leader === 'B' ? 'text-orange-500' : 'text-slate-700'">
                 {{ teamEloCompare.diff }}
@@ -281,7 +309,7 @@ const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <=
           </span>
         </template>
 
-        <template v-if="teamRecentWinCompare">
+        <template v-if="teamRecentWinCompare && !hideRecentWin">
           <span class="text-slate-200">|</span>
           <span data-match-reveal="meta" class="shrink-0 text-slate-500" title="两队近10场胜率">
             近期胜

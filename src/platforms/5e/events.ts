@@ -16,6 +16,16 @@ const WHITELIST_PATTERNS: { kind: P5eApiKind; pattern: string }[] = [
   { kind: 'mapExt', pattern: '/player/map-ext/batch' },
 ];
 
+const GATE_DEBUG_HOST = 'gate.5eplay.com';
+
+export function isP5eGateDebugUrl(url: string): boolean {
+  return url.toLowerCase().includes(GATE_DEBUG_HOST);
+}
+
+export function isP5eWhitelistedUrl(url: string): boolean {
+  return classifyP5eUrl(url) != null;
+}
+
 export function classifyP5eUrl(url: string): P5eApiKind | null {
   const lower = url.toLowerCase();
   for (const { kind, pattern } of WHITELIST_PATTERNS) {
@@ -24,8 +34,10 @@ export function classifyP5eUrl(url: string): P5eApiKind | null {
   return null;
 }
 
-export function isP5eWhitelistedUrl(url: string): boolean {
-  return classifyP5eUrl(url) != null;
+export function shouldAcceptP5eHttpEvent(event: P5eHttpEvent): boolean {
+  if (isP5eWhitelistedUrl(event.url)) return true;
+  if (event.gateDebug && isP5eGateDebugUrl(event.url)) return true;
+  return false;
 }
 
 export function stripSensitiveHeaders(
@@ -41,7 +53,7 @@ export function stripSensitiveHeaders(
 }
 
 export function sanitizeP5eHttpEvent(event: P5eHttpEvent): P5eHttpEvent | null {
-  if (!isP5eWhitelistedUrl(event.url)) return null;
+  if (!shouldAcceptP5eHttpEvent(event)) return null;
   return {
     kind: 'http',
     url: event.url,
@@ -49,6 +61,8 @@ export function sanitizeP5eHttpEvent(event: P5eHttpEvent): P5eHttpEvent | null {
     capturedAt: event.capturedAt,
     requestBody: event.requestBody,
     responseBody: event.responseBody,
+    gateDebug: event.gateDebug,
+    captureError: event.captureError,
   };
 }
 

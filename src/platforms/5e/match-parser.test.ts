@@ -71,9 +71,9 @@ describe('P5eMatchParser', () => {
     expect(record.detail.parseWarnings.some((w) => w.includes('分队'))).toBe(false);
 
     const allPlayers = record.detail.teams.flatMap((t) => t.players);
-    expect(allPlayers.every((p) => p.seasonRating === 1.1)).toBe(true);
     expect(allPlayers.every((p) => p.kd === 1.5)).toBe(true);
     expect(allPlayers.every((p) => p.eloChange === 5)).toBe(true);
+    expect(allPlayers.every((p) => p.seasonRating !== 1.1)).toBe(true);
 
     const teamSizes = record.detail.teams.map((t) => t.players.length);
     expect(teamSizes).toEqual([5, 5]);

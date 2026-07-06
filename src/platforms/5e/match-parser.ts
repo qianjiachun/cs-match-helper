@@ -7,6 +7,7 @@ import type {
   MatchSummary,
   MatchTeam,
 } from '@core/match/models';
+import { formatP5eHomeEnrichError } from './home-api';
 import { P5eMatchAggregator } from './aggregator';
 import { buildP5ePlayer, resolveMatchMap } from './field-mapper';
 import { hasMatchDetailTeams, resolveMapDescFromMatchDetail } from './match-detail-parser';
@@ -66,6 +67,9 @@ export function buildP5eMatchDetail(bundle: P5eMatchBundle): MatchDetail {
   if (!bundle.userInfo) warnings.push('缺少 user/info 数据');
   if (!bundle.eloInfo) warnings.push('缺少 elo/info 数据');
   if (!bundle.mapExt) warnings.push('缺少 map-ext 数据');
+  if (bundle.incomplete) {
+    warnings.push('CDP 采集不完整（部分接口未捕获），数据可能缺失');
+  }
 
   const matchMap = resolveMatchMap(bundle);
   const players = bundle.uuids.map((uuid, i) => buildPlayer(uuid, i, bundle, matchMap));
@@ -73,6 +77,16 @@ export function buildP5eMatchDetail(bundle: P5eMatchBundle): MatchDetail {
 
   if (!hasMatchDetailTeams(bundle)) {
     warnings.push('未获取 match 详情分队，已按 UUID 顺序临时分队');
+  }
+
+  const homeCount = Object.keys(bundle.playerHome ?? {}).length;
+  if (homeCount < bundle.uuids.length) {
+    const hint = bundle.homeEnrichError
+      ? formatP5eHomeEnrichError(bundle.homeEnrichError)
+      : 'player/home 拉取不完整';
+    warnings.push(
+      `缺少 player/home 数据（${homeCount}/${bundle.uuids.length}），Rating 可能不准确：${hint}`,
+    );
   }
 
   const detail: MatchDetail = {

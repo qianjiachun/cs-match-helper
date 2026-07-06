@@ -1,0 +1,42 @@
+{
+  "uuid": "c7e65f81-f186-11ed-9ce2-ec0d9a495494",
+  "responseBody": {
+    "code": 0,
+    "data": {
+      "contrast_data": {
+        "adr": 88.5,
+        "match_total": 42,
+        "per_win_match": 0.67,
+        "rating": 0.99,
+        "rws": 10.2,
+        "win_match_total": 28
+      },
+      "match_map_data": [
+        {
+          "adr": 91.2,
+          "map": "de_mirage",
+          "match_total": 18,
+          "per_win": 0.72,
+          "rating": 1.07,
+          "rws": 11.1
+        },
+        {
+          "adr": 85.0,
+          "map": "de_dust2",
+          "match_total": 8,
+          "per_win": 0.5,
+          "rating": 0.92,
+          "rws": 9.5
+        }
+      ],
+      "rating_data": [
+        { "rating": 1.12, "adr": 88.93, "key": "g1", "start_date": "2026-07-04" },
+        { "rating": 0.98, "adr": 82.1, "key": "g2", "start_date": "2026-07-03" },
+        { "rating": 1.07, "adr": 81.13, "key": "g3", "start_date": "2026-07-03" },
+        { "rating": 1.02, "adr": 83.22, "key": "g4", "start_date": "2026-07-03" },
+        { "rating": 0.85, "adr": 66.86, "key": "g5", "start_date": "2026-07-03" }
+      ]
+    },
+    "success": true
+  }
+}

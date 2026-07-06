@@ -15,9 +15,9 @@ export interface MatchPlayer {
   isGreen?: boolean;
   isVip?: boolean;
   adpr?: number;
-  /** 近 10 场 Rating 均值（pw_rating_avg） */
+  /** 近 10 场 Rating 均值（pw_rating_avg）；5E 下为 season.rating_data 近 10 场均 */
   rating?: number;
-  /** 赛季 Rating Pro 均值（season_rating_pro_average）；5E 下为本场 Rating */
+  /** 赛季 Rating；5E 下为 player/home season_data.rating，完美为 Rating Pro 均值 */
   seasonRating?: number;
   kd?: number;
   hsRate?: number;

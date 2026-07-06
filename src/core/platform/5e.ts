@@ -54,6 +54,10 @@ export async function get5eCdpStatus(): Promise<P5eCdpStatus> {
   return invoke<P5eCdpStatus>('get_5e_cdp_status');
 }
 
+export async function set5eCdpGateDebugMode(enabled: boolean): Promise<P5eCdpStatus> {
+  return invoke<P5eCdpStatus>('set_5e_cdp_gate_debug_mode', { enabled });
+}
+
 export async function on5eCdpEvent(
   handler: (event: P5eHttpEvent) => void,
 ): Promise<UnlistenFn> {
@@ -68,4 +72,17 @@ export async function on5eCdpStatus(
 
 export async function fetch5eMatchDetail(matchCode: string): Promise<unknown> {
   return invoke<unknown>('fetch_5e_match_detail', { matchCode });
+}
+
+export async function fetch5ePlayerHome(uuid: string): Promise<unknown> {
+  return invoke<unknown>('fetch_5e_player_home', { uuid });
+}
+
+export async function fetch5ePlayerHomeBatch(
+  uuids: string[],
+): Promise<Record<string, unknown>> {
+  const result = await invoke<Record<string, unknown>>('fetch_5e_player_home_batch', {
+    uuids,
+  });
+  return result ?? {};
 }
