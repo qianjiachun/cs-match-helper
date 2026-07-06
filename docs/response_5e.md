@@ -8,14 +8,17 @@
 
 ## 1. 总览
 
-进入 5E 房间并打开对阵界面时，客户端会**批量**请求玩家数据；对局结束后或查看战绩时，可按 **match_code** 拉取单场详情。本应用 CDP 白名单当前监听前三项；第四项为**推荐**用于精确地图与分队（见 §5、§6）。
+进入 5E 房间并打开对阵界面时，客户端会**批量**请求玩家数据；匹配 enrich 阶段会主动拉取接口 4（地图/分队）与接口 7（玩家主页 season_data）。CDP 白名单监听接口 1–3。
 
 | 序号 | 用途 | 方法 | 完整 URL（样本） | 白名单匹配 |
 |------|------|------|------------------|------------|
 | 1 | 玩家地图扩展统计 | POST | `https://gate.5eplay.com/cranenew/http/api/data/player/map-ext/batch` | `/player/map-ext/batch` |
 | 2 | 玩家 ELO / 赛季信息 | POST | `https://gate.5eplay.com/cranenew/http/api/data/player/elo/info/batch` | `/player/elo/info/batch` |
 | 3 | 玩家基本信息 | POST | `https://platform-api.5eplay.com/api/user/info` | `/api/user/info` |
-| 4 | **单场对局详情** | GET | `https://gate.5eplay.com/crane/http/api/data/match/{match_code}` | `/api/data/match/`（待接入） |
+| 4 | **单场对局详情** | GET | `https://gate.5eplay.com/crane/http/api/data/match/{match_code}` | `/api/data/match/`（主动拉取） |
+| 5 | ~~玩家赛季统计~~ | GET | `https://gate.5eplay.com/cranenew/http/api/data/player/season` | **已弃用**（需 Cookie；应用不再调用） |
+| 6 | **Rating 折线图** | GET | `https://gate.5eplay.com/cranenew/http/api/data/chart/curve` | 辅助 |
+| 7 | **玩家主页** | GET | `https://gate.5eplay.com/cranenew/http/api/data/v3/player/home?uuid={uuid}` | 主动拉取（HMAC 签名，无需登录） |
 
 > 注意：接口 1–3 路径前缀多为 `cranenew`；接口 4 为 `crane`（无 `new`）。
 
@@ -145,18 +148,16 @@ data: Record<uuid, Record<mapKey, MapStatEntry>>
 
 | UI / `MatchPlayer` | 来源字段 | 备注 |
 |--------------------|----------|------|
-| `seasonRating`（优先） | `rating` | 当前对局地图的 rating |
-| `rating`（近期） | `rating` | 同上，优先于 `user.csgo_rating` |
-| `adpr` | `adr` | |
-| `weRaw` | `rws` | |
-| `mapWinRate` | `perWin` 或 `winTotal/matchTotal` | |
-| `mapWinNum` | `winTotal` | |
-| `mapTotalNum` | `matchTotal` | |
-| `mapSampleLow` | `matchTotal < 3` | |
-| `recentWinRate`（回退） | `recentPerWin` / `perWin` | 优先 elo `specialData` |
-| 对局地图推断 | 多数玩家 `matchTotal > 0` 的地图投票 | `resolveMatchMap()`；**应改用接口 4 `main.map`** |
+| `seasonRating`（优先） | **接口 5** `contrast_data.rating` | 对齐游戏数据中心「赛季 Rating」 |
+| `adpr` / `weRaw`（优先） | **接口 5** `contrast_data.adr` / `rws` | 赛季 ADR / RWS |
+| `seasonTotalNum` / `seasonWinRate` | **接口 5** `match_total` / `per_win_match` | 回退 `elo.modes.9` |
+| `rating`（近期） | **接口 5** `rating_data` 近 10 场均 | 不是 map-ext 生涯 |
+| `mapWinRate` / `mapTotalNum`（优先） | **接口 5** `match_map_data[当前地图]` | 本赛季本图，非生涯 |
+| `rating` / `adpr` / `weRaw`（回退） | map-ext 当前地图 | 仅无 season 数据时 |
+| `mapWinRate` 等（回退） | map-ext | 生涯地图统计 |
+| 对局地图推断 | 多数玩家 `matchTotal > 0` 的地图投票 | **应改用接口 4 `main.map`** |
 
-**未使用**：`level`, `dexterity`, `process`, `nextLevelDexterity`
+**未使用（map-ext）**：`level`, `dexterity`, `process`, `nextLevelDexterity`（仍可用于 tags）
 
 ---
 
@@ -728,19 +729,148 @@ curl.exe -s "https://gate.5eplay.com/crane/http/api/data/match/g161-202606141427
 1. 房间阶段：接口 1–3 凑齐 10 人 UUID 与赛季统计。
 2. 从接口 2 `specialData.match_data` 提取最近非空 `match_id` → `match_code`。
 3. GET 接口 4：`main.map` 覆盖地图推断；`group_1`/`group_2` 覆盖分队。
-4. 合并：`fight.*` 优先作当局 Rating/ADR/RWS；接口 1–3 补充赛季 ELO、地图历史胜率。
+4. 合并：接口 5 提供赛季 Rating/ADR/RWS；接口 4 `fight.*` 仅作当局 K/D 等；map-ext 作回退。
 
 ### 5.16 当前应用状态
 
 | 项 | 状态 |
 |----|------|
-| CDP 白名单 | **未接入** `/api/data/match/` |
-| 地图 / 分队 | 仍用推断 + UUID 顺序 |
-| 推荐下一步 | 白名单 + 从 `match_data` 取 `match_code` |
+| CDP 白名单 | 接口 1–3；接口 4/5 为主动拉取 |
+| 地图 / 分队 | match detail 可用时覆盖推断 |
+| season Rating | **已接入** `player/home` enrich（`season_data`） |
 
 ---
 
-## 6. 四接口联调与合成逻辑
+## 6. 接口五：玩家赛季统计（player/season）— 已弃用
+
+> **应用已不再调用此接口**（需 5E 登录 Cookie + CDP）。游戏内「数据中心」主页数据现由 **接口 7 `v3/player/home`** 的 `season_data` 提供。
+
+### 6.1 请求（历史参考）
+
+```http
+GET /cranenew/http/api/data/player/season?match_type=9&season=2026s3&uuid={uuid}&year=2026&cs_type=0
+Host: gate.5eplay.com
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `uuid` | `string` | 玩家 UUID |
+| `match_type` | `number` | `9` = 优先排位；`1` = 对战匹配 |
+| `season` | `string` | 与 `elo/info` `modes.9.season` 一致，如 `2026s3` |
+| `year` | `number` | 赛季年份，从 `season` 前缀解析 |
+| `cs_type` | `number` | 样本为 `0` |
+
+参数来源：`elo/info` batch 的 `modes[9].season` + `match_mode[0]`。
+
+**鉴权**：该接口**必须携带 5E 登录 Cookie**，裸 HTTP 会返回 `401 Invalid Key`。应用通过 **5E CDP 页面上下文**执行 `fetch(url, { credentials: 'include' })` 批量拉取（`fetch_5e_player_season_batch`）；需先启动 5E 采集并保持 5E 客户端已登录。
+
+### 6.2 响应 `data` 主要块
+
+| 块 | 说明 |
+|----|------|
+| `contrast_data` | **赛季汇总**（Rating / ADR / RWS / 场次 / 胜率 / ELO） |
+| `match_map_data` | **本赛季**各地图 rating/adr/rws/per_win/match_total |
+| `map_data` | 本赛季地图子集（字段同 match_map_data） |
+| `rating_data` | 最近若干场单场 rating（与 chart/curve 类似） |
+| `max_data` | 赛季极值单场 |
+| `weapon_data` | 武器统计（AI 二期可选） |
+
+### 6.3 `contrast_data` 与游戏 UI 对照
+
+| 游戏 UI | API 字段 |
+|---------|----------|
+| Rating | `rating` |
+| ADR | `adr` |
+| RWS | `rws` |
+| 场次 | `match_total` |
+| 胜率 | `per_win_match`（或 `win_match_total / match_total`） |
+| ELO | `elo` |
+
+### 6.4 应用映射（历史参考，`season-api.ts` 已移除）
+
+| `MatchPlayer` | 来源 |
+|---------------|------|
+| `seasonRating` | `contrast_data.rating` |
+| `adpr` / `weRaw` | `contrast_data.adr` / `rws` |
+| `seasonTotalNum` / `seasonWinRate` | `match_total` / `per_win_match` |
+| `rating`（近期） | `rating_data` 近 10 场 `rating` 均值 |
+| `mapWinRate` / `mapTotalNum` | `match_map_data[当前地图]` |
+| `recentRatings` | `rating_data` 最近 N 场 rating 序列 |
+
+拉取时机：~~匹配 enrich 阶段对 10 个 UUID 并发 GET（`enrichP5eBundleWithSeasonData`）~~ **已替换为接口 7**。
+
+---
+
+## 7. 接口七：玩家主页（v3/player/home）
+
+```http
+GET /cranenew/http/api/data/v3/player/home?uuid={uuid}
+Host: gate.5eplay.com
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `uuid` | `string` | 玩家 UUID |
+
+**鉴权**：无需登录 Cookie。请求需携带阿里云 API 网关 HMAC 签名头（`x-ca-key`、`x-ca-signature` 等）。Rust 实现见 `platform_5e_gate_sign.rs` + `fetch_5e_player_home_batch`。
+
+**HMAC secret**：5E Arena 客户端 `production.HMAC_SECRET`（当前为 32 位 hex，随客户端发版可能轮换）。
+
+**验签 canonical 示例**（GET）：
+
+```text
+GET
+*/*
+
+
+
+accept-language:zh-cn
+authorization:
+/cranenew/http/api/data/v3/player/home?uuid={uuid}
+```
+
+### 7.1 响应 `data` 主要块
+
+| 块 | 说明 |
+|----|------|
+| `season_data` | **赛季汇总**（Rating / ADR / RWS / 场次 / 胜率 / avg_rating） |
+| `elo_info.modes.9` | ELO / 排名 / level_id / specialData（与 elo batch 交叉校验） |
+| `uinfo` | 昵称 / 头像 / 信用分 |
+| `career` | 生涯 ELO / 总场次 |
+| `plusinfo` | VIP |
+| `match_list` | 近期胜负编码（`1`=胜，`0`=负） |
+
+### 7.2 应用映射（`field-mapper.ts` + `home-api.ts`）
+
+| `MatchPlayer` | 来源 |
+|---------------|------|
+| `seasonRating` | `season_data.rating` |
+| `adpr` / `weRaw` | `season_data.adr` / `rws` |
+| `kd` | `season_data.kill` / `death`（赛季汇总）；无 home 时回退 match `fight` |
+| `seasonTotalNum` / `seasonWinRate` / `seasonWinNum` | `match_total` / `per_win_match` / `win_match_total` |
+| `rating`（近期列） | `season_data.avg_rating`（赛季场均） |
+| `mapWinRate` / `mapTotalNum` | **map-ext**（home 无 per-map 赛季） |
+| `recentResults` | `match_list` 或 elo `specialData` |
+| `recentRatings` | elo `specialData` change_elo 序列 |
+
+拉取时机：匹配 enrich 阶段对 10 个 UUID 并发 GET（`enrichP5eBundleWithPlayerHome`），纯 HTTP + HMAC，不依赖 CDP 登录态。
+
+---
+
+## 8. 接口六：Rating 折线图（chart/curve）
+
+```http
+GET /cranenew/http/api/data/chart/curve?uuid={uuid}&type=0&sel_type=0&range_type=1&year=2026&season=2026s3&match_type=9&cs_type=0
+```
+
+`data[]` 每项为单场：`rating`, `adr`, `key`（match_id）, `start_date`。
+
+- 用途：折线图单场序列；**不能**当作赛季汇总 Rating。
+- 应用：`player/season` 响应内 `rating_data` 已含同类数据，当前用于「近期 Rating」均值，无需单独拉 chart/curve。
+
+---
+
+## 9. 六接口联调与合成逻辑
 
 ```mermaid
 sequenceDiagram
@@ -753,19 +883,20 @@ sequenceDiagram
   Client->>Gate: POST elo/info/batch {user, match_mode:[9]}
   Client->>Platform: POST user/info {uuids}
   Client->>Gate: GET match/{match_code}（对局后/查看战绩）
-  App-->>App: CDP 截获 responseBody
+  App-->>App: 主动 GET player/home ×10（enrich，HMAC）
+  App-->>App: CDP 截获 responseBody（接口 1–3）
   App-->>App: P5eMatchAggregator 按 UUID 合成
-  App-->>App: 可选：match 详情覆盖地图/分队/当局 Rating
+  App-->>App: 可选：match 详情覆盖地图/分队；player/home 覆盖 Rating/ADR/RWS
   App-->>App: buildP5ePlayer × 10 → MatchRecord
 ```
 
-### 6.1 合成前提（接口 1–3）
+### 8.1 合成前提（接口 1–3）
 
 1. 请求体中 UUID 列表一致（10 人）。
 2. 三份响应 `data` 均包含这 10 个 key。
 3. `match_mode[0]` 决定读取 `modes` 下的子 key（默认 `"9"`）。
 
-### 6.2 对局地图（`mapName`）
+### 8.2 对局地图（`mapName`）
 
 | 方案 | 来源 | 说明 |
 |------|------|------|
@@ -773,14 +904,14 @@ sequenceDiagram
 | **推荐** | 接口 4 `main.map` | 权威，无需推测 |
 | 回退 | 接口 4 `fight.map` | 与 main 一致 |
 
-### 6.3 分队（`teamSide`）
+### 8.3 分队（`teamSide`）
 
 | 方案 | 来源 | 说明 |
 |------|------|------|
 | 当前实现 | UUID 数组前 5 / 后 5 | 临时方案 |
 | **推荐** | 接口 4 `group_1` / `group_2` | 按 `user_info.user_data.uuid` 对齐 |
 
-### 6.4 `match_code` 获取路径
+### 8.4 `match_code` 获取路径
 
 1. 接口 2 → `modes.9.specialData` → `match_data[].match_id`（非空）。
 2. 接口 4 请求 URL 路径最后一段。
@@ -788,7 +919,7 @@ sequenceDiagram
 
 ---
 
-## 7. 样本玩家速查（10 人，接口 1–3 房间）
+## 9. 样本玩家速查（10 人，接口 1–3 房间）
 
 | UUID（前 8 位） | username | steam_id | elo(9) | 备注 |
 |-----------------|----------|----------|--------|------|
@@ -805,12 +936,12 @@ sequenceDiagram
 
 ---
 
-## 8. 已知问题与待人工修正项
+## 10. 已知问题与待人工修正项
 
 | # | 问题 | 建议 |
 |---|------|------|
 | 1 | `user.csgo_elo_9` 与 `elo.modes.9.elo` 偶尔不一致 | **以 elo 接口为准** |
-| 2 | `csgo_rating` 常为 `0` | 房间阶段用 map-ext；**当局用接口 4 `fight.rating`** |
+| 2 | ~~`csgo_rating` / map-ext 作赛季 Rating~~ | **已修正**：以 `player/home season_data` 为准；map-ext 仅地图回退 |
 | 3 | 地图/分队靠推测不准 | **接入接口 4**（§5.15） |
 | 4 | `matchStatus` / `round_sfui_type` 枚举未完全确认 | 对照 5E 客户端 |
 | 5 | `isVip` 用 `vip_grade` 可能不准 | `vip_level > 0` 或 `is_plus === 1` |
@@ -820,7 +951,7 @@ sequenceDiagram
 
 ---
 
-## 9. 代码索引
+## 11. 代码索引
 
 | 模块 | 路径 |
 |------|------|
@@ -829,14 +960,20 @@ sequenceDiagram
 | 接口聚合 | `src/platforms/5e/aggregator.ts` |
 | MatchRecord | `src/platforms/5e/match-parser.ts` |
 | CDP 白名单（Rust） | `src-tauri/src/platform/platform_5e_sink.rs` |
+| Match detail 拉取 | `src/platforms/5e/match-api.ts` |
+| 赛季 API 拉取 | `src/platforms/5e/home-api.ts` + `platform_5e_player_home.rs` |
+| 赛季 HTTP（Rust） | `src-tauri/src/platform/platform_5e_season.rs` |
 | 测试夹具 | `src/platforms/5e/fixtures/5e-match-success.fixture.json` |
+| season 夹具 | `src/platforms/5e/fixtures/5e-player-season.fixture.json` |
 | **本文档** | `docs/response_5e.md` |
 
 ---
 
-## 10. 修订记录
+## 12. 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-06-16 | 初版：接口 1–3 全字段整理 |
 | 2026-06-16 | 增补接口 4 对局详情（match/{match_code}）全字段与 uid 对照 |
+| 2026-07-05 | 接口 7 player/home 替换接口 5；HMAC 签名拉取，无需 Cookie |
+| 2026-07-04 | 增补接口 5 player/season、接口 6 chart/curve；修正 Rating 映射为 contrast_data |
