@@ -7,6 +7,67 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch { }
+
+function Test-InstallConsoleEmojiSupport {
+    # 应用内提权安装通常弹出经典 powershell.exe + conhost，中文系统多为 GBK，emoji 易乱码。
+    # 仅在较新终端（Windows Terminal / PS 7+ / UTF-8 控制台）下启用 emoji。
+    try {
+        if ($env:WT_SESSION) { return $true }
+        if ($PSVersionTable.PSEdition -eq 'Core') { return $true }
+        if ([Console]::OutputEncoding.CodePage -eq 65001) {
+            $build = [Environment]::OSVersion.Version.Build
+            if ($build -ge 19041) { return $true }
+        }
+    } catch { }
+    return $false
+}
+
+function New-InstallGlyphSet {
+    if (Test-InstallConsoleEmojiSupport) {
+        return [pscustomobject]@{
+            Game     = '🎮 '
+            Wait     = '⏳ '
+            Retry    = '🔄 '
+            Done     = '✅ '
+            Tip      = '💡 '
+            Fail     = '❌ '
+            Guide    = '📋 '
+            Chat     = '💬 '
+            Target   = '🎯 '
+            Party    = ' 🎉'
+            Step     = '▸ '
+            StepDone = '✅ '
+            Divider  = '  ─────────────────────────────────'
+            Rule     = '  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+            Bullet   = '     · '
+        }
+    }
+
+    return [pscustomobject]@{
+        Game     = '>> '
+        Wait     = '[~] '
+        Retry    = '[!] '
+        Done     = '[OK] '
+        Tip      = '[*] '
+        Fail     = '[X] '
+        Guide    = '    '
+        Chat     = '    '
+        Target   = '>> '
+        Party    = ''
+        Step     = '> '
+        StepDone = '[OK] '
+        Divider  = '  ---------------------------------'
+        Rule     = '  ================================='
+        Bullet   = '     - '
+    }
+}
+
+$InstallGlyphs = New-InstallGlyphSet
+
 $Dir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CerPath = Join-Path $Dir 'CSMatchHelperWidget.cer'
 $AppxPath = @(
@@ -22,10 +83,85 @@ $MarkerPath = Join-Path $MarkerDir 'install.ok'
 $FailPath = Join-Path $MarkerDir 'install.fail'
 $LogPath = Join-Path $MarkerDir 'install.log'
 
-function Write-InstallPatienceHint {
+function Write-InstallLog {
+    param([string]$Message)
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path $LogPath -Value "[$timestamp] $Message" -Encoding utf8
+}
+
+function Show-InstallWelcome {
+    try {
+        $Host.UI.RawUI.WindowTitle = 'CS 匹配助手 - 小组件安装'
+    } catch { }
+
     Write-Host ''
-    Write-Host '  提示：若安装过程中出现错误（例如「资源正在使用」），请勿关闭此窗口，等待几分钟后通常即可安装成功。' -ForegroundColor Yellow
+    Write-Host "  $($InstallGlyphs.Game)CS 匹配助手 · 游戏内小组件安装" -ForegroundColor Cyan
+    Write-Host $InstallGlyphs.Divider -ForegroundColor DarkGray
     Write-Host ''
+    Write-Host "  $($InstallGlyphs.Wait)正在安装，请保持此窗口开启。" -ForegroundColor White
+    Write-Host '     通常需要 1–3 分钟，完成后窗口会自动关闭。' -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host "  $($InstallGlyphs.Tip)若中途出现系统提示（例如「资源正在使用」），属于正常现象，" -ForegroundColor DarkYellow
+    Write-Host '     请勿关闭窗口，耐心等待即可。' -ForegroundColor DarkYellow
+    Write-Host ''
+}
+
+function Write-InstallStep {
+    param(
+        [string]$Message,
+        [ValidateSet('default', 'wait', 'retry', 'done')]
+        [string]$Kind = 'default'
+    )
+
+    $icon = switch ($Kind) {
+        'wait'  { $InstallGlyphs.Wait }
+        'retry' { $InstallGlyphs.Retry }
+        'done'  { $InstallGlyphs.StepDone }
+        default { $InstallGlyphs.Step }
+    }
+    $color = switch ($Kind) {
+        'wait'  { 'Yellow' }
+        'retry' { 'DarkYellow' }
+        'done'  { 'Green' }
+        default { 'Cyan' }
+    }
+    Write-Host "  $icon $Message" -ForegroundColor $color
+}
+
+function Show-InstallSuccess {
+    param([string]$Version)
+
+    Write-Host ''
+    Write-Host $InstallGlyphs.Rule -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Done)" -NoNewline -ForegroundColor Green
+    Write-Host '安装完成！' -NoNewline -ForegroundColor Green
+    if ($Version) {
+        Write-Host "  v$Version" -ForegroundColor DarkGray
+    } else {
+        Write-Host ''
+    }
+    Write-Host $InstallGlyphs.Rule -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host "  $($InstallGlyphs.Target)接下来你可以：" -ForegroundColor White
+    Write-Host "$($InstallGlyphs.Bullet)关闭此窗口，回到 CS 匹配助手" -ForegroundColor DarkGray
+    Write-Host "$($InstallGlyphs.Bullet)游戏中按 " -NoNewline -ForegroundColor DarkGray
+    Write-Host 'Win+G' -NoNewline -ForegroundColor Cyan
+    Write-Host " 打开游戏栏，固定小组件$($InstallGlyphs.Party)" -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+function Show-InstallFailure {
+    Write-Host ''
+    Write-Host "  $($InstallGlyphs.Fail)安装未能完成" -ForegroundColor Red
+    Write-Host ''
+    Write-Host "  $($InstallGlyphs.Guide)请关闭此窗口，回到 CS 匹配助手查看提示或重试。" -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Chat)若多次失败，可在应用内复制诊断信息以便反馈。" -ForegroundColor DarkGray
+    Write-Host ''
+}
+
+function Write-InstallDetail {
+    param([string]$Message)
+    Write-InstallLog -Message $Message
 }
 
 function Write-InstallFailure {
@@ -89,7 +225,7 @@ function Get-MissingDependencyPaths {
             )
         }
         if ($alreadyInstalled) {
-            Write-Host "  Skip installed dependency: $leaf"
+            Write-InstallDetail -Message "Skip installed dependency: $leaf"
         } else {
             [void]$missing.Add($depPath)
         }
@@ -153,7 +289,7 @@ function Remove-InstalledWidgetPackages {
         ) | Sort-Object PackageFullName -Unique
 
         foreach ($pkg in $packages) {
-            Write-Host "  Removing: $($pkg.PackageFullName)"
+            Write-InstallDetail -Message "Removing: $($pkg.PackageFullName)"
             CheckNetIsolation LoopbackExempt -d -n="$($pkg.PackageFamilyName)" 2>$null
             try {
                 Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
@@ -165,7 +301,7 @@ function Remove-InstalledWidgetPackages {
         Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
             Where-Object { $_.DisplayName -eq $name } |
             ForEach-Object {
-                Write-Host "  Removing provisioned: $($_.PackageName)"
+                Write-InstallDetail -Message "Removing provisioned: $($_.PackageName)"
                 Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
             }
     }
@@ -191,9 +327,8 @@ function Install-WidgetAppxPackage {
         [switch]$SkipSameVersionRemoval
     )
 
-    Write-Host "  Package path: $Path"
-    Write-Host '  Deploying... (keep this window open until it closes automatically)'
-    Write-Host '  若出现错误提示请勿关闭，脚本会自动重试。' -ForegroundColor Yellow
+    Write-InstallDetail -Message "Package path: $Path"
+    Write-InstallStep -Message '正在写入小组件文件，请稍候…' -Kind wait
 
     $params = @{
         Path                      = $Path
@@ -209,21 +344,23 @@ function Install-WidgetAppxPackage {
         return
     } catch {
         if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
-            Write-Host '  检测到同版本已安装但内容不同，先卸载再重装…' -ForegroundColor Yellow
+            Write-InstallStep -Message '检测到旧版本，正在清理后重新安装…' -Kind retry
+            Write-InstallDetail -Message "Same-version reinstall: $($_.Exception.Message)"
             Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
             Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
             return
         }
 
-        Write-Host "  Fast install failed, retrying with ForceApplicationShutdown: $($_.Exception.Message)"
-        Write-Host '  正在关闭占用资源的应用并重试，请勿关闭此窗口，通常等待 1–3 分钟即可完成。' -ForegroundColor Yellow
+        Write-InstallDetail -Message "Fast install failed, retrying with ForceApplicationShutdown: $($_.Exception.Message)"
+        Write-InstallStep -Message '正在等待系统释放资源，稍后自动重试（约 1–3 分钟）…' -Kind retry
     }
 
     try {
         Invoke-AddAppxPackageAttempt -Params $params -ForceApplicationShutdown
     } catch {
         if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
-            Write-Host '  检测到同版本已安装但内容不同，先卸载再重装…' -ForegroundColor Yellow
+            Write-InstallStep -Message '检测到旧版本，正在清理后重新安装…' -Kind retry
+            Write-InstallDetail -Message "Same-version reinstall: $($_.Exception.Message)"
             Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
             Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
             return
@@ -242,11 +379,12 @@ function Test-LoopbackConfigured {
 New-Item -ItemType Directory -Force -Path $MarkerDir | Out-Null
 Remove-Item -Path $MarkerPath -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $FailPath -Force -ErrorAction SilentlyContinue
+"=== Widget install started $(Get-Date -Format o) ===" | Set-Content -Path $LogPath -Encoding utf8
 
-$transcriptStarted = $false
 try {
-    Start-Transcript -Path $LogPath -Force | Out-Null
-    $transcriptStarted = $true
+    Show-InstallWelcome
+
+    Write-InstallDetail -Message "Console emoji support: $(Test-InstallConsoleEmojiSupport)"
 
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator
@@ -255,11 +393,10 @@ try {
         throw 'Administrator privileges are required to install the widget.'
     }
 
-    Write-Host "==> Environment"
-    Write-Host "  Windows: $([Environment]::OSVersion.VersionString)"
-    Write-Host "  PowerShell: $($PSVersionTable.PSVersion)"
-    Write-Host "  Install dir: $Dir"
-    Write-Host "  Package: $(if ($AppxPath) { Split-Path -Leaf $AppxPath } else { 'missing' })"
+    Write-InstallDetail -Message "Windows: $([Environment]::OSVersion.VersionString)"
+    Write-InstallDetail -Message "PowerShell: $($PSVersionTable.PSVersion)"
+    Write-InstallDetail -Message "Install dir: $Dir"
+    Write-InstallDetail -Message "Package: $(if ($AppxPath) { Split-Path -Leaf $AppxPath } else { 'missing' })"
 
     if (-not $AppxPath) {
         throw "Missing package in $Dir`nExpected CSMatchHelperWidget.msix or CSMatchHelperWidget.appx next to install.ps1"
@@ -268,23 +405,24 @@ try {
         throw "Missing certificate: $CerPath`nEnsure CSMatchHelperWidget.cer is in the same folder"
     }
 
+    Write-InstallStep -Message '正在检查运行环境…' -Kind default
+
     $depDir = Join-Path $Dir 'Dependencies\x64'
     $dependencyPaths = @()
     if (Test-Path $depDir) {
         $allDeps = Get-ChildItem -Path $depDir -Filter '*.appx' | ForEach-Object { $_.FullName }
         $dependencyPaths = Get-MissingDependencyPaths -Paths $allDeps
     }
-    Write-Host "  Dependencies to install: $($dependencyPaths.Count)"
-    Write-InstallPatienceHint
+    Write-InstallDetail -Message "Dependencies to install: $($dependencyPaths.Count)"
 
     if (Test-CertificateTrusted -CerFilePath $CerPath) {
-        Write-Host '==> Signing certificate already trusted, skip import'
+        Write-InstallDetail -Message 'Signing certificate already trusted, skip import'
     } else {
-        Write-Host '==> Trust signing certificate...'
+        Write-InstallStep -Message '正在配置安装证书…' -Kind default
         Import-Certificate -FilePath $CerPath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
     }
 
-    Write-Host '==> Remove legacy package names (if any)...'
+    Write-InstallStep -Message '正在清理旧版本（如有）…' -Kind default
     foreach ($legacyName in $LegacyPackageNames) {
         Get-AppxPackage -Name $legacyName -ErrorAction SilentlyContinue |
             ForEach-Object {
@@ -294,17 +432,18 @@ try {
     }
 
     $incomingVersion = Get-AppxPackageVersionFromPath -PackagePath $AppxPath
-    Write-Host "  Incoming package version: $incomingVersion"
+    Write-InstallDetail -Message "Incoming package version: $incomingVersion"
 
     $existingPkg = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($existingPkg -and $existingPkg.Version -eq $incomingVersion) {
-        Write-Host "==> Same version v$incomingVersion already installed; uninstalling before reinstall..."
+        Write-InstallStep -Message "正在更新 v$incomingVersion…" -Kind wait
         Remove-InstalledWidgetPackages -Names @($PackageName)
     } elseif ($existingPkg -and (Test-LoopbackConfigured -PackageFamilyName $existingPkg.PackageFamilyName)) {
-        Write-Host "==> Widget already installed v$($existingPkg.Version) with loopback, upgrading package..."
+        Write-InstallStep -Message "正在从 v$($existingPkg.Version) 升级…" -Kind wait
+        Write-InstallDetail -Message "Widget already installed v$($existingPkg.Version) with loopback, upgrading package"
     }
 
-    Write-Host '==> Install widget package...'
+    Write-InstallStep -Message '正在安装小组件…' -Kind wait
     Install-WidgetAppxPackage -Path $AppxPath -DependencyPaths $dependencyPaths
 
     $pkg = Get-AppxPackage -Name $PackageName
@@ -313,25 +452,21 @@ try {
     }
 
     if (-not (Test-LoopbackConfigured -PackageFamilyName $pkg.PackageFamilyName)) {
-        Write-Host "==> Allow localhost access: $($pkg.PackageFamilyName)"
+        Write-InstallStep -Message '正在配置本机连接…' -Kind default
+        Write-InstallDetail -Message "Allow localhost access: $($pkg.PackageFamilyName)"
         CheckNetIsolation LoopbackExempt -a -n="$($pkg.PackageFamilyName)"
     } else {
-        Write-Host "==> Loopback already configured: $($pkg.PackageFamilyName)"
+        Write-InstallDetail -Message "Loopback already configured: $($pkg.PackageFamilyName)"
     }
 
     Set-Content -Path $MarkerPath -Value $pkg.Version.ToString() -Encoding ascii -NoNewline
 
-    Write-Host ''
-    Write-Host 'Installation complete.'
+    Show-InstallSuccess -Version $pkg.Version.ToString()
 }
 catch {
     $message = Format-InstallError -ErrorRecord $_
+    Write-InstallLog -Message "ERROR: $message"
     Write-InstallFailure -Message $message
-    Write-Host "ERROR: $message" -ForegroundColor Red
+    Show-InstallFailure
     exit 1
-}
-finally {
-    if ($transcriptStarted) {
-        Stop-Transcript | Out-Null
-    }
 }

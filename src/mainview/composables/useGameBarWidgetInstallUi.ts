@@ -120,7 +120,7 @@ export function useGameBarWidgetInstallUi(
       return widget.formatWidgetProgressMessage(widgetProgress.value);
     }
     if (widgetBusy.value && widgetPhase.value === 'installing') {
-      return '正在安装。请勿关闭 PowerShell 窗口；若出现错误提示也请耐心等待，通常几分钟内可完成。';
+      return '正在安装，请保持安装窗口开启；若出现系统提示也请耐心等待，通常几分钟内可完成。';
     }
     if (widgetBusy.value) return '正在安装，请稍候…';
     if (widgetPhase.value === 'complete' && widgetLastMessage.value) return widgetLastMessage.value;
@@ -137,7 +137,7 @@ export function useGameBarWidgetInstallUi(
 
   const widgetDetectHint = computed(() => {
     if (widgetDetecting.value) {
-      return '正在扫描 Game Bar 与小组件，约需数秒，不影响其他操作';
+      return '正在扫描 Game Bar 与小组件状态';
     }
     if (!widgetStatus.value) return '尚未检测，请点击「重新检测」';
     if (!widgetStatus.value.gameBarInstalled && !options?.gameBarInstalledAssumed) {

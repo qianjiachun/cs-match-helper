@@ -194,11 +194,11 @@ defineExpose({ openInstallPanel });
       >
         <p class="font-semibold">安装进行中，请稍候</p>
         <p class="mt-1">
-          会弹出<strong class="font-medium">管理员 PowerShell 窗口</strong>，进度条走完后自动关闭。
+          会弹出<strong class="font-medium">安装窗口</strong>，完成后会自动关闭。
           <strong class="font-medium">请勿手动关闭</strong>。
         </p>
         <p class="mt-1.5">
-          若安装过程中出现错误（例如「资源正在使用」），也<strong class="font-medium">请不要关闭窗口</strong>，等待几分钟后通常即可安装成功。
+          若中途出现系统提示（例如「资源正在使用」），属于正常现象，耐心等待几分钟即可。
         </p>
       </div>
     </div>
