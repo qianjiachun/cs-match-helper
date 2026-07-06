@@ -1,25 +1,24 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next';
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 import appIcon from '@app-icon';
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
 }>();
 
 const emit = defineEmits<{
   cancel: [];
   confirm: [];
+  afterLeave: [];
 }>();
 
-function onBackdropClick(event: MouseEvent) {
-  if (event.target === event.currentTarget) {
-    emit('cancel');
-  }
+function onBackdropClick() {
+  emit('cancel');
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
+  if (event.key === 'Escape' && props.open) {
     emit('cancel');
   }
 }
@@ -31,19 +30,40 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
 });
+
+watch(
+  () => props.open,
+  (open) => {
+    document.body.style.overflow = open ? 'hidden' : '';
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  document.body.style.overflow = '';
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="close-confirm-dialog">
+    <Transition
+      name="close-confirm-dialog"
+      appear
+      @after-leave="emit('afterLeave')"
+    >
       <div
         v-if="open"
-        class="fixed inset-0 z-210 flex items-center justify-center bg-fg/28 p-4 backdrop-blur-[3px]"
+        class="close-confirm-dialog__root fixed inset-0 z-210 flex items-center justify-center p-4"
         role="presentation"
-        @click="onBackdropClick"
       >
+        <button
+          type="button"
+          class="close-confirm-dialog__backdrop absolute inset-0 cursor-default border-0 bg-fg/28 p-0 backdrop-blur-[3px] appearance-none"
+          aria-label="取消"
+          @click="onBackdropClick"
+        />
         <div
-          class="w-full max-w-[360px] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-fg/8"
+          class="close-confirm-dialog__panel relative z-10 w-full max-w-[360px] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-fg/8"
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="close-confirm-title"
@@ -102,35 +122,53 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.close-confirm-dialog-enter-active,
-.close-confirm-dialog-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.close-confirm-dialog-enter-active > div,
-.close-confirm-dialog-leave-active > div {
+.close-confirm-dialog-enter-active .close-confirm-dialog__backdrop,
+.close-confirm-dialog-leave-active .close-confirm-dialog__backdrop {
   transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+    opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    backdrop-filter 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.close-confirm-dialog-enter-from,
-.close-confirm-dialog-leave-to {
+.close-confirm-dialog-enter-from .close-confirm-dialog__backdrop,
+.close-confirm-dialog-leave-to .close-confirm-dialog__backdrop {
   opacity: 0;
+  backdrop-filter: blur(0);
 }
 
-.close-confirm-dialog-enter-from > div,
-.close-confirm-dialog-leave-to > div {
+.close-confirm-dialog-enter-active .close-confirm-dialog__panel,
+.close-confirm-dialog-leave-active .close-confirm-dialog__panel {
+  transition:
+    opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.close-confirm-dialog-enter-active .close-confirm-dialog__panel {
+  transition-delay: 40ms;
+}
+
+.close-confirm-dialog-leave-active .close-confirm-dialog__panel {
+  transition-delay: 0ms;
+  transition-duration: 220ms;
+}
+
+.close-confirm-dialog-enter-from .close-confirm-dialog__panel,
+.close-confirm-dialog-leave-to .close-confirm-dialog__panel {
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
+  transform: translate3d(0, 10px, 0) scale(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .close-confirm-dialog-enter-active,
-  .close-confirm-dialog-leave-active,
-  .close-confirm-dialog-enter-active > div,
-  .close-confirm-dialog-leave-active > div {
-    transition: none;
+  .close-confirm-dialog-enter-active .close-confirm-dialog__backdrop,
+  .close-confirm-dialog-leave-active .close-confirm-dialog__backdrop,
+  .close-confirm-dialog-enter-active .close-confirm-dialog__panel,
+  .close-confirm-dialog-leave-active .close-confirm-dialog__panel {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .close-confirm-dialog-enter-from .close-confirm-dialog__panel,
+  .close-confirm-dialog-leave-to .close-confirm-dialog__panel {
+    transform: none;
   }
 }
 </style>
