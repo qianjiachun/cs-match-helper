@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDebugLogEntriesForCopy } from '@core/log/format-debug-log';
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
@@ -13,10 +14,13 @@ import type { useP5eCdp } from '../composables/useP5eCdp';
 import type { useComments } from '../composables/useComments';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
 import { closeAppDevtools, openAppDevtools } from '../utils/devtools';
+import { showToast, useCopyFeedback } from '../composables/useCopyFeedback';
 import {
   collectRuntimeDiagnostics,
   formatRuntimeDiagnostics,
 } from '../utils/runtime-diagnostics';
+
+const { copyText } = useCopyFeedback();
 const MatchDebugWidgetPanel = defineAsyncComponent(
   () => import('./MatchDebugWidgetPanel.vue'),
 );
@@ -151,6 +155,20 @@ function replayP5eNdjson() {
   if (props.placement === 'header') open.value = false;
 }
 
+async function toggleP5eGateDebugMode(event: Event) {
+  p5eError.value = '';
+  if (!props.p5e) {
+    p5eError.value = '5E 模块未就绪';
+    return;
+  }
+  const checked = (event.target as HTMLInputElement).checked;
+  try {
+    await props.p5e.setGateDebugMode(checked);
+  } catch (err) {
+    p5eError.value = String(err);
+  }
+}
+
 function submit() {
   error.value = '';
   const result = getActivePlatform().parseMatchInput(input.value);
@@ -229,6 +247,42 @@ function clearLogs() {
     emit('clearLogs');
   }
   expandedIds.value = new Set();
+}
+
+function buildLogCopyMetaLines(): string[] {
+  if (logSubTab.value === 'p5e' && props.p5e) {
+    const status = props.p5e.status.value;
+    return [
+      `采集: ${status.running ? '采集中' : '未采集'}`,
+      `阶段: ${p5ePhaseLabel[status.phase] ?? status.phase}`,
+      ...(status.port ? [`端口: ${status.port}`] : []),
+      `事件: ${status.eventsEmitted}`,
+      ...(props.p5e.lastError.value ? [`错误: ${props.p5e.lastError.value}`] : []),
+    ];
+  }
+
+  return [
+    `监听: ${props.watcher.running ? '监听中' : '未监听'}`,
+    `已收: ${props.watcher.linesReceived} 行`,
+    `日志: ${props.watcher.fileExists ? props.watcher.logPath : '等待日志文件…'}`,
+  ];
+}
+
+async function copyAllLogs() {
+  const entries = activeLogEntries.value;
+  if (!entries.length) {
+    showToast('暂无日志可复制', 'warning');
+    return;
+  }
+
+  const isP5e = logSubTab.value === 'p5e';
+  const title = isP5e ? 'CS 匹配助手 · 5E 数据' : 'CS 匹配助手 · 完美日志';
+  const text = formatDebugLogEntriesForCopy(entries, {
+    title,
+    metaLines: buildLogCopyMetaLines(),
+  });
+  const label = isP5e ? '5E' : '完美';
+  await copyText(text, `已复制 ${entries.length} 条${label}日志`);
 }
 
 function truncate(text: string, max = 160) {
@@ -703,6 +757,12 @@ watch(
             <span>阶段 {{ p5ePhaseLabel[p5e.status.value.phase] ?? p5e.status.value.phase }}</span>
             <span v-if="p5e.status.value.port">端口 {{ p5e.status.value.port }}</span>
             <span>事件 {{ p5e.status.value.eventsEmitted }}</span>
+            <span v-if="p5e.captureProgress.value" class="text-accent">
+              采集 {{ p5e.captureProgress.value.collected }}/{{ p5e.captureProgress.value.total }}
+              <template v-if="p5e.captureProgress.value.missing.length">
+                · 缺 {{ p5e.captureProgress.value.missing.join(', ') }}
+              </template>
+            </span>
             <span>展示 {{ p5eLogEntries.length }} 条</span>
             <span v-if="p5e.lastError.value" class="text-danger truncate" :title="p5e.lastError.value">
               错误: {{ p5e.lastError.value }}
@@ -719,10 +779,36 @@ watch(
             </span>
           </template>
           <div class="ml-auto flex items-center gap-2">
+            <label
+              v-if="logSubTab === 'p5e' && p5e"
+              class="flex cursor-pointer items-center gap-1"
+              title="记录 gate.5eplay.com 全部 HTTP 请求（分类：Gate 调试），不参与匹配聚合"
+            >
+              <input
+                type="checkbox"
+                class="accent-accent"
+                :checked="p5e.gateDebugMode.value"
+                @change="toggleP5eGateDebugMode"
+              />
+              Gate 调试
+            </label>
             <label class="flex cursor-pointer items-center gap-1">
               <input v-model="autoScroll" type="checkbox" class="accent-accent" />
               自动滚动
             </label>
+            <button
+              type="button"
+              class="cursor-pointer rounded px-2 py-0.5 text-[10px] text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="!activeLogEntries.length"
+              :title="
+                logSubTab === 'p5e'
+                  ? '复制当前 5E 数据列表（完整内容）'
+                  : '复制当前完美日志列表（完整内容）'
+              "
+              @click="copyAllLogs"
+            >
+              复制全部
+            </button>
             <button
               type="button"
               class="cursor-pointer rounded px-2 py-0.5 text-[10px] text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary"
