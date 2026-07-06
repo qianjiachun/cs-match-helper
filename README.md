@@ -56,6 +56,10 @@
 - **游戏内悬浮窗** — 适用于窗口化、全屏窗口化或无边框全屏
 - **Game Bar 小组件** — 适用于独占全屏；需安装 Xbox Game Bar 与 CS 匹配助手小组件，可在应用内一键安装
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/41a1fc5c-44fc-412a-bd38-3e55aca16e8b" width="587" height="411" alt="急停助手 Game Bar 小组件" />
+</p>
+
 **快速上手：**
 
 1. 在顶栏点击 **急停助手** 进入独立页面
