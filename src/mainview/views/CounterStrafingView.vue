@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  ArrowDownUp,
   BarChart3,
   BookOpen,
   ChartColumn,
@@ -13,7 +14,7 @@ import {
   Target,
   Zap,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import CounterStrafingConsole from '../components/counter-strafing/CounterStrafingConsole.vue';
 import CounterStrafingDataPanel from '../components/counter-strafing/CounterStrafingDataPanel.vue';
 import CounterStrafingDataGuide from '../components/counter-strafing/CounterStrafingDataGuide.vue';
@@ -40,7 +41,7 @@ const navItems = [
 
 const contentDesc: Record<CounterStrafingTab, string> = {
   console: '选择显示模式、开启记录并完成准备',
-  data: '查看急停和开枪的练习数据',
+  data: '急停时机与开枪稳定的汇总统计、趋势与最近一次表现',
   guide: '开枪稳定与急停评估的功能说明与指标释义',
   keys: '自定义方向键、蹲键与开火键',
   advanced: '移速模型、采样校准与判定参数',
@@ -101,6 +102,37 @@ const settingUnitClass = 'w-5 shrink-0 text-right text-[11px] leading-none text-
 
 const switchTrackClass =
   'relative inline-block h-6 w-11 shrink-0 rounded-full bg-slate-300 transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:bg-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 peer-disabled:opacity-60';
+
+const tabContentShellRef = ref<HTMLElement | null>(null);
+const tabShellMinHeight = ref<number | null>(null);
+
+function tabContentMaxWidth(tab: CounterStrafingTab): 'max-w-2xl' | 'max-w-5xl' {
+  return tab === 'data' ? 'max-w-5xl' : 'max-w-2xl';
+}
+
+const contentWidthClass = ref<'max-w-2xl' | 'max-w-5xl'>(tabContentMaxWidth(activeTab.value));
+
+function lockTabShellHeight() {
+  if (tabContentShellRef.value) {
+    tabShellMinHeight.value = tabContentShellRef.value.offsetHeight;
+  }
+}
+
+function syncTabShellHeight(el: Element) {
+  void nextTick(() => {
+    tabShellMinHeight.value = (el as HTMLElement).offsetHeight;
+  });
+}
+
+function releaseTabShellHeight() {
+  requestAnimationFrame(() => {
+    tabShellMinHeight.value = null;
+  });
+}
+
+function applyUpcomingTabWidth() {
+  contentWidthClass.value = tabContentMaxWidth(activeTab.value);
+}
 </script>
 
 <template>
@@ -175,7 +207,10 @@ const switchTrackClass =
         </div>
       </header>
 
-      <div class="relative mx-auto max-w-2xl px-6 py-6">
+      <div
+        class="cs-strafing-content-shell relative mx-auto px-6 py-6"
+        :class="contentWidthClass"
+      >
         <div
           v-if="error"
           class="mb-5 rounded-xl border px-3.5 py-3"
@@ -220,7 +255,19 @@ const switchTrackClass =
           </div>
         </div>
 
-        <Transition name="settings-tab" mode="out-in">
+        <div
+          ref="tabContentShellRef"
+          class="relative"
+          :style="tabShellMinHeight != null ? { minHeight: `${tabShellMinHeight}px` } : undefined"
+        >
+        <Transition
+          name="cs-strafing-tab"
+          mode="out-in"
+          @before-leave="lockTabShellHeight"
+          @after-leave="applyUpcomingTabWidth"
+          @before-enter="syncTabShellHeight"
+          @after-enter="releaseTabShellHeight"
+        >
           <CounterStrafingConsole
             v-if="activeTab === 'console'"
             key="console"
@@ -716,7 +763,35 @@ const switchTrackClass =
             </SettingsCard>
           </div>
         </Transition>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.cs-strafing-content-shell {
+  transition: max-width 200ms ease-out;
+}
+
+.cs-strafing-tab-enter-active,
+.cs-strafing-tab-leave-active {
+  transition: opacity 160ms ease-out;
+}
+
+.cs-strafing-tab-enter-from,
+.cs-strafing-tab-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-strafing-content-shell {
+    transition-duration: 0.01ms;
+  }
+
+  .cs-strafing-tab-enter-active,
+  .cs-strafing-tab-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+</style>

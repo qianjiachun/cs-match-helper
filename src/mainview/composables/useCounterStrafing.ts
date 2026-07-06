@@ -26,6 +26,12 @@ import {
   stopCounterStrafing,
 } from '@core/counter-strafing/native';
 import {
+  appendAssessmentRecord,
+  appendShotRecord,
+  mergeCounterStrafingAssessmentSnapshot,
+  mergeCounterStrafingSnapshot,
+} from '@core/counter-strafing/mergeCounterStrafingSnapshot';
+import {
   BINDING_ROLE_LABELS,
   DEFAULT_COUNTER_STRAFING_SETTINGS,
   MOVEMENT_MODEL_DEFAULTS,
@@ -106,6 +112,10 @@ export function useCounterStrafing() {
     hudVisible: false,
     hudShowStableBars: true,
     hudShowTapMarkers: true,
+    hudStatTextScale: 1,
+    hudLineStrokeWidth: 1.5,
+    hudAssessmentChartOpacity: 1,
+    hudShootingChartOpacity: 1,
     shotRecords: [],
     avgError: 0,
     stableRate: 0,
@@ -374,10 +384,13 @@ export function useCounterStrafing() {
       await refreshAssessment();
 
       const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
-        snapshot.value = next;
+        snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
       });
       const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
-        assessmentSnapshot.value = next;
+        assessmentSnapshot.value = mergeCounterStrafingAssessmentSnapshot(
+          assessmentSnapshot.value,
+          next,
+        );
       });
       flushSnapshotRaf = snapshotRaf.flush;
       flushAssessmentSnapshotRaf = assessmentSnapshotRaf.flush;
@@ -385,15 +398,16 @@ export function useCounterStrafing() {
       unlisteners = await Promise.all([
         onCounterStrafingShot((record) => {
           lastShot.value = record;
-          const records = trimHistory(
-            [...snapshot.value.shotRecords, record],
-            settings.value.historyLimit,
-          );
           snapshot.value = {
             ...snapshot.value,
-            shotRecords: records,
+            shotRecords: appendShotRecord(
+              snapshot.value.shotRecords,
+              record,
+              settings.value.historyLimit,
+            ),
             lastShot: record,
           };
+          snapshotRaf.flush();
         }),
         onCounterStrafingSnapshot((next) => {
           snapshotRaf.schedule(next);
@@ -403,15 +417,16 @@ export function useCounterStrafing() {
         }),
         onCounterStrafingAssessmentRecord((record) => {
           lastAssessmentRecord.value = record;
-          const records = trimHistory(
-            [...assessmentSnapshot.value.records, record],
-            settings.value.assessmentHistoryLimit,
-          );
           assessmentSnapshot.value = {
             ...assessmentSnapshot.value,
-            records,
+            records: appendAssessmentRecord(
+              assessmentSnapshot.value.records,
+              record,
+              settings.value.assessmentHistoryLimit,
+            ),
             lastRecord: record,
           };
+          assessmentSnapshotRaf.flush();
         }),
         onCounterStrafingAssessmentSnapshot((next) => {
           assessmentSnapshotRaf.schedule(next);

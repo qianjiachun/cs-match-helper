@@ -194,7 +194,7 @@ const assessmentLegend = [
       </div>
     </SettingsCard>
 
-    <SettingsCard title="使用建议" description="推荐练习流程与查看方式" :icon="Target">
+    <SettingsCard title="使用建议" description="推荐流程与查看方式" :icon="Target">
       <ul class="space-y-3 text-[12px] leading-relaxed text-fg-secondary">
         <li class="flex gap-2.5">
           <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />

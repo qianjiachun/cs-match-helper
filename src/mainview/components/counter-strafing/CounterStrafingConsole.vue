@@ -203,31 +203,6 @@ const modePanelLayerClass =
 
 <template>
   <div class="space-y-5">
-    <div
-      v-if="widgetDetecting"
-      class="relative overflow-hidden rounded-2xl border border-accent/40 bg-gradient-to-r from-accent/12 via-accent/6 to-accent/2 px-4 py-3.5 shadow-sm ring-1 ring-accent/15"
-      role="status"
-      aria-live="polite"
-    >
-      <div
-        class="absolute inset-y-0 left-0 w-1 animate-pulse bg-accent motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <div class="flex items-center gap-3 pl-2">
-        <div
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/18 text-accent shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]"
-        >
-          <Loader2 class="h-5 w-5 animate-spin" aria-hidden="true" />
-        </div>
-        <div class="min-w-0">
-          <p class="text-[14px] font-semibold tracking-tight text-fg">正在检测环境</p>
-          <p class="mt-0.5 text-[12px] leading-snug text-fg-secondary">
-            正在扫描 Game Bar 与小组件状态，约需数秒，不影响下方操作
-          </p>
-        </div>
-      </div>
-    </div>
-
     <section
       class="overflow-hidden rounded-2xl border bg-surface shadow-sm transition-colors duration-200"
       :class="snapshot.listening ? 'border-emerald-500/30' : 'border-border'"
@@ -253,7 +228,7 @@ const modePanelLayerClass =
               <p class="mt-0.5 text-[12px] leading-snug text-fg-muted">
                 {{
                   snapshot.listening
-                    ? '正在记录按键，进游戏练习即可'
+                    ? '正在记录按键'
                     : '选好显示方式后，开启记录再进游戏'
                 }}
               </p>
