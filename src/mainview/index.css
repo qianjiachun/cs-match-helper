@@ -45,6 +45,16 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.copy-steamid-ghost {
+  will-change: transform, opacity;
+}
+
+.copy-steamid-ghost svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+}
+
 /* 表单与显式标记区域仍允许选中、编辑 */
 input,
 textarea,

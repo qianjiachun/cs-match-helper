@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Grip } from 'lucide-vue-next';
 import CounterStrafingCombo from '../components/counter-strafing/CounterStrafingCombo.vue';
 import CounterStrafingLineChart from '../components/counter-strafing/CounterStrafingLineChart.vue';
@@ -8,6 +8,14 @@ import {
   onCounterStrafingAssessmentRecord,
   onCounterStrafingAssessmentSnapshot,
 } from '@core/counter-strafing/native';
+import {
+  appendAssessmentRecord,
+  mergeCounterStrafingAssessmentSnapshot,
+} from '@core/counter-strafing/mergeCounterStrafingSnapshot';
+import {
+  clampHudChartOpacity,
+  clampHudLineStrokeWidth,
+} from '@core/counter-strafing/hudDisplay';
 import type {
   CounterStrafingAssessmentRecord,
   CounterStrafingAssessmentSnapshot,
@@ -19,6 +27,7 @@ import {
   assessmentHudStatsVisibility,
   useHudChartStatsVisibility,
 } from './useHudChartStatsVisibility';
+import { useHudStatFontSizes } from './useHudStatFontSizes';
 
 const snapshot = ref<CounterStrafingAssessmentSnapshot>({
   active: false,
@@ -39,6 +48,14 @@ const chartHeight = ref(120);
 const chartWrapRef = ref<HTMLElement | null>(null);
 const hudRootRef = ref<HTMLElement | null>(null);
 const statsVisibility = useHudChartStatsVisibility(hudRootRef, assessmentHudStatsVisibility);
+const statTextScale = computed(() => snapshot.value.hudStatTextScale ?? 1);
+const statFontSizes = useHudStatFontSizes(statTextScale);
+const lineStrokeWidth = computed(() =>
+  clampHudLineStrokeWidth(snapshot.value.hudLineStrokeWidth ?? 1.5),
+);
+const assessmentChartOpacity = computed(() =>
+  clampHudChartOpacity(snapshot.value.hudAssessmentChartOpacity ?? 1),
+);
 const HUD_HISTORY_LIMIT = 64;
 
 function createRafCoalescer<T>(apply: (value: T) => void) {
@@ -71,14 +88,11 @@ function createRafCoalescer<T>(apply: (value: T) => void) {
   return { schedule, flush };
 }
 
-function trimHistory<T>(records: T[], limit: number): T[] {
-  if (records.length <= limit) return records;
-  return records.slice(records.length - limit);
-}
+let assessmentSnapshotRafFlush: (() => void) | null = null;
 
 let unlisteners: UnlistenFn[] = [];
+
 let resizeObserver: ResizeObserver | null = null;
-let flushAssessmentSnapshotRaf: (() => void) | null = null;
 
 useAssessmentHudWindow();
 
@@ -134,19 +148,26 @@ onMounted(async () => {
       liveRecord.value = snapshot.value.lastRecord;
     }
     const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
-      snapshot.value = next;
+      snapshot.value = mergeCounterStrafingAssessmentSnapshot(snapshot.value, next);
+      if (next.records.length === 0) {
+        liveRecord.value = null;
+      }
     });
-    flushAssessmentSnapshotRaf = assessmentSnapshotRaf.flush;
+    assessmentSnapshotRafFlush = assessmentSnapshotRaf.flush;
 
     unlisteners = await Promise.all([
       onCounterStrafingAssessmentRecord((record) => {
         liveRecord.value = record;
-        const records = trimHistory([...snapshot.value.records, record], HUD_HISTORY_LIMIT);
         snapshot.value = {
           ...snapshot.value,
-          records,
+          records: appendAssessmentRecord(
+            snapshot.value.records,
+            record,
+            HUD_HISTORY_LIMIT,
+          ),
           lastRecord: record,
         };
+        assessmentSnapshotRaf.flush();
       }),
       onCounterStrafingAssessmentSnapshot((next) => {
         assessmentSnapshotRaf.schedule(next);
@@ -161,7 +182,7 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
-  flushAssessmentSnapshotRaf?.();
+  assessmentSnapshotRafFlush?.();
   void Promise.all(unlisteners.map((fn) => fn()));
 });
 </script>
@@ -193,32 +214,51 @@ onUnmounted(() => {
     <div
       v-else
       class="hud-layout pointer-events-none absolute inset-0 z-1 flex flex-col gap-0.5 overflow-hidden px-2 py-1.5"
+      :style="{ opacity: assessmentChartOpacity }"
     >
       <div v-if="statsVisibility.showBar" class="hud-assessment-stats shrink-0">
         <div class="hud-assessment-stats-main">
           <div v-if="statsVisibility.showAvg" class="hud-shooting-stat">
-            <span class="hud-shooting-stat-label">平均</span>
+            <span
+              class="hud-shooting-stat-label"
+              :style="{ fontSize: `${statFontSizes.labelPx}px` }"
+            >平均</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
-              :style="{ color: snapshot.records.length ? avgDiffColor(snapshot.avgDiffMs) : undefined }"
+              :style="{
+                fontSize: `${statFontSizes.valuePx}px`,
+                color: snapshot.records.length ? avgDiffColor(snapshot.avgDiffMs) : undefined,
+              }"
             >
               {{ snapshot.records.length ? formatHudDiffMs(snapshot.avgDiffMs) : '—' }}
             </span>
           </div>
           <div v-if="statsVisibility.showSuccess" class="hud-shooting-stat">
-            <span class="hud-shooting-stat-label">优秀率</span>
+            <span
+              class="hud-shooting-stat-label"
+              :style="{ fontSize: `${statFontSizes.labelPx}px` }"
+            >优秀率</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
-              :style="{ color: snapshot.records.length ? successRateColor(snapshot.successRate) : undefined }"
+              :style="{
+                fontSize: `${statFontSizes.valuePx}px`,
+                color: snapshot.records.length ? successRateColor(snapshot.successRate) : undefined,
+              }"
             >
               {{ snapshot.records.length ? `${snapshot.successRate.toFixed(1)}%` : '—' }}
             </span>
           </div>
           <div v-if="statsVisibility.showStdDev" class="hud-shooting-stat">
-            <span class="hud-shooting-stat-label">标准差</span>
+            <span
+              class="hud-shooting-stat-label"
+              :style="{ fontSize: `${statFontSizes.labelPx}px` }"
+            >标准差</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
-              :style="{ color: snapshot.records.length ? stdDevColor(snapshot.stdDevMs) : undefined }"
+              :style="{
+                fontSize: `${statFontSizes.valuePx}px`,
+                color: snapshot.records.length ? stdDevColor(snapshot.stdDevMs) : undefined,
+              }"
             >
               {{ snapshot.records.length ? formatHudStdDevMs(snapshot.stdDevMs) : '—' }}
             </span>
@@ -227,7 +267,10 @@ onUnmounted(() => {
         <span
           v-if="statsVisibility.showTendency"
           class="hud-assessment-tendency hud-shooting-stat-value shrink-0 tabular-nums"
-          :style="{ color: snapshot.records.length ? tendencyColor(snapshot.tendency) : undefined }"
+          :style="{
+            fontSize: `${statFontSizes.valuePx}px`,
+            color: snapshot.records.length ? tendencyColor(snapshot.tendency) : undefined,
+          }"
         >
           {{ snapshot.records.length ? snapshot.tendencyLabel : '—' }}
         </span>
@@ -237,6 +280,7 @@ onUnmounted(() => {
           :records="snapshot.records"
           :max-points="32"
           :height="chartHeight"
+          :line-stroke-width="lineStrokeWidth"
           ghost
           colored
           compact

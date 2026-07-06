@@ -5,9 +5,11 @@ import {
   ChevronDown,
   Layers,
   LineChart,
+  SlidersHorizontal,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
+import HudDisplaySettingsControls from './HudDisplaySettingsControls.vue';
 
 const props = defineProps<{
   cs: ReturnType<typeof useCounterStrafing>;
@@ -101,7 +103,7 @@ function patchAssessmentRatio(raw: string) {
           <p class="mt-0.5 text-[11px] leading-relaxed text-fg-muted">
             {{
               expanded
-                ? '调整游戏内图表显示、顺序与上下高度占比'
+                ? '调整图表显示、布局与样式'
                 : '点击展开，自定义游戏内小组件的图表布局'
             }}
           </p>
@@ -144,146 +146,184 @@ function patchAssessmentRatio(raw: string) {
     >
       <div class="min-h-0 overflow-hidden">
         <div class="divide-y divide-border-subtle border-t border-border-subtle bg-surface/60">
-          <label
-            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
-          >
-            <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
-              <LineChart class="h-3.5 w-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
-              显示急停折线图
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-              <input
-                type="checkbox"
-                class="peer sr-only"
-                :checked="settings.gamebarShowAssessmentChart"
-                aria-label="显示急停折线图"
-                @change="patchShowAssessment(($event.target as HTMLInputElement).checked)"
-              />
-              <span :class="switchTrackClass" aria-hidden="true" />
-            </span>
-          </label>
-          <label
-            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
-          >
-            <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
-              <ChartColumn class="h-3.5 w-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
-              显示开枪柱状图
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-              <input
-                type="checkbox"
-                class="peer sr-only"
-                :checked="settings.gamebarShowShootingChart"
-                aria-label="显示开枪柱状图"
-                @change="patchShowShooting(($event.target as HTMLInputElement).checked)"
-              />
-              <span :class="switchTrackClass" aria-hidden="true" />
-            </span>
-          </label>
-
-          <label
-            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
-          >
-            <span class="flex min-w-0 flex-col gap-0.5">
-              <span class="text-[12px] font-medium text-fg-secondary">开枪稳定：显示绿色稳定柱</span>
-              <span class="text-[10px] leading-relaxed text-fg-muted">关闭后只高亮失误，稳定射击留空位</span>
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-              <input
-                type="checkbox"
-                class="peer sr-only"
-                :checked="settings.hudShowStableBars"
-                aria-label="开枪稳定：显示绿色稳定柱"
-                @change="props.cs.applySettings({ hudShowStableBars: ($event.target as HTMLInputElement).checked })"
-              />
-              <span :class="switchTrackClass" aria-hidden="true" />
-            </span>
-          </label>
-          <label
-            class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-elevated/50"
-          >
-            <span class="flex min-w-0 flex-col gap-0.5">
-              <span class="text-[12px] font-medium text-fg-secondary">开枪稳定：显示首枪白点标记</span>
-              <span class="text-[10px] leading-relaxed text-fg-muted">柱底小白点表示每次按下的第一枪，连发不显示</span>
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-              <input
-                type="checkbox"
-                class="peer sr-only"
-                :checked="settings.hudShowTapMarkers"
-                aria-label="开枪稳定：显示首枪白点标记"
-                @change="props.cs.applySettings({ hudShowTapMarkers: ($event.target as HTMLInputElement).checked })"
-              />
-              <span :class="switchTrackClass" aria-hidden="true" />
-            </span>
-          </label>
-
-          <div class="space-y-2.5 px-4 py-3">
-            <div class="flex items-center justify-between gap-3">
-              <span class="text-[12px] font-medium text-fg-secondary">上下顺序</span>
-              <span class="text-[11px] text-fg-muted">{{ orderSummary }}</span>
+          <!-- 图表显示 -->
+          <section>
+            <div class="flex items-center gap-2 bg-elevated/35 px-4 py-2">
+              <LineChart class="h-3.5 w-3.5 text-fg-muted" aria-hidden="true" />
+              <p class="text-[11px] font-semibold text-fg-secondary">图表显示</p>
             </div>
+            <div class="divide-y divide-border-subtle/80">
+              <label
+                class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/50"
+              >
+                <span class="text-[12px] font-medium text-fg-secondary">急停折线图</span>
+                <span class="relative inline-flex shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    class="peer sr-only"
+                    :checked="settings.gamebarShowAssessmentChart"
+                    aria-label="显示急停折线图"
+                    @change="patchShowAssessment(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span :class="switchTrackClass" aria-hidden="true" />
+                </span>
+              </label>
+              <label
+                class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/50"
+              >
+                <span class="text-[12px] font-medium text-fg-secondary">开枪柱状图</span>
+                <span class="relative inline-flex shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    class="peer sr-only"
+                    :checked="settings.gamebarShowShootingChart"
+                    aria-label="显示开枪柱状图"
+                    @change="patchShowShooting(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span :class="switchTrackClass" aria-hidden="true" />
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- 图表布局 -->
+          <section>
+            <div class="flex items-center justify-between gap-3 bg-elevated/35 px-4 py-2">
+              <div class="flex items-center gap-2">
+                <ArrowDownUp class="h-3.5 w-3.5 text-fg-muted" aria-hidden="true" />
+                <p class="text-[11px] font-semibold text-fg-secondary">图表布局</p>
+              </div>
+              <span
+                v-if="dualChartMode"
+                class="text-[10px] tabular-nums text-fg-muted"
+              >
+                {{ ratioLabel }}
+              </span>
+              <span v-else class="text-[10px] text-fg-muted">需同时显示两个图表</span>
+            </div>
+
             <div
-              class="grid grid-cols-2 gap-2"
+              class="space-y-3 px-4 py-3"
               :class="dualChartMode ? '' : 'pointer-events-none opacity-50'"
             >
-              <button
-                type="button"
-                class="cursor-pointer rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors duration-200"
-                :class="
-                  settings.gamebarAssessmentOnTop
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border bg-base text-fg-secondary hover:border-accent/35 hover:bg-elevated/80'
-                "
-                :disabled="!dualChartMode"
-                :aria-pressed="settings.gamebarAssessmentOnTop"
-                @click="patchAssessmentOnTop(true)"
-              >
-                折线图在上
-              </button>
-              <button
-                type="button"
-                class="cursor-pointer rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors duration-200"
-                :class="
-                  !settings.gamebarAssessmentOnTop
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border bg-base text-fg-secondary hover:border-accent/35 hover:bg-elevated/80'
-                "
-                :disabled="!dualChartMode"
-                :aria-pressed="!settings.gamebarAssessmentOnTop"
-                @click="patchAssessmentOnTop(false)"
-              >
-                柱状图在上
-              </button>
-            </div>
-          </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[12px] font-medium text-fg-secondary">上下顺序</span>
+                  <span class="text-[11px] text-fg-muted">{{ orderSummary }}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    class="cursor-pointer rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors duration-200"
+                    :class="
+                      settings.gamebarAssessmentOnTop
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-border bg-base text-fg-secondary hover:border-accent/35 hover:bg-elevated/80'
+                    "
+                    :disabled="!dualChartMode"
+                    :aria-pressed="settings.gamebarAssessmentOnTop"
+                    @click="patchAssessmentOnTop(true)"
+                  >
+                    折线图在上
+                  </button>
+                  <button
+                    type="button"
+                    class="cursor-pointer rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors duration-200"
+                    :class="
+                      !settings.gamebarAssessmentOnTop
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-border bg-base text-fg-secondary hover:border-accent/35 hover:bg-elevated/80'
+                    "
+                    :disabled="!dualChartMode"
+                    :aria-pressed="!settings.gamebarAssessmentOnTop"
+                    @click="patchAssessmentOnTop(false)"
+                  >
+                    柱状图在上
+                  </button>
+                </div>
+              </div>
 
-          <div class="space-y-2 px-4 py-3">
-            <div class="flex items-center justify-between gap-3">
-              <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
-                <ArrowDownUp class="h-3.5 w-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
-                上下占比
-              </span>
-              <span class="text-[11px] tabular-nums text-fg-muted">{{ ratioLabel }}</span>
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[12px] font-medium text-fg-secondary">上下占比</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="0.95"
+                  step="0.01"
+                  class="widget-ratio-slider w-full"
+                  :disabled="!dualChartMode"
+                  :value="settings.gamebarAssessmentRatio"
+                  :style="{ '--ratio-pct': `${((settings.gamebarAssessmentRatio - 0.05) / 0.9) * 100}%` }"
+                  aria-label="折线图与柱状图高度占比"
+                  @input="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
+                  @change="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
+                />
+                <p class="text-[10px] leading-relaxed text-fg-muted">
+                  也可在小组件内将鼠标移到中间分割线，上下拖动调节
+                </p>
+              </div>
             </div>
-            <input
-              type="range"
-              min="0.05"
-              max="0.95"
-              step="0.01"
-              class="widget-ratio-slider w-full"
-              :class="dualChartMode ? '' : 'pointer-events-none opacity-50'"
-              :disabled="!dualChartMode"
-              :value="settings.gamebarAssessmentRatio"
-              :style="{ '--ratio-pct': `${((settings.gamebarAssessmentRatio - 0.05) / 0.9) * 100}%` }"
-              aria-label="折线图与柱状图高度占比"
-              @input="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
-              @change="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
-            />
-            <p class="text-[10px] leading-relaxed text-fg-muted">
-              两个图表都显示时可调整；也可在小组件内将鼠标移到中间分割线，上下拖动调节
+          </section>
+
+          <!-- 开枪稳定 -->
+          <section>
+            <div class="flex items-center gap-2 bg-elevated/35 px-4 py-2">
+              <ChartColumn class="h-3.5 w-3.5 text-fg-muted" aria-hidden="true" />
+              <p class="text-[11px] font-semibold text-fg-secondary">开枪稳定图表</p>
+            </div>
+            <div class="divide-y divide-border-subtle/80">
+              <label
+                class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/50"
+              >
+                <span class="flex min-w-0 flex-col gap-0.5">
+                  <span class="text-[12px] font-medium text-fg-secondary">显示绿色稳定柱</span>
+                  <span class="text-[10px] leading-relaxed text-fg-muted">关闭后只高亮失误，稳定射击留空位</span>
+                </span>
+                <span class="relative inline-flex shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    class="peer sr-only"
+                    :checked="settings.hudShowStableBars"
+                    aria-label="开枪稳定：显示绿色稳定柱"
+                    @change="props.cs.applySettings({ hudShowStableBars: ($event.target as HTMLInputElement).checked })"
+                  />
+                  <span :class="switchTrackClass" aria-hidden="true" />
+                </span>
+              </label>
+              <label
+                class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/50"
+              >
+                <span class="flex min-w-0 flex-col gap-0.5">
+                  <span class="text-[12px] font-medium text-fg-secondary">显示首枪白点标记</span>
+                  <span class="text-[10px] leading-relaxed text-fg-muted">柱底小白点表示每次按下的第一枪，连发不显示</span>
+                </span>
+                <span class="relative inline-flex shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    class="peer sr-only"
+                    :checked="settings.hudShowTapMarkers"
+                    aria-label="开枪稳定：显示首枪白点标记"
+                    @change="props.cs.applySettings({ hudShowTapMarkers: ($event.target as HTMLInputElement).checked })"
+                  />
+                  <span :class="switchTrackClass" aria-hidden="true" />
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- 显示样式（仅一处） -->
+          <section>
+            <div class="flex items-center gap-2 bg-elevated/35 px-4 py-2">
+              <SlidersHorizontal class="h-3.5 w-3.5 text-fg-muted" aria-hidden="true" />
+              <p class="text-[11px] font-semibold text-fg-secondary">显示样式</p>
+            </div>
+            <p class="border-b border-border-subtle/80 px-4 pb-2 text-[10px] leading-relaxed text-fg-muted">
+              同时作用于悬浮窗与小组件；透明度含统计文字与图表
             </p>
-          </div>
+            <HudDisplaySettingsControls :cs="props.cs" embedded />
+          </section>
         </div>
       </div>
     </div>

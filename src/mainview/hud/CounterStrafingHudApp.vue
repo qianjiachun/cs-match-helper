@@ -8,6 +8,11 @@ import {
   onCounterStrafingSnapshot,
   onCounterStrafingStatus,
 } from '@core/counter-strafing/native';
+import { clampHudChartOpacity } from '@core/counter-strafing/hudDisplay';
+import {
+  appendShotRecord,
+  mergeCounterStrafingSnapshot,
+} from '@core/counter-strafing/mergeCounterStrafingSnapshot';
 import type { CounterStrafingSnapshot, ShootingErrorRecord } from '@core/counter-strafing/types';
 import { formatErrorValue, latestPressSessionAvgError } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
@@ -16,6 +21,7 @@ import {
   shootingHudStatsVisibility,
   useHudChartStatsVisibility,
 } from './useHudChartStatsVisibility';
+import { useHudStatFontSizes } from './useHudStatFontSizes';
 
 const DEFAULT_CHART_HEIGHT = 88;
 const DEFAULT_CHART_WIDTH = 320;
@@ -51,10 +57,7 @@ function createRafCoalescer<T>(apply: (value: T) => void) {
   return { schedule, flush };
 }
 
-function trimHistory<T>(records: T[], limit: number): T[] {
-  if (records.length <= limit) return records;
-  return records.slice(records.length - limit);
-}
+let snapshotRafFlush: (() => void) | null = null;
 
 const snapshot = ref<CounterStrafingSnapshot>({
   active: false,
@@ -63,6 +66,10 @@ const snapshot = ref<CounterStrafingSnapshot>({
   hudLocked: false,
   hudShowStableBars: true,
   hudShowTapMarkers: true,
+  hudStatTextScale: 1,
+  hudLineStrokeWidth: 1.5,
+  hudAssessmentChartOpacity: 1,
+  hudShootingChartOpacity: 1,
   shotRecords: [],
   avgError: 0,
   stableRate: 0,
@@ -76,11 +83,15 @@ const chartWidth = ref(DEFAULT_CHART_WIDTH);
 const chartWrapRef = ref<HTMLElement | null>(null);
 const hudRootRef = ref<HTMLElement | null>(null);
 const statsVisibility = useHudChartStatsVisibility(hudRootRef, shootingHudStatsVisibility);
+const statTextScale = computed(() => snapshot.value.hudStatTextScale ?? 1);
+const statFontSizes = useHudStatFontSizes(statTextScale);
+const shootingChartOpacity = computed(() =>
+  clampHudChartOpacity(snapshot.value.hudShootingChartOpacity ?? 1),
+);
 const sessionAvgError = computed(() => latestPressSessionAvgError(snapshot.value.shotRecords));
 
 let unlisteners: UnlistenFn[] = [];
 let resizeObserver: ResizeObserver | null = null;
-let flushSnapshotRaf: (() => void) | null = null;
 
 useHudWindow();
 
@@ -116,19 +127,26 @@ onMounted(async () => {
       liveSample.value = snapshot.value.lastShot;
     }
     const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
-      snapshot.value = next;
+      snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
+      if (next.shotRecords.length === 0) {
+        liveSample.value = null;
+      }
     });
-    flushSnapshotRaf = snapshotRaf.flush;
+    snapshotRafFlush = snapshotRaf.flush;
 
     unlisteners = await Promise.all([
       onCounterStrafingShot((record) => {
         liveSample.value = record;
-        const records = trimHistory([...snapshot.value.shotRecords, record], HUD_HISTORY_LIMIT);
         snapshot.value = {
           ...snapshot.value,
-          shotRecords: records,
+          shotRecords: appendShotRecord(
+            snapshot.value.shotRecords,
+            record,
+            HUD_HISTORY_LIMIT,
+          ),
           lastShot: record,
         };
+        snapshotRaf.flush();
       }),
       onCounterStrafingSnapshot((next) => {
         snapshotRaf.schedule(next);
@@ -146,7 +164,7 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
-  flushSnapshotRaf?.();
+  snapshotRafFlush?.();
   void Promise.all(unlisteners.map((fn) => fn()));
 });
 </script>
@@ -178,22 +196,35 @@ onUnmounted(() => {
     <div
       v-else
       class="hud-layout pointer-events-none relative z-1 flex h-full flex-col gap-0.5 overflow-hidden px-2 py-1.5"
+      :style="{ opacity: shootingChartOpacity }"
     >
       <div v-if="statsVisibility.showBar" class="hud-shooting-stats shrink-0">
         <div v-if="statsVisibility.showError" class="hud-shooting-stat">
-          <span class="hud-shooting-stat-label">误差</span>
+          <span
+            class="hud-shooting-stat-label"
+            :style="{ fontSize: `${statFontSizes.labelPx}px` }"
+          >误差</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
-            :style="{ color: sessionAvgError !== null ? errorColor(sessionAvgError) : undefined }"
+            :style="{
+              fontSize: `${statFontSizes.valuePx}px`,
+              color: sessionAvgError !== null ? errorColor(sessionAvgError) : undefined,
+            }"
           >
             {{ sessionAvgError !== null ? formatErrorValue(sessionAvgError) : '—' }}
           </span>
         </div>
         <div v-if="statsVisibility.showStable" class="hud-shooting-stat">
-          <span class="hud-shooting-stat-label">稳定</span>
+          <span
+            class="hud-shooting-stat-label"
+            :style="{ fontSize: `${statFontSizes.labelPx}px` }"
+          >稳定</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
-            :style="{ color: snapshot.shotRecords.length ? stableRateColor(snapshot.stableRate) : undefined }"
+            :style="{
+              fontSize: `${statFontSizes.valuePx}px`,
+              color: snapshot.shotRecords.length ? stableRateColor(snapshot.stableRate) : undefined,
+            }"
           >
             {{ snapshot.shotRecords.length ? `${snapshot.stableRate.toFixed(1)}%` : '—' }}
           </span>

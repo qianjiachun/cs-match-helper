@@ -19,6 +19,7 @@ const props = withDefaults(
     showHudFeedback?: boolean;
     showStableBars?: boolean;
     showTapMarkers?: boolean;
+    chartOpacity?: number;
   }>(),
   {
     maxPoints: 12,
@@ -30,6 +31,7 @@ const props = withDefaults(
     showHudFeedback: false,
     showStableBars: true,
     showTapMarkers: true,
+    chartOpacity: 1,
   },
 );
 
@@ -148,6 +150,7 @@ const chart = computed(() => {
       :viewBox="`0 0 ${chart.width} ${chart.height}`"
       preserveAspectRatio="none"
       class="w-full h-full instrument-chart"
+      :style="{ opacity: chartOpacity }"
       role="img"
       aria-label="射击稳定度仪表条"
     >

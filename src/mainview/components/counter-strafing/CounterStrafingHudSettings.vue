@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChartColumn, Eye, EyeOff, Layers, LineChart, Lock, LockOpen } from 'lucide-vue-next';
 import SettingsToggle from '../settings/SettingsToggle.vue';
+import HudDisplaySettingsControls from './HudDisplaySettingsControls.vue';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 
 const props = defineProps<{
@@ -118,6 +119,8 @@ const panels = [
       :disabled="busy"
       @update:model-value="cs.applySettings({ hudShowTapMarkers: $event })"
     />
+
+    <HudDisplaySettingsControls :cs="cs" :disabled="busy" />
 
     <p class="text-[11px] leading-relaxed text-fg-muted">
       两个悬浮窗可同时打开。拖右下角把手移动；锁定后鼠标可穿透，不影响游戏操作。

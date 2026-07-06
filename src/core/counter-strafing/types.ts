@@ -65,6 +65,14 @@ export interface CounterStrafingSnapshot {
   hudLocked?: boolean;
   hudShowStableBars: boolean;
   hudShowTapMarkers: boolean;
+  /** 左上角统计文字缩放（0.6–1.6，结合窗口尺寸自动缩放） */
+  hudStatTextScale: number;
+  /** 折线图线宽（0.5–4） */
+  hudLineStrokeWidth: number;
+  /** 急停折线图整体透明度（0.15–1） */
+  hudAssessmentChartOpacity: number;
+  /** 开枪柱状图整体透明度（0.15–1） */
+  hudShootingChartOpacity: number;
   shotRecords: ShootingErrorRecord[];
   avgError: number;
   stableRate: number;
@@ -105,6 +113,10 @@ export interface CounterStrafingAssessmentSnapshot {
   tendency: string;
   tendencyLabel: string;
   lastRecord: CounterStrafingAssessmentRecord | null;
+  hudStatTextScale?: number;
+  hudLineStrokeWidth?: number;
+  hudAssessmentChartOpacity?: number;
+  hudShootingChartOpacity?: number;
 }
 
 export interface ShotFeedback {
@@ -163,6 +175,10 @@ export interface CounterStrafingSettings {
   gamebarShowShootingChart: boolean;
   gamebarAssessmentRatio: number;
   gamebarAssessmentOnTop: boolean;
+  hudStatTextScale: number;
+  hudLineStrokeWidth: number;
+  hudAssessmentChartOpacity: number;
+  hudShootingChartOpacity: number;
 }
 
 export const DEFAULT_KEY_MAP: CounterStrafingKeyMap = {
@@ -218,6 +234,10 @@ export function mergeCounterStrafingSettings(
     gamebarShowShootingChart: loaded.gamebarShowShootingChart ?? true,
     gamebarAssessmentRatio: loaded.gamebarAssessmentRatio ?? 0.5,
     gamebarAssessmentOnTop: loaded.gamebarAssessmentOnTop ?? true,
+    hudStatTextScale: loaded.hudStatTextScale ?? 1,
+    hudLineStrokeWidth: loaded.hudLineStrokeWidth ?? 1.5,
+    hudAssessmentChartOpacity: loaded.hudAssessmentChartOpacity ?? 1,
+    hudShootingChartOpacity: loaded.hudShootingChartOpacity ?? 1,
     keyMap: {
       ...DEFAULT_KEY_MAP,
       ...loaded.keyMap,
@@ -271,6 +291,10 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   gamebarShowShootingChart: true,
   gamebarAssessmentRatio: 0.5,
   gamebarAssessmentOnTop: true,
+  hudStatTextScale: 1,
+  hudLineStrokeWidth: 1.5,
+  hudAssessmentChartOpacity: 1,
+  hudShootingChartOpacity: 1,
 };
 
 export const BINDING_ROLE_LABELS: Record<BindingRole, string> = {
@@ -599,6 +623,34 @@ export const ASSESSMENT_COLORS = {
 
 export function formatDiffMs(diffMs: number): string {
   return `${diffMs > 0 ? '+' : ''}${diffMs.toFixed(1)}ms`;
+}
+
+/** 平均/单次偏差：偏早琥珀、偏晚红、正常绿 */
+export function diffMsColor(diffMs: number): string {
+  if (diffMs < -5) return ASSESSMENT_COLORS.early;
+  if (diffMs > 5) return ASSESSMENT_COLORS.late;
+  return ASSESSMENT_COLORS.success;
+}
+
+/** 表现不错占比 */
+export function assessmentSuccessRateColor(rate: number): string {
+  if (rate >= 70) return ASSESSMENT_COLORS.success;
+  if (rate >= 40) return ASSESSMENT_COLORS.early;
+  return ASSESSMENT_COLORS.late;
+}
+
+/** 波动大小 */
+export function assessmentStdDevColor(stdDevMs: number): string {
+  if (stdDevMs <= 3) return ASSESSMENT_COLORS.success;
+  if (stdDevMs <= 8) return ASSESSMENT_COLORS.early;
+  return ASSESSMENT_COLORS.late;
+}
+
+/** 整体习惯 */
+export function assessmentTendencyColor(tendency: string): string {
+  if (tendency === 'early') return ASSESSMENT_COLORS.early;
+  if (tendency === 'late') return ASSESSMENT_COLORS.late;
+  return ASSESSMENT_COLORS.success;
 }
 
 export function assessmentRecordColor(record: CounterStrafingAssessmentRecord): string {

@@ -16,6 +16,8 @@ const props = withDefaults(
     minimal?: boolean;
     colored?: boolean;
     topInset?: number;
+    lineStrokeWidth?: number;
+    chartOpacity?: number;
   }>(),
   {
     maxPoints: 40,
@@ -25,6 +27,8 @@ const props = withDefaults(
     minimal: false,
     colored: true,
     topInset: 0,
+    lineStrokeWidth: undefined,
+    chartOpacity: 1,
   },
 );
 
@@ -81,8 +85,11 @@ const chart = computed(() => {
   return { width, height, padX, padTop, padBottom, innerW, innerH, line, zeroY, dots, segments };
 });
 
-const segmentStroke = computed(() => (isHudMode.value ? 1.25 : 1.5));
-const segmentOpacity = computed(() => (isHudMode.value ? 0.9 : 1));
+const segmentStroke = computed(
+  () => props.lineStrokeWidth ?? (isHudMode.value ? 1.25 : 1.5),
+);
+const segmentOpacity = computed(() => (isHudMode.value ? 0.9 : 1) * props.chartOpacity);
+const chartLayerOpacity = computed(() => props.chartOpacity);
 const zeroStroke = computed(() =>
   isHudMode.value ? 'rgba(255,255,255,0.18)' : 'rgba(148, 163, 184, 0.42)',
 );
@@ -124,7 +131,10 @@ function segmentGlow(color: string): string {
       :viewBox="`0 0 ${chart.width} ${chart.height}`"
       class="block w-full"
       :class="ghost ? 'h-full' : ''"
-      :style="ghost ? undefined : { height: `${chart.height}px` }"
+      :style="[
+        ghost ? undefined : { height: `${chart.height}px` },
+        { opacity: chartLayerOpacity },
+      ]"
       :preserve-aspect-ratio="ghost ? 'none' : undefined"
       role="img"
       aria-label="急停历史折线图"
