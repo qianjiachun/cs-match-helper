@@ -47,6 +47,10 @@ namespace CSMatchHelperWidget
         private bool _showShootingChart = true;
         private double _assessmentRatio = 0.5;
         private bool _assessmentOnTop = true;
+        private double _statTextScale = 1.0;
+        private double _lineStrokeWidth = 1.5;
+        private double _assessmentChartOpacity = 1.0;
+        private double _shootingChartOpacity = 1.0;
         private static readonly CoreCursor SplitterArrowCursor = new CoreCursor(CoreCursorType.Arrow, 0);
         private static readonly CoreCursor SplitterResizeCursor = new CoreCursor(CoreCursorType.SizeNorthSouth, 0);
 
@@ -60,6 +64,9 @@ namespace CSMatchHelperWidget
             InitializeComponent();
             _assessmentChart = new AssessmentChartRenderer(AssessmentChart);
             _shootingChart = new ShootingChartRenderer(ShootingChart);
+            AssessmentPanel.Opacity = _assessmentChartOpacity;
+            ShootingPanel.Opacity = _shootingChartOpacity;
+            _assessmentChart.Configure(_lineStrokeWidth);
             _comboHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(360) };
             _comboHideTimer.Tick += OnComboHideTick;
             Loaded += OnLoaded;
@@ -239,11 +246,21 @@ namespace CSMatchHelperWidget
 
         private Task DispatchSnapshotLineAsync(string line)
         {
-            return Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            var priority = _hasLiveSnapshot
+                ? CoreDispatcherPriority.High
+                : CoreDispatcherPriority.Normal;
+            return Dispatcher.RunAsync(priority, () =>
             {
                 try
                 {
-                    ApplySnapshot(JsonObject.Parse(line));
+                    var json = JsonObject.Parse(line);
+                    if (TryApplyStreamDelta(json))
+                    {
+                        _consecutiveFailures = 0;
+                        return;
+                    }
+
+                    ApplySnapshot(json);
                     _consecutiveFailures = 0;
                 }
                 catch (Exception ex)
@@ -251,6 +268,56 @@ namespace CSMatchHelperWidget
                     Debug.WriteLine($"[CSMatchHelperWidget] snapshot parse failed: {ex}");
                 }
             }).AsTask();
+        }
+
+        private bool TryApplyStreamDelta(JsonObject json)
+        {
+            if (!json.TryGetValue("type", out var typeValue) || typeValue.ValueType != JsonValueType.String)
+            {
+                return false;
+            }
+
+            var type = typeValue.GetString();
+            if (type == "shootingRecord"
+                && json.TryGetValue("record", out var shootingRecordValue)
+                && shootingRecordValue.ValueType == JsonValueType.Object)
+            {
+                ApplyShootingRecordDelta(shootingRecordValue.GetObject());
+                return true;
+            }
+
+            if (type == "assessmentRecord"
+                && json.TryGetValue("record", out var assessmentRecordValue)
+                && assessmentRecordValue.ValueType == JsonValueType.Object)
+            {
+                ApplyAssessmentRecordDelta(assessmentRecordValue.GetObject());
+                return true;
+            }
+
+            return false;
+        }
+
+        private void ApplyShootingRecordDelta(JsonObject record)
+        {
+            if (!_hasLiveSnapshot)
+            {
+                return;
+            }
+
+            _streamShootingRecordCount++;
+            _shootingChart.Append(record, _shootingShowStableBars, _shootingShowTapMarkers);
+        }
+
+        private void ApplyAssessmentRecordDelta(JsonObject record)
+        {
+            if (!_hasLiveSnapshot)
+            {
+                return;
+            }
+
+            _streamAssessmentRecordCount++;
+            _assessmentChart.Append(record);
+            ShowComboIfNew(record);
         }
 
         private Task RunOnUiThreadAsync(Action action)
@@ -261,6 +328,10 @@ namespace CSMatchHelperWidget
         }
 
         private bool _hasLiveSnapshot;
+        private int _streamShootingRecordCount;
+        private int _streamAssessmentRecordCount;
+        private bool _shootingShowStableBars = true;
+        private bool _shootingShowTapMarkers = true;
 
         private void OnComboHideTick(object sender, object e)
         {
@@ -389,6 +460,63 @@ namespace CSMatchHelperWidget
             ShootingStableStatGroup.Visibility = StatVisibility(showStable);
         }
 
+        private void ApplyDisplaySettings(bool redrawCharts)
+        {
+            AssessmentPanel.Opacity = _assessmentChartOpacity;
+            ShootingPanel.Opacity = _shootingChartOpacity;
+            _assessmentChart.Configure(_lineStrokeWidth);
+            ApplyStatFontSizes();
+            if (!redrawCharts || _lastRoot == null)
+            {
+                return;
+            }
+
+            _lastChartFingerprint = default(ChartFingerprint);
+            RedrawCharts(_lastRoot);
+        }
+
+        private void ApplyStatFontSizes()
+        {
+            var (labelPx, valuePx) = HudDisplayMetrics.ComputeStatFontSizes(_statTextScale);
+            ApplyStatGroupFonts(AssessmentAvgStatGroup, labelPx, valuePx);
+            ApplyStatGroupFonts(AssessmentSuccessStatGroup, labelPx, valuePx);
+            ApplyStatGroupFonts(AssessmentStdDevStatGroup, labelPx, valuePx);
+            ApplyStatGroupFonts(ShootingErrorStatGroup, labelPx, valuePx);
+            ApplyStatGroupFonts(ShootingStableStatGroup, labelPx, valuePx);
+            TendencyText.FontSize = valuePx;
+            TendencyTextShadow.FontSize = valuePx;
+        }
+
+        private static void ApplyStatGroupFonts(StackPanel group, double labelPx, double valuePx)
+        {
+            if (group == null || group.Children.Count < 2)
+            {
+                return;
+            }
+
+            if (group.Children[0] is Grid labelGrid)
+            {
+                foreach (var child in labelGrid.Children)
+                {
+                    if (child is TextBlock labelBlock)
+                    {
+                        labelBlock.FontSize = labelPx;
+                    }
+                }
+            }
+
+            if (group.Children[1] is Grid valueGrid)
+            {
+                foreach (var child in valueGrid.Children)
+                {
+                    if (child is TextBlock valueBlock)
+                    {
+                        valueBlock.FontSize = valuePx;
+                    }
+                }
+            }
+        }
+
         private static double ClampRatio(double ratio)
         {
             if (ratio < MinAssessmentRatio)
@@ -415,6 +543,10 @@ namespace CSMatchHelperWidget
             var showShooting = true;
             var ratio = 0.5;
             var assessmentOnTop = true;
+            var statTextScale = _statTextScale;
+            var lineStrokeWidth = _lineStrokeWidth;
+            var assessmentChartOpacity = _assessmentChartOpacity;
+            var shootingChartOpacity = _shootingChartOpacity;
             if (root.TryGetValue("layout", out var layoutValue) && layoutValue.ValueType == JsonValueType.Object)
             {
                 var layout = layoutValue.GetObject();
@@ -422,7 +554,16 @@ namespace CSMatchHelperWidget
                 showShooting = JsonHelpers.GetBool(layout, "showShootingChart", true);
                 ratio = JsonHelpers.GetNumber(layout, "assessmentRatio", 0.5);
                 assessmentOnTop = JsonHelpers.GetBool(layout, "assessmentOnTop", true);
+                statTextScale = JsonHelpers.GetNumber(layout, "statTextScale", 1.0);
+                lineStrokeWidth = JsonHelpers.GetNumber(layout, "lineStrokeWidth", 1.5);
+                assessmentChartOpacity = JsonHelpers.GetNumber(layout, "assessmentChartOpacity", 1.0);
+                shootingChartOpacity = JsonHelpers.GetNumber(layout, "shootingChartOpacity", 1.0);
             }
+
+            statTextScale = HudDisplayMetrics.ClampStatTextScale(statTextScale);
+            lineStrokeWidth = HudDisplayMetrics.ClampLineStrokeWidth(lineStrokeWidth);
+            assessmentChartOpacity = HudDisplayMetrics.ClampChartOpacity(assessmentChartOpacity);
+            shootingChartOpacity = HudDisplayMetrics.ClampChartOpacity(shootingChartOpacity);
 
             if (!showAssessment && !showShooting)
             {
@@ -435,6 +576,10 @@ namespace CSMatchHelperWidget
                 ShowShooting = showShooting,
                 Ratio = ClampRatio(ratio),
                 AssessmentOnTop = assessmentOnTop,
+                StatTextScale = statTextScale,
+                LineStrokeWidth = lineStrokeWidth,
+                AssessmentChartOpacity = assessmentChartOpacity,
+                ShootingChartOpacity = shootingChartOpacity,
             };
             if (fingerprint.Equals(_lastLayoutFingerprint))
             {
@@ -446,6 +591,11 @@ namespace CSMatchHelperWidget
             _showShootingChart = showShooting;
             _assessmentRatio = fingerprint.Ratio;
             _assessmentOnTop = assessmentOnTop;
+            _statTextScale = statTextScale;
+            _lineStrokeWidth = lineStrokeWidth;
+            _assessmentChartOpacity = assessmentChartOpacity;
+            _shootingChartOpacity = shootingChartOpacity;
+            ApplyDisplaySettings(false);
             ApplyWidgetLayout();
         }
 
@@ -701,6 +851,8 @@ namespace CSMatchHelperWidget
             _lastChartFingerprint = default(ChartFingerprint);
             _consecutiveFailures = 0;
             _hasLiveSnapshot = false;
+            _streamShootingRecordCount = 0;
+            _streamAssessmentRecordCount = 0;
             ResetAssessmentStats();
             ResetShootingStats();
             _assessmentChart.Reset();
@@ -725,6 +877,7 @@ namespace CSMatchHelperWidget
                 return;
             }
 
+            var wasLive = _hasLiveSnapshot;
             _hasLiveSnapshot = true;
             SetLinkState(WidgetLinkState.Live);
 
@@ -733,11 +886,36 @@ namespace CSMatchHelperWidget
             ApplyShooting(root);
 
             var fingerprint = BuildChartFingerprint(root);
-            if (!fingerprint.Equals(_lastChartFingerprint))
+            var needsChartRedraw = !wasLive
+                || fingerprint.ShootingCount != _streamShootingRecordCount
+                || fingerprint.AssessmentCount != _streamAssessmentRecordCount
+                || !ChartLayoutEquals(fingerprint, _lastChartFingerprint);
+
+            _streamShootingRecordCount = (int)fingerprint.ShootingCount;
+            _streamAssessmentRecordCount = (int)fingerprint.AssessmentCount;
+
+            if (needsChartRedraw)
             {
                 _lastChartFingerprint = fingerprint;
                 RedrawCharts(root);
             }
+            else
+            {
+                _lastChartFingerprint = fingerprint;
+            }
+        }
+
+        private static bool ChartLayoutEquals(ChartFingerprint a, ChartFingerprint b)
+        {
+            return a.ShowStableBars == b.ShowStableBars
+                && a.ShowTapMarkers == b.ShowTapMarkers
+                && a.ShowAssessmentChart == b.ShowAssessmentChart
+                && a.ShowShootingChart == b.ShowShootingChart
+                && Math.Abs(a.AssessmentRatio - b.AssessmentRatio) < 0.001
+                && Math.Abs(a.AssessmentWidth - b.AssessmentWidth) < 0.5
+                && Math.Abs(a.AssessmentHeight - b.AssessmentHeight) < 0.5
+                && Math.Abs(a.ShootingWidth - b.ShootingWidth) < 0.5
+                && Math.Abs(a.ShootingHeight - b.ShootingHeight) < 0.5;
         }
 
         private void ApplyAssessment(JsonObject root)
@@ -811,6 +989,8 @@ namespace CSMatchHelperWidget
 
         private void RedrawCharts(JsonObject root)
         {
+            _assessmentChart.Configure(_lineStrokeWidth);
+
             if (_showAssessmentChart)
             {
                 var assessmentRecords = JsonHelpers.GetArray(root, "records");
@@ -834,6 +1014,8 @@ namespace CSMatchHelperWidget
                     showTapMarkers = JsonHelpers.GetBool(shooting, "hudShowTapMarkers", true);
                 }
 
+                _shootingShowStableBars = showStableBars;
+                _shootingShowTapMarkers = showTapMarkers;
                 _shootingChart.Update(shotRecords, showStableBars, showTapMarkers);
             }
             else
@@ -880,13 +1062,21 @@ namespace CSMatchHelperWidget
             public bool ShowShooting;
             public double Ratio;
             public bool AssessmentOnTop;
+            public double StatTextScale;
+            public double LineStrokeWidth;
+            public double AssessmentChartOpacity;
+            public double ShootingChartOpacity;
 
             public bool Equals(LayoutFingerprint other)
             {
                 return ShowAssessment == other.ShowAssessment
                     && ShowShooting == other.ShowShooting
                     && AssessmentOnTop == other.AssessmentOnTop
-                    && Math.Abs(Ratio - other.Ratio) < 0.001;
+                    && Math.Abs(Ratio - other.Ratio) < 0.001
+                    && Math.Abs(StatTextScale - other.StatTextScale) < 0.001
+                    && Math.Abs(LineStrokeWidth - other.LineStrokeWidth) < 0.001
+                    && Math.Abs(AssessmentChartOpacity - other.AssessmentChartOpacity) < 0.001
+                    && Math.Abs(ShootingChartOpacity - other.ShootingChartOpacity) < 0.001;
             }
 
             public override bool Equals(object obj)
@@ -903,6 +1093,10 @@ namespace CSMatchHelperWidget
                     hash = hash * 31 + ShowShooting.GetHashCode();
                     hash = hash * 31 + Ratio.GetHashCode();
                     hash = hash * 31 + AssessmentOnTop.GetHashCode();
+                    hash = hash * 31 + StatTextScale.GetHashCode();
+                    hash = hash * 31 + LineStrokeWidth.GetHashCode();
+                    hash = hash * 31 + AssessmentChartOpacity.GetHashCode();
+                    hash = hash * 31 + ShootingChartOpacity.GetHashCode();
                     return hash;
                 }
             }

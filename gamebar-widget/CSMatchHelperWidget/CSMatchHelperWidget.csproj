@@ -55,6 +55,7 @@
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="HudChartRenderer.cs" />
+    <Compile Include="HudDisplayMetrics.cs" />
     <Compile Include="IpcPortDiscovery.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

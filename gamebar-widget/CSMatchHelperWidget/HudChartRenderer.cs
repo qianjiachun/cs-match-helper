@@ -22,6 +22,8 @@ namespace CSMatchHelperWidget
         private readonly SolidColorBrush[] _segmentBrushes;
         private readonly SolidColorBrush[] _dotBrushes;
         private readonly SolidColorBrush _baselineBrush;
+        private double _strokeWidth = 1.5;
+        private readonly List<JsonObject> _recordCache = new List<JsonObject>();
 
         public AssessmentChartRenderer(Canvas canvas)
         {
@@ -67,8 +69,19 @@ namespace CSMatchHelperWidget
             }
         }
 
+        public void Configure(double strokeWidth)
+        {
+            _strokeWidth = HudDisplayMetrics.ClampLineStrokeWidth(strokeWidth);
+            for (var i = 0; i < MaxSegments; i++)
+            {
+                _segments[i].StrokeThickness = _strokeWidth;
+            }
+            _baseline.StrokeThickness = Math.Max(0.5, _strokeWidth * 0.75);
+        }
+
         public void Reset()
         {
+            _recordCache.Clear();
             _baseline.Visibility = Visibility.Collapsed;
             for (var i = 0; i < MaxSegments; i++)
             {
@@ -81,7 +94,37 @@ namespace CSMatchHelperWidget
             }
         }
 
+        public void Append(JsonObject record)
+        {
+            _recordCache.Add(record);
+            while (_recordCache.Count > MaxPoints)
+            {
+                _recordCache.RemoveAt(0);
+            }
+
+            RenderRecords(_recordCache);
+        }
+
         public void Update(JsonArray records)
+        {
+            _recordCache.Clear();
+            for (var i = 0; i < records.Count; i++)
+            {
+                if (records[i].ValueType == JsonValueType.Object)
+                {
+                    _recordCache.Add(records[i].GetObject());
+                }
+            }
+
+            while (_recordCache.Count > MaxPoints)
+            {
+                _recordCache.RemoveAt(0);
+            }
+
+            RenderRecords(_recordCache);
+        }
+
+        private void RenderRecords(List<JsonObject> data)
         {
             var width = _canvas.ActualWidth;
             var height = _canvas.ActualHeight;
@@ -90,7 +133,6 @@ namespace CSMatchHelperWidget
                 return;
             }
 
-            var data = SliceLast(records, MaxPoints);
             if (data.Count == 0)
             {
                 Reset();
@@ -112,12 +154,7 @@ namespace CSMatchHelperWidget
             var dots = new List<(double x, double y, Color color, bool isLatest)>(data.Count);
             for (var i = 0; i < data.Count; i++)
             {
-                if (data[i].ValueType != JsonValueType.Object)
-                {
-                    continue;
-                }
-
-                var record = data[i].GetObject();
+                var record = data[i];
                 var diffMs = JsonHelpers.GetNumber(record, "diffMs");
                 var x = padX + (data.Count == 1 ? innerW / 2 : (i / (double)(data.Count - 1)) * innerW);
                 var clamped = Math.Max(-DiffClampMs, Math.Min(DiffClampMs, diffMs));
@@ -166,6 +203,17 @@ namespace CSMatchHelperWidget
             }
         }
 
+        private static JsonArray ToJsonArray(List<JsonObject> records)
+        {
+            var array = new JsonArray();
+            foreach (var record in records)
+            {
+                array.Add(record);
+            }
+
+            return array;
+        }
+
         private static Line CreateDashedLine(SolidColorBrush brush)
         {
             return new Line
@@ -204,6 +252,9 @@ namespace CSMatchHelperWidget
         private readonly SolidColorBrush[] _yellowBrushes;
         private readonly SolidColorBrush[] _redBrushes;
         private readonly SolidColorBrush _thresholdBrush;
+        private readonly List<JsonObject> _recordCache = new List<JsonObject>();
+        private bool _showStableBars = true;
+        private bool _showTapMarkers = true;
 
         public ShootingChartRenderer(Canvas canvas)
         {
@@ -267,6 +318,7 @@ namespace CSMatchHelperWidget
 
         public void Reset()
         {
+            _recordCache.Clear();
             for (var i = 0; i < MaxPoints; i++)
             {
                 _greenBars[i].Visibility = Visibility.Collapsed;
@@ -277,7 +329,41 @@ namespace CSMatchHelperWidget
             }
         }
 
+        public void Append(JsonObject record, bool showStableBars, bool showTapMarkers)
+        {
+            _showStableBars = showStableBars;
+            _showTapMarkers = showTapMarkers;
+            _recordCache.Add(record);
+            while (_recordCache.Count > MaxPoints)
+            {
+                _recordCache.RemoveAt(0);
+            }
+
+            RenderRecords(_recordCache, showStableBars, showTapMarkers);
+        }
+
         public void Update(JsonArray records, bool showStableBars, bool showTapMarkers)
+        {
+            _showStableBars = showStableBars;
+            _showTapMarkers = showTapMarkers;
+            _recordCache.Clear();
+            for (var i = 0; i < records.Count; i++)
+            {
+                if (records[i].ValueType == JsonValueType.Object)
+                {
+                    _recordCache.Add(records[i].GetObject());
+                }
+            }
+
+            while (_recordCache.Count > MaxPoints)
+            {
+                _recordCache.RemoveAt(0);
+            }
+
+            RenderRecords(_recordCache, showStableBars, showTapMarkers);
+        }
+
+        private void RenderRecords(List<JsonObject> data, bool showStableBars, bool showTapMarkers)
         {
             var width = _canvas.ActualWidth;
             var height = _canvas.ActualHeight;
@@ -295,7 +381,6 @@ namespace CSMatchHelperWidget
             var blockH = height - padY * 2;
             var barBottom = padY + blockH;
 
-            var data = SliceLast(records, MaxPoints);
             for (var slot = 0; slot < MaxPoints; slot++)
             {
                 _greenBars[slot].Visibility = Visibility.Collapsed;
@@ -307,12 +392,7 @@ namespace CSMatchHelperWidget
 
             for (var i = 0; i < data.Count; i++)
             {
-                if (data[i].ValueType != JsonValueType.Object)
-                {
-                    continue;
-                }
-
-                var record = data[i].GetObject();
+                var record = data[i];
                 var seg = HudChartRenderer.ShotBarSegments(record);
                 var isStableHidden = !showStableBars && seg.State == "stable";
                 if (isStableHidden)
