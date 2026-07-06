@@ -100,21 +100,22 @@ function counterStrafingAriaLabel(): string {
         @clear-logs="emit('clearLogs')"
       />
       <button
-        v-if="view === 'main' || view === 'counter-strafing'"
         type="button"
-        class="cs-header-strafing-btn relative flex h-full cursor-pointer items-center gap-1.5 px-3 text-[12px] transition-[background-color,color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        tabindex="-1"
+        class="cs-header-strafing-btn relative flex h-full cursor-pointer items-center gap-1.5 px-3 text-[12px] outline-none transition-[background-color,color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
         :class="
           view === 'counter-strafing'
             ? counterStrafingListening
-              ? 'bg-emerald-500/8 text-fg cs-header-strafing-btn--listening'
+              ? 'bg-emerald-500/8 text-fg'
               : 'bg-elevated text-fg'
             : counterStrafingListening
-              ? 'text-emerald-700 hover:bg-emerald-500/8 cs-header-strafing-btn--listening'
+              ? 'text-emerald-700 hover:bg-emerald-500/8'
               : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
         "
         :aria-label="counterStrafingAriaLabel()"
         :aria-current="view === 'counter-strafing' ? 'page' : undefined"
-        @click="view === 'main' && emit('openCounterStrafing')"
+        @mousedown.prevent
+        @click="view !== 'counter-strafing' && emit('openCounterStrafing')"
       >
         <span class="relative shrink-0">
           <Gauge
@@ -130,29 +131,34 @@ function counterStrafingAriaLabel(): string {
             />
           </Transition>
         </span>
-        <span class="hidden shrink-0 whitespace-nowrap sm:inline">急停助手</span>
-        <div
-          class="hidden sm:grid transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-          :class="counterStrafingListening ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
-          aria-hidden="true"
+        <span
+          class="hidden min-w-0 items-center sm:inline-flex"
+          :class="counterStrafingListening ? 'gap-1.5' : 'gap-0'"
         >
-          <div class="overflow-hidden">
-            <span
-              class="cs-header-status-badge inline-flex w-max shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
-              :class="
-                counterStrafingListening
-                  ? 'cs-header-status-badge--visible'
-                  : 'cs-header-status-badge--hidden'
-              "
-            >
+          <span class="shrink-0 whitespace-nowrap">急停助手</span>
+          <div
+            class="grid min-w-0 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            :class="counterStrafingListening ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
+            aria-hidden="true"
+          >
+            <div class="min-w-0 overflow-hidden">
               <span
-                class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse"
-                aria-hidden="true"
-              />
-              记录中
-            </span>
+                class="cs-header-status-badge inline-flex w-max shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+                :class="
+                  counterStrafingListening
+                    ? 'cs-header-status-badge--visible'
+                    : 'cs-header-status-badge--hidden'
+                "
+              >
+                <span
+                  class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                  aria-hidden="true"
+                />
+                记录中
+              </span>
+            </div>
           </div>
-        </div>
+        </span>
       </button>
       <button
         v-if="view === 'main'"
@@ -206,10 +212,6 @@ function counterStrafingAriaLabel(): string {
 </template>
 
 <style scoped>
-.cs-header-strafing-btn--listening {
-  box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.18);
-}
-
 .cs-header-status-badge {
   transition:
     opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
