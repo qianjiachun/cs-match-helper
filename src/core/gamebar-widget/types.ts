@@ -64,7 +64,7 @@ export function formatWidgetProgressMessage(event: GameBarWidgetProgressEvent): 
     case 'extracting':
       return '正在打开安装包…';
     case 'installing':
-      return '正在安装。请勿关闭 PowerShell 窗口；若出现错误提示也请耐心等待，通常几分钟内可完成。';
+      return '正在安装，请保持安装窗口开启；若出现系统提示也请耐心等待，通常几分钟内可完成。';
     case 'complete':
       return '安装完成';
     default:

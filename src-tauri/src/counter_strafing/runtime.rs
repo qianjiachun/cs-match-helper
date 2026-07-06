@@ -5,9 +5,10 @@ use super::hud_window;
 use crate::counter_strafing::settings::{load_counter_strafing_settings, save_counter_strafing_settings};
 use crate::counter_strafing::types::{
     BindingRole, CounterStrafingAssessmentRecord, CounterStrafingAssessmentSnapshot,
-    CounterStrafingSettings, CounterStrafingSnapshot, GameBarIpcSnapshot, GameBarWidgetLayout,
+    CounterStrafingSettings, CounterStrafingSnapshot, GameBarIpcSnapshot,
     HudAnchor, InputBinding, InputEvent, InputSource, ShootingErrorRecord, ShootingHudIpcSnapshot,
-    clamp_gamebar_assessment_ratio, normalize_gamebar_layout,
+    clamp_gamebar_assessment_ratio, normalize_gamebar_layout, apply_hud_display_to_assessment_snapshot,
+    apply_hud_display_to_snapshot, gamebar_layout_from_settings,
 };
 use crate::counter_strafing::win_input::{self, InputListener, ScreenRect};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +28,8 @@ const ASSESSMENT_HUD_HEIGHT: f64 = HUD_HEIGHT;
 const HUD_MARGIN: i32 = 12;
 const HUD_STACK_GAP: i32 = 4;
 const SNAPSHOT_EMIT_INTERVAL: Duration = Duration::from_millis(100);
+const SNAPSHOT_STATS_COALESCE: Duration = Duration::from_millis(16);
+const MAX_EVENT_BATCH: usize = 8;
 
 fn clamp_hud_width(width: f64) -> f64 {
     width.clamp(1.0, HUD_MAX_WIDTH)
@@ -99,10 +102,13 @@ impl CounterStrafingRuntime {
         let rx = input.receiver().clone();
 
         let snapshot_signal = ipc_server::SnapshotSignal::new();
+        let ipc_stream_queue = ipc_server::IpcStreamQueue::new();
         let app_handle = app.clone();
         let shared = Arc::new(Mutex::new(ConsumerShared {
             stop_flag: stop_flag.clone(),
             snapshot_signal: Some(snapshot_signal.clone()),
+            ipc_stream_queue: ipc_stream_queue.clone(),
+            last_stats_emit: None,
         }));
 
         let consumer_shared = Arc::clone(&shared);
@@ -148,6 +154,7 @@ impl CounterStrafingRuntime {
                     .gamebar_ipc_snapshot()
             },
             snapshot_signal,
+            ipc_stream_queue,
             move |ratio| {
                 app_for_layout
                     .state::<CounterStrafingRuntime>()
@@ -397,6 +404,8 @@ impl CounterStrafingRuntime {
         let shared = Arc::new(Mutex::new(ConsumerShared {
             stop_flag: stop_flag.clone(),
             snapshot_signal: None,
+            ipc_stream_queue: ipc_server::IpcStreamQueue::new(),
+            last_stats_emit: None,
         }));
         let consumer_shared = Arc::clone(&shared);
         let consumer = thread::Builder::new()
@@ -603,12 +612,69 @@ impl CounterStrafingRuntime {
 struct ConsumerShared {
     stop_flag: Arc<AtomicBool>,
     snapshot_signal: Option<ipc_server::SnapshotSignal>,
+    ipc_stream_queue: ipc_server::IpcStreamQueue,
+    last_stats_emit: Option<Instant>,
 }
 
-fn bump_snapshot_signal(shared: &Arc<Mutex<ConsumerShared>>) {
-    if let Some(signal) = shared.lock().unwrap().snapshot_signal.clone() {
-        signal.bump();
+fn emit_shooting_record_now(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    record: ShootingErrorRecord,
+) {
+    let _ = app.emit("counter-strafing-shot", &record);
+    if let Ok(guard) = shared.lock() {
+        guard.ipc_stream_queue.push_shooting_record(&record);
+        if let Some(signal) = guard.snapshot_signal.as_ref() {
+            signal.bump();
+        }
     }
+}
+
+fn emit_assessment_record_now(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    record: CounterStrafingAssessmentRecord,
+) {
+    let _ = app.emit("counter-strafing-assessment-record", &record);
+    if let Ok(guard) = shared.lock() {
+        guard.ipc_stream_queue.push_assessment_record(&record);
+        if let Some(signal) = guard.snapshot_signal.as_ref() {
+            signal.bump();
+        }
+    }
+}
+
+fn emit_stats_snapshots_coalesced(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>) {
+    let should_emit = {
+        let mut guard = match shared.lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let now = Instant::now();
+        if guard
+            .last_stats_emit
+            .is_some_and(|t| now.duration_since(t) < SNAPSHOT_STATS_COALESCE)
+        {
+            false
+        } else {
+            guard.last_stats_emit = Some(now);
+            true
+        }
+    };
+    if !should_emit {
+        return;
+    }
+
+    let (shooting_snap, assessment_snap) = {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let inner = runtime.inner.lock().unwrap();
+        (
+            build_snapshot(&inner),
+            build_assessment_snapshot(&inner),
+        )
+    };
+    let _ = app.emit("counter-strafing-snapshot", shooting_snap);
+    let _ = app.emit("counter-strafing-assessment-snapshot", assessment_snap);
 }
 
 fn compute_recv_timeout(engine: Option<&CounterStrafingEngine>) -> Duration {
@@ -623,81 +689,50 @@ fn compute_recv_timeout(engine: Option<&CounterStrafingEngine>) -> Duration {
     MAX_RECV_TIMEOUT
 }
 
-struct ConsumerDispatchOutput {
-    shots: Vec<ShootingErrorRecord>,
-    assessment_records: Vec<CounterStrafingAssessmentRecord>,
-    had_records: bool,
-}
-
-fn process_input_events_locked(
+fn process_single_event_locked(
     inner: &mut RuntimeInner,
-    events: &[InputEvent],
+    event: &InputEvent,
+) -> (
+    Option<ShootingErrorRecord>,
+    Option<CounterStrafingAssessmentRecord>,
+) {
+    let binding = event_to_binding(event);
+    let role = inner.settings.key_map.role_for_binding(&binding);
+    let mut assessment_record = None;
+    if let Some(role) = role {
+        if matches!(
+            role,
+            BindingRole::Left | BindingRole::Right | BindingRole::Forward | BindingRole::Back
+        ) {
+            assessment_record = inner.assessment_engine.as_mut().and_then(|engine| {
+                engine.handle_movement(role, event.is_down, event.time_secs)
+            });
+        }
+    }
+    let shot_record = inner
+        .engine
+        .as_mut()
+        .and_then(|engine| engine.handle_event(*event));
+    (shot_record, assessment_record)
+}
+
+fn drain_engine_shots_locked(
+    inner: &mut RuntimeInner,
     now: f64,
-) -> ConsumerDispatchOutput {
-    let mut shots = Vec::new();
-    let mut assessment_records = Vec::new();
-
-    for event in events {
-        let binding = event_to_binding(event);
-        let role = inner.settings.key_map.role_for_binding(&binding);
-        if let Some(role) = role {
-            if matches!(
-                role,
-                BindingRole::Left | BindingRole::Right | BindingRole::Forward | BindingRole::Back
-            ) {
-                if let Some(record) = inner.assessment_engine.as_mut().and_then(|engine| {
-                    engine.handle_movement(role, event.is_down, event.time_secs)
-                }) {
-                    assessment_records.push(record);
-                }
-            }
-        }
-        if let Some(engine) = inner.engine.as_mut() {
-            if let Some(record) = engine.handle_event(*event) {
-                shots.push(record);
-            }
-        }
-    }
-
+    out: &mut Vec<ShootingErrorRecord>,
+) {
     if let Some(engine) = inner.engine.as_mut() {
-        let logical_now = events
-            .iter()
-            .map(|event| event.time_secs)
-            .fold(now, f64::max);
-        engine.drain_due_samples(logical_now, &mut shots);
-    }
-
-    let had_records = !assessment_records.is_empty() || !shots.is_empty();
-    ConsumerDispatchOutput {
-        shots,
-        assessment_records,
-        had_records,
+        engine.drain_due_samples(now, out);
     }
 }
 
-fn emit_dispatch_output(
-    app: &AppHandle,
-    shared: &Arc<Mutex<ConsumerShared>>,
-    output: ConsumerDispatchOutput,
-) {
-    for record in output.assessment_records {
-        let _ = app.emit("counter-strafing-assessment-record", record);
-    }
-
-    for record in output.shots {
-        let _ = app.emit("counter-strafing-shot", record);
-    }
-
-    if output.had_records {
-        bump_snapshot_signal(shared);
-    } else {
-        let runtime = app.state::<CounterStrafingRuntime>();
-        let pending = {
-            let mut inner = runtime.inner.lock().unwrap();
-            collect_periodic_emissions(&mut inner)
-        };
-        flush_periodic_emissions(app, pending);
-    }
+fn event_triggers_intermediate_drain(event: &InputEvent, inner: &RuntimeInner) -> bool {
+    let binding = event_to_binding(event);
+    inner
+        .settings
+        .key_map
+        .role_for_binding(&binding)
+        .is_some_and(|role| role == BindingRole::Fire)
 }
 
 fn dispatch_consumer_events(
@@ -710,12 +745,62 @@ fn dispatch_consumer_events(
     }
 
     let now = win_input::qpc_secs();
-    let output = {
+    let mut had_any_record = false;
+
+    for (idx, event) in events.iter().enumerate() {
+        let mut drained_shots = Vec::new();
+        let (shot, assessment) = {
+            let runtime = app.state::<CounterStrafingRuntime>();
+            let mut inner = runtime.inner.lock().unwrap();
+            let result = process_single_event_locked(&mut inner, event);
+            let should_drain = event_triggers_intermediate_drain(event, &inner)
+                || (idx + 1) % MAX_EVENT_BATCH == 0;
+            if should_drain {
+                let sample_now = event.time_secs.max(now);
+                drain_engine_shots_locked(&mut inner, sample_now, &mut drained_shots);
+            }
+            result
+        };
+
+        if let Some(record) = shot {
+            emit_shooting_record_now(app, shared, record);
+            had_any_record = true;
+        }
+        if let Some(record) = assessment {
+            emit_assessment_record_now(app, shared, record);
+            had_any_record = true;
+        }
+        for record in drained_shots {
+            emit_shooting_record_now(app, shared, record);
+            had_any_record = true;
+        }
+    }
+
+    let mut final_shots = Vec::new();
+    {
         let runtime = app.state::<CounterStrafingRuntime>();
         let mut inner = runtime.inner.lock().unwrap();
-        process_input_events_locked(&mut inner, &events, now)
-    };
-    emit_dispatch_output(app, shared, output);
+        let logical_now = events
+            .iter()
+            .map(|event| event.time_secs)
+            .fold(now, f64::max);
+        drain_engine_shots_locked(&mut inner, logical_now, &mut final_shots);
+    }
+    for record in final_shots {
+        emit_shooting_record_now(app, shared, record);
+        had_any_record = true;
+    }
+
+    if had_any_record {
+        emit_stats_snapshots_coalesced(app, shared);
+    } else {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let pending = {
+            let mut inner = runtime.inner.lock().unwrap();
+            collect_periodic_emissions(&mut inner)
+        };
+        flush_periodic_emissions(app, pending);
+    }
 }
 
 fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, now: f64) {
@@ -770,12 +855,13 @@ fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, 
         records
     };
 
-    let assessment_count = assessment_records.len();
+    let mut had_assessment = false;
     for record in assessment_records {
-        let _ = app.emit("counter-strafing-assessment-record", record);
+        emit_assessment_record_now(app, shared, record);
+        had_assessment = true;
     }
-    if assessment_count > 0 {
-        bump_snapshot_signal(shared);
+    if had_assessment {
+        emit_stats_snapshots_coalesced(app, shared);
     }
 }
 
@@ -840,8 +926,12 @@ fn consumer_loop(
                 }
 
                 let mut batch = vec![event];
-                while let Ok(next) = rx.try_recv() {
-                    batch.push(next);
+                while batch.len() < MAX_EVENT_BATCH {
+                    if let Ok(next) = rx.try_recv() {
+                        batch.push(next);
+                    } else {
+                        break;
+                    }
                 }
                 dispatch_consumer_events(&app, &shared, batch);
             }
@@ -850,26 +940,28 @@ fn consumer_loop(
                 reconcile_stuck_inputs(&app, &shared, now);
 
                 let mut tick_shots = Vec::new();
-                let runtime = app.state::<CounterStrafingRuntime>();
-                let mut inner = runtime.inner.lock().unwrap();
-                if inner.capturing_binding.is_none() {
-                    if let Some(engine) = inner.engine.as_mut() {
-                        engine.drain_due_samples(now, &mut tick_shots);
+                {
+                    let runtime = app.state::<CounterStrafingRuntime>();
+                    let mut inner = runtime.inner.lock().unwrap();
+                    if inner.capturing_binding.is_none() {
+                        drain_engine_shots_locked(&mut inner, now, &mut tick_shots);
                     }
                 }
-                let pending = if tick_shots.is_empty() {
-                    collect_periodic_emissions(&mut inner)
-                } else {
-                    PeriodicEmissions::default()
-                };
-                drop(inner);
-                flush_periodic_emissions(&app, pending);
+
                 let had_tick_shots = !tick_shots.is_empty();
                 for record in tick_shots {
-                    let _ = app.emit("counter-strafing-shot", record);
+                    emit_shooting_record_now(&app, &shared, record);
                 }
+
                 if had_tick_shots {
-                    bump_snapshot_signal(&shared);
+                    emit_stats_snapshots_coalesced(&app, &shared);
+                } else {
+                    let runtime = app.state::<CounterStrafingRuntime>();
+                    let pending = {
+                        let mut inner = runtime.inner.lock().unwrap();
+                        collect_periodic_emissions(&mut inner)
+                    };
+                    flush_periodic_emissions(&app, pending);
                 }
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
@@ -954,6 +1046,7 @@ fn build_snapshot(inner: &RuntimeInner) -> CounterStrafingSnapshot {
     snap.hud_show_tap_markers = inner.settings.hud_show_tap_markers;
     snap.assessment_hud_visible = inner.assessment_hud_visible;
     snap.assessment_hud_locked = inner.settings.assessment_hud_locked;
+    apply_hud_display_to_snapshot(&mut snap, &inner.settings);
     snap
 }
 
@@ -973,6 +1066,7 @@ fn build_assessment_snapshot(inner: &RuntimeInner) -> CounterStrafingAssessmentS
         }
     };
     snap.hud_locked = inner.settings.assessment_hud_locked;
+    apply_hud_display_to_assessment_snapshot(&mut snap, &inner.settings);
     snap
 }
 
@@ -999,12 +1093,7 @@ fn build_gamebar_ipc_snapshot(inner: &RuntimeInner) -> GameBarIpcSnapshot {
         hud_show_tap_markers: shooting_snap.hud_show_tap_markers,
         last_shot: shooting_snap.last_shot,
     };
-    let layout = GameBarWidgetLayout {
-        show_assessment_chart: inner.settings.gamebar_show_assessment_chart,
-        show_shooting_chart: inner.settings.gamebar_show_shooting_chart,
-        assessment_ratio: clamp_gamebar_assessment_ratio(inner.settings.gamebar_assessment_ratio),
-        assessment_on_top: inner.settings.gamebar_assessment_on_top,
-    };
+    let layout = gamebar_layout_from_settings(&inner.settings);
     GameBarIpcSnapshot {
         assessment,
         shooting: Some(shooting),

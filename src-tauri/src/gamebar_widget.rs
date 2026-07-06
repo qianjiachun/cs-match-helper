@@ -723,10 +723,8 @@ $logPath = '{log_literal}'
 $resultPath = '{result_literal}'
 $startedPath = '{started_literal}'
 $installScript = '{install_literal}'
+try {{ $Host.UI.RawUI.WindowTitle = 'CS 匹配助手 - 小组件安装' }} catch {{ }}
 "started $(Get-Date -Format o)" | Set-Content -Path $startedPath -Encoding UTF8
-Write-Host ''
-Write-Host '提示：若安装过程中出现错误（例如「资源正在使用」），请勿关闭此窗口，等待几分钟后通常即可安装成功。' -ForegroundColor Yellow
-Write-Host ''
 "=== Widget install started $(Get-Date -Format o) ===" | Set-Content -Path $logPath -Encoding UTF8
 try {{
   if (Test-Path $resultPath) {{ Remove-Item $resultPath -Force }}
@@ -1114,7 +1112,7 @@ async fn install_from_prepared_root(
         "installing",
         0,
         None,
-        Some("请在 UAC 中点「是」。随后会弹出 PowerShell 窗口。若出现错误提示请勿关闭，等待几分钟通常即可成功。"),
+        Some("请在 UAC 中点「是」。随后会弹出安装窗口，请保持开启，通常 1–3 分钟即可完成。"),
     );
 
     #[cfg(windows)]
@@ -1140,7 +1138,7 @@ async fn install_from_prepared_root(
                     0,
                     None,
                     Some(&format!(
-                        "正在安装小组件，请勿关闭 PowerShell 窗口（已等待 {mins} 分 {secs} 秒）。若出现错误提示也请耐心等待，通常几分钟内可完成。"
+                        "正在安装小组件，请保持安装窗口开启（已等待 {mins} 分 {secs} 秒）。若出现系统提示也请耐心等待，通常几分钟内可完成。"
                     )),
                 );
             }

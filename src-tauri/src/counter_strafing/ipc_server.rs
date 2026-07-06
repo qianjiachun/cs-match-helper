@@ -1,5 +1,7 @@
 use crate::counter_strafing::ipc_port_discovery;
-use crate::counter_strafing::types::GameBarIpcSnapshot;
+use crate::counter_strafing::types::{
+    CounterStrafingAssessmentRecord, GameBarIpcSnapshot, ShootingErrorRecord,
+};
 use serde::Serialize;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -48,6 +50,52 @@ impl Default for SnapshotSignal {
     }
 }
 
+/// NDJSON delta lines queued for `/stream` clients (Widget incremental chart updates).
+#[derive(Clone, Default)]
+pub struct IpcStreamQueue {
+    inner: Arc<Mutex<Vec<String>>>,
+}
+
+impl IpcStreamQueue {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push_shooting_record(&self, record: &ShootingErrorRecord) {
+        if let Ok(json) = serde_json::to_string(&IpcStreamLine::ShootingRecord {
+            record: record.clone(),
+        }) {
+            if let Ok(mut guard) = self.inner.lock() {
+                guard.push(format!("{json}\n"));
+            }
+        }
+    }
+
+    pub fn push_assessment_record(&self, record: &CounterStrafingAssessmentRecord) {
+        if let Ok(json) = serde_json::to_string(&IpcStreamLine::AssessmentRecord {
+            record: record.clone(),
+        }) {
+            if let Ok(mut guard) = self.inner.lock() {
+                guard.push(format!("{json}\n"));
+            }
+        }
+    }
+
+    pub fn drain(&self) -> Vec<String> {
+        self.inner
+            .lock()
+            .map(|mut guard| std::mem::take(&mut *guard))
+            .unwrap_or_default()
+    }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum IpcStreamLine {
+    ShootingRecord { record: ShootingErrorRecord },
+    AssessmentRecord { record: CounterStrafingAssessmentRecord },
+}
+
 pub struct IpcServer {
     stop_flag: Arc<AtomicBool>,
     listener: Arc<Mutex<Option<TcpListener>>>,
@@ -61,6 +109,7 @@ impl IpcServer {
         app: AppHandle,
         get_snapshot: impl Fn() -> GameBarIpcSnapshot + Send + Sync + 'static,
         snapshot_signal: SnapshotSignal,
+        ipc_stream_queue: IpcStreamQueue,
         update_widget_layout: impl Fn(f64) -> Result<(), String> + Send + Sync + 'static,
     ) -> Result<(Self, u16), String> {
         let (listener, port) = ipc_port_discovery::bind_ipc_listener()?;
@@ -76,6 +125,7 @@ impl IpcServer {
         let listener_for_thread = Arc::clone(&listener_slot);
         let get_snapshot = Arc::new(get_snapshot);
         let update_widget_layout = Arc::new(update_widget_layout);
+        let ipc_stream_queue = Arc::new(ipc_stream_queue);
 
         let handle = thread::Builder::new()
             .name("counter-strafing-ipc".into())
@@ -85,6 +135,7 @@ impl IpcServer {
                     app,
                     get_snapshot,
                     snapshot_signal,
+                    ipc_stream_queue,
                     update_widget_layout,
                     stop_for_thread,
                 )
@@ -136,6 +187,7 @@ fn server_loop(
     _app: AppHandle,
     get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
     snapshot_signal: SnapshotSignal,
+    ipc_stream_queue: Arc<IpcStreamQueue>,
     update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
 ) {
@@ -165,6 +217,7 @@ fn server_loop(
                 let get_snapshot = Arc::clone(&get_snapshot);
                 let cache = Arc::clone(&cache);
                 let signal = snapshot_signal.clone();
+                let stream_queue = Arc::clone(&ipc_stream_queue);
                 let stop = Arc::clone(&stop_flag);
                 let generation = Arc::clone(&stream_generation);
                 let update_layout = Arc::clone(&update_widget_layout);
@@ -176,6 +229,7 @@ fn server_loop(
                             get_snapshot,
                             cache,
                             signal,
+                            stream_queue,
                             update_layout,
                             stop,
                             generation,
@@ -205,6 +259,7 @@ fn handle_client(
     get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
     cache: Arc<Mutex<JsonCache>>,
     snapshot_signal: SnapshotSignal,
+    ipc_stream_queue: Arc<IpcStreamQueue>,
     update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
     stream_generation: Arc<AtomicU64>,
@@ -252,6 +307,7 @@ fn handle_client(
             &mut stream,
             get_snapshot.as_ref(),
             snapshot_signal,
+            ipc_stream_queue.as_ref(),
             &stop_flag,
             &stream_generation,
             my_generation,
@@ -305,6 +361,7 @@ fn handle_stream_connection(
     stream: &mut TcpStream,
     get_snapshot: &(dyn Fn() -> GameBarIpcSnapshot + Send + Sync),
     snapshot_signal: SnapshotSignal,
+    ipc_stream_queue: &IpcStreamQueue,
     stop_flag: &Arc<AtomicBool>,
     stream_generation: &Arc<AtomicU64>,
     my_generation: u64,
@@ -343,6 +400,12 @@ fn handle_stream_connection(
             break;
         }
 
+        for line in ipc_stream_queue.drain() {
+            if write_chunk(stream, line.as_bytes()).is_err() {
+                return Ok(());
+            }
+        }
+
         let snapshot = get_snapshot();
         let revision = snapshot_revision(&snapshot);
         if revision != last_revision {
@@ -360,10 +423,8 @@ fn handle_stream_connection(
                 break;
             }
             last_revision = revision;
-        } else if timed_out {
-            if write_chunk(stream, b"\n").is_err() {
-                break;
-            }
+        } else if timed_out && write_chunk(stream, b"\n").is_err() {
+            break;
         }
     }
 
@@ -443,6 +504,10 @@ fn snapshot_revision(snapshot: &GameBarIpcSnapshot) -> u64 {
     hash = fold_u64(hash, layout.show_shooting_chart as u8 as u64);
     hash = fold_u64(hash, layout.assessment_ratio.to_bits());
     hash = fold_u64(hash, layout.assessment_on_top as u8 as u64);
+    hash = fold_u64(hash, layout.stat_text_scale.to_bits());
+    hash = fold_u64(hash, layout.line_stroke_width.to_bits());
+    hash = fold_u64(hash, layout.assessment_chart_opacity.to_bits());
+    hash = fold_u64(hash, layout.shooting_chart_opacity.to_bits());
     hash
 }
 
@@ -580,5 +645,55 @@ mod tests {
         thread::sleep(Duration::from_millis(20));
         signal.bump();
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn ipc_stream_queue_emits_ndjson_delta_lines() {
+        use crate::counter_strafing::types::{
+            AssessmentAxis, AssessmentTiming, CounterStrafingAssessmentRecord, FireSampleKind,
+            ShootingErrorReason,
+        };
+
+        let queue = IpcStreamQueue::new();
+        queue.push_shooting_record(&ShootingErrorRecord {
+            error: 0.5,
+            score_label: "test".to_string(),
+            reason: ShootingErrorReason::MultipleDirectionsHeld,
+            movement_keys_down: 1,
+            crouching: false,
+            last_stop_age_ms: 0.0,
+            timing_diff_ms: 0.0,
+            fire_held: true,
+            sample_kind: FireSampleKind::FireDown,
+            is_stable: false,
+            timestamp_ms: 100,
+            estimated_speed: 0.0,
+            accuracy_threshold: 0.0,
+            speed_ratio: 0.0,
+            stop_success_age_ms: 0.0,
+            counter_strafe_active: false,
+            axis_conflict: false,
+            fire_sample_delayed: false,
+            shot_sequence_index: 1,
+            crouch_grace_active: false,
+        });
+        queue.push_assessment_record(&CounterStrafingAssessmentRecord {
+            axis: AssessmentAxis::Horizontal,
+            from_key: "A".to_string(),
+            to_key: "D".to_string(),
+            diff_ms: 2.0,
+            timing: AssessmentTiming::Late,
+            timing_label: "偏晚".to_string(),
+            is_perfect: false,
+            is_success: false,
+            timestamp_ms: 200,
+        });
+
+        let lines = queue.drain();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("\"type\":\"shootingRecord\""));
+        assert!(lines[0].ends_with('\n'));
+        assert!(lines[1].contains("\"type\":\"assessmentRecord\""));
+        assert!(queue.drain().is_empty());
     }
 }

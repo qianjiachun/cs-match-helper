@@ -409,6 +409,7 @@ impl CounterStrafingEngine {
             fire_active: self.fire_pressed,
             assessment_hud_visible: false,
             assessment_hud_locked: false,
+            ..Default::default()
         }
     }
 

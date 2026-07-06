@@ -269,6 +269,7 @@ impl CounterStrafingAssessmentEngine {
             tendency: stats.tendency,
             tendency_label: stats.tendency_label,
             last_record: self.records.last().cloned(),
+            ..Default::default()
         }
     }
 }

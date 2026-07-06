@@ -169,6 +169,14 @@ pub struct CounterStrafingAssessmentSnapshot {
     pub tendency_label: String,
     #[serde(default)]
     pub last_record: Option<CounterStrafingAssessmentRecord>,
+    #[serde(default = "default_hud_stat_text_scale")]
+    pub hud_stat_text_scale: f64,
+    #[serde(default = "default_hud_line_stroke_width")]
+    pub hud_line_stroke_width: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_assessment_chart_opacity: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_shooting_chart_opacity: f64,
 }
 
 impl Default for CounterStrafingAssessmentSnapshot {
@@ -185,6 +193,10 @@ impl Default for CounterStrafingAssessmentSnapshot {
             tendency: "normal".to_string(),
             tendency_label: "正常".to_string(),
             last_record: None,
+            hud_stat_text_scale: default_hud_stat_text_scale(),
+            hud_line_stroke_width: default_hud_line_stroke_width(),
+            hud_assessment_chart_opacity: default_hud_chart_opacity(),
+            hud_shooting_chart_opacity: default_hud_chart_opacity(),
         }
     }
 }
@@ -219,6 +231,14 @@ pub struct GameBarWidgetLayout {
     pub assessment_ratio: f64,
     #[serde(default = "default_true")]
     pub assessment_on_top: bool,
+    #[serde(default = "default_hud_stat_text_scale")]
+    pub stat_text_scale: f64,
+    #[serde(default = "default_hud_line_stroke_width")]
+    pub line_stroke_width: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub assessment_chart_opacity: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub shooting_chart_opacity: f64,
 }
 
 impl Default for GameBarWidgetLayout {
@@ -228,6 +248,10 @@ impl Default for GameBarWidgetLayout {
             show_shooting_chart: true,
             assessment_ratio: default_gamebar_assessment_ratio(),
             assessment_on_top: default_true(),
+            stat_text_scale: default_hud_stat_text_scale(),
+            line_stroke_width: default_hud_line_stroke_width(),
+            assessment_chart_opacity: default_hud_chart_opacity(),
+            shooting_chart_opacity: default_hud_chart_opacity(),
         }
     }
 }
@@ -322,6 +346,14 @@ pub struct CounterStrafingSnapshot {
     pub assessment_hud_visible: bool,
     #[serde(default)]
     pub assessment_hud_locked: bool,
+    #[serde(default = "default_hud_stat_text_scale")]
+    pub hud_stat_text_scale: f64,
+    #[serde(default = "default_hud_line_stroke_width")]
+    pub hud_line_stroke_width: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_assessment_chart_opacity: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_shooting_chart_opacity: f64,
 }
 
 impl Default for CounterStrafingSnapshot {
@@ -341,6 +373,10 @@ impl Default for CounterStrafingSnapshot {
             fire_active: false,
             assessment_hud_visible: false,
             assessment_hud_locked: false,
+            hud_stat_text_scale: default_hud_stat_text_scale(),
+            hud_line_stroke_width: default_hud_line_stroke_width(),
+            hud_assessment_chart_opacity: default_hud_chart_opacity(),
+            hud_shooting_chart_opacity: default_hud_chart_opacity(),
         }
     }
 }
@@ -438,21 +474,90 @@ pub struct CounterStrafingSettings {
     pub gamebar_assessment_ratio: f64,
     #[serde(default = "default_true")]
     pub gamebar_assessment_on_top: bool,
+    #[serde(default = "default_hud_stat_text_scale")]
+    pub hud_stat_text_scale: f64,
+    #[serde(default = "default_hud_line_stroke_width")]
+    pub hud_line_stroke_width: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_assessment_chart_opacity: f64,
+    #[serde(default = "default_hud_chart_opacity")]
+    pub hud_shooting_chart_opacity: f64,
 }
 
 pub const GAMEBAR_ASSESSMENT_RATIO_MIN: f64 = 0.05;
+pub const HUD_STAT_TEXT_SCALE_MIN: f64 = 0.6;
+pub const HUD_STAT_TEXT_SCALE_MAX: f64 = 1.6;
+pub const HUD_LINE_STROKE_WIDTH_MIN: f64 = 0.5;
+pub const HUD_LINE_STROKE_WIDTH_MAX: f64 = 4.0;
+pub const HUD_CHART_OPACITY_MIN: f64 = 0.15;
+pub const HUD_CHART_OPACITY_MAX: f64 = 1.0;
 pub const GAMEBAR_ASSESSMENT_RATIO_MAX: f64 = 0.95;
 
 pub fn clamp_gamebar_assessment_ratio(ratio: f64) -> f64 {
     ratio.clamp(GAMEBAR_ASSESSMENT_RATIO_MIN, GAMEBAR_ASSESSMENT_RATIO_MAX)
 }
 
+pub fn clamp_hud_stat_text_scale(scale: f64) -> f64 {
+    scale.clamp(HUD_STAT_TEXT_SCALE_MIN, HUD_STAT_TEXT_SCALE_MAX)
+}
+
+pub fn clamp_hud_line_stroke_width(width: f64) -> f64 {
+    width.clamp(HUD_LINE_STROKE_WIDTH_MIN, HUD_LINE_STROKE_WIDTH_MAX)
+}
+
+pub fn clamp_hud_chart_opacity(opacity: f64) -> f64 {
+    opacity.clamp(HUD_CHART_OPACITY_MIN, HUD_CHART_OPACITY_MAX)
+}
+
+pub fn normalize_hud_display_settings(settings: &mut CounterStrafingSettings) {
+    settings.hud_stat_text_scale = clamp_hud_stat_text_scale(settings.hud_stat_text_scale);
+    settings.hud_line_stroke_width =
+        clamp_hud_line_stroke_width(settings.hud_line_stroke_width);
+    settings.hud_assessment_chart_opacity =
+        clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
+    settings.hud_shooting_chart_opacity =
+        clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
+}
+
 pub fn normalize_gamebar_layout(settings: &mut CounterStrafingSettings) {
     settings.gamebar_assessment_ratio =
         clamp_gamebar_assessment_ratio(settings.gamebar_assessment_ratio);
+    normalize_hud_display_settings(settings);
     if !settings.gamebar_show_assessment_chart && !settings.gamebar_show_shooting_chart {
         settings.gamebar_show_assessment_chart = true;
     }
+}
+
+pub fn gamebar_layout_from_settings(settings: &CounterStrafingSettings) -> GameBarWidgetLayout {
+    GameBarWidgetLayout {
+        show_assessment_chart: settings.gamebar_show_assessment_chart,
+        show_shooting_chart: settings.gamebar_show_shooting_chart,
+        assessment_ratio: clamp_gamebar_assessment_ratio(settings.gamebar_assessment_ratio),
+        assessment_on_top: settings.gamebar_assessment_on_top,
+        stat_text_scale: clamp_hud_stat_text_scale(settings.hud_stat_text_scale),
+        line_stroke_width: clamp_hud_line_stroke_width(settings.hud_line_stroke_width),
+        assessment_chart_opacity: clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity),
+        shooting_chart_opacity: clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity),
+    }
+}
+
+pub fn apply_hud_display_to_assessment_snapshot(
+    snap: &mut CounterStrafingAssessmentSnapshot,
+    settings: &CounterStrafingSettings,
+) {
+    snap.hud_stat_text_scale = clamp_hud_stat_text_scale(settings.hud_stat_text_scale);
+    snap.hud_line_stroke_width = clamp_hud_line_stroke_width(settings.hud_line_stroke_width);
+    snap.hud_assessment_chart_opacity =
+        clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
+    snap.hud_shooting_chart_opacity = clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
+}
+
+pub fn apply_hud_display_to_snapshot(snap: &mut CounterStrafingSnapshot, settings: &CounterStrafingSettings) {
+    snap.hud_stat_text_scale = clamp_hud_stat_text_scale(settings.hud_stat_text_scale);
+    snap.hud_line_stroke_width = clamp_hud_line_stroke_width(settings.hud_line_stroke_width);
+    snap.hud_assessment_chart_opacity =
+        clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
+    snap.hud_shooting_chart_opacity = clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
 }
 
 fn default_gamebar_assessment_ratio() -> f64 {
@@ -525,6 +630,15 @@ fn default_assessment_max_diff_ms() -> f64 {
 fn default_assessment_history_limit() -> usize {
     300
 }
+fn default_hud_stat_text_scale() -> f64 {
+    1.0
+}
+fn default_hud_line_stroke_width() -> f64 {
+    1.5
+}
+fn default_hud_chart_opacity() -> f64 {
+    1.0
+}
 
 impl Default for CounterStrafingSettings {
     fn default() -> Self {
@@ -574,6 +688,10 @@ impl Default for CounterStrafingSettings {
             gamebar_show_shooting_chart: default_true(),
             gamebar_assessment_ratio: default_gamebar_assessment_ratio(),
             gamebar_assessment_on_top: default_true(),
+            hud_stat_text_scale: default_hud_stat_text_scale(),
+            hud_line_stroke_width: default_hud_line_stroke_width(),
+            hud_assessment_chart_opacity: default_hud_chart_opacity(),
+            hud_shooting_chart_opacity: default_hud_chart_opacity(),
         }
     }
 }
