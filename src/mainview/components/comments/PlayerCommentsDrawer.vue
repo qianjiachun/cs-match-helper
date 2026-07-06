@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { Copy, Check, Loader2, MessageSquare, RefreshCw, Send, X, Clock, Flame } from 'lucide-vue-next';
-import { animate } from 'animejs/animation';
-import { createTimeline } from 'animejs/timeline';
 import type { CommentPlayerTarget } from '@core/comments/types';
 import type { useComments } from '../../composables/useComments';
 import { useCopyFeedback } from '../../composables/useCopyFeedback';
+import { useCopySuccessAnimation } from '../../composables/useCopySuccessAnimation';
 import PlayerAvatar from '../PlayerAvatar.vue';
 import CommentListItem from './CommentListItem.vue';
 import CommentEmojiPicker from './CommentEmojiPicker.vue';
@@ -15,18 +14,19 @@ const props = defineProps<{
 }>();
 
 const { copyText } = useCopyFeedback();
+const steamIdCopyWrapRef = useTemplateRef<HTMLElement | null>('steamIdCopyWrapRef');
+const steamIdCopyIconRef = useTemplateRef<HTMLElement | null>('steamIdCopyIconRef');
+const copyCheckTemplateRef = useTemplateRef<HTMLElement | null>('copyCheckTemplateRef');
+const { copyIconHighlighted, playCopySuccessAnimation } = useCopySuccessAnimation({
+  copyWrapRef: steamIdCopyWrapRef,
+  copyIconRef: steamIdCopyIconRef,
+  copyCheckTemplateRef,
+});
 
 const draft = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const steamIdCopyWrapRef = ref<HTMLElement | null>(null);
-const steamIdCopyIconRef = ref<HTMLElement | null>(null);
-const copyCheckTemplateRef = ref<HTMLElement | null>(null);
-const copyJustSucceeded = ref(false);
-const copyIconHighlighted = ref(false);
 const displayPlayer = ref<CommentPlayerTarget | null>(null);
 const drawerVisible = ref(false);
-
-let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => [props.comments.drawerOpen.value, props.comments.activePlayer.value] as const,
@@ -147,64 +147,6 @@ function onBackdropClick() {
   props.comments.closeDrawer();
 }
 
-function playCopyIconPop() {
-  const el = steamIdCopyIconRef.value;
-  if (!el) return;
-
-  animate(el, {
-    scale: [1, 1.15, 1],
-    duration: 320,
-    ease: 'outCubic',
-  });
-}
-
-function flashCopyIcon() {
-  copyIconHighlighted.value = true;
-  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
-  copyFeedbackTimer = setTimeout(() => {
-    copyIconHighlighted.value = false;
-  }, 900);
-}
-
-function playCopySuccessAnimation() {
-  const wrap = steamIdCopyWrapRef.value;
-  const source = copyCheckTemplateRef.value?.querySelector('svg');
-  if (!wrap || !source) return;
-
-  const ghost = document.createElement('span');
-  ghost.setAttribute('aria-hidden', 'true');
-  ghost.className =
-    'copy-steamid-ghost pointer-events-none absolute left-1/2 bottom-0 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-600 shadow-sm ring-1 ring-emerald-100';
-  ghost.innerHTML =
-    '<span class="inline-flex h-3 w-3 items-center justify-center" aria-hidden="true"></span><span>已复制</span>';
-  const iconSlot = ghost.querySelector('span');
-  if (iconSlot) {
-    iconSlot.appendChild(source.cloneNode(true));
-  }
-  wrap.appendChild(ghost);
-
-  createTimeline()
-    .add(ghost, {
-      opacity: [0, 0.98],
-      scale: [0.82, 1],
-      duration: 160,
-      ease: 'outCubic',
-    })
-    .add(ghost, {
-      opacity: [0.98, 0],
-      translateY: [0, -30],
-      scale: [1, 0.88],
-      duration: 760,
-      ease: 'outQuart',
-    })
-    .then(() => {
-      ghost.remove();
-    });
-
-  playCopyIconPop();
-  flashCopyIcon();
-}
-
 async function onCopySteamId() {
   const player = displayPlayer.value;
   if (!player) return;
@@ -282,13 +224,6 @@ function onRetry() {
                           :class="copyIconHighlighted ? 'text-emerald-500 opacity-100' : ''"
                           aria-hidden="true"
                         />
-                      </span>
-                      <span
-                        v-if="copyJustSucceeded"
-                        class="pointer-events-none absolute left-1/2 bottom-full z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 ring-1 ring-emerald-100"
-                        role="status"
-                      >
-                        已复制
                       </span>
                     </span>
                     <span ref="copyCheckTemplateRef" class="sr-only" aria-hidden="true">
@@ -533,13 +468,4 @@ function onRetry() {
   display: none;
 }
 
-.copy-steamid-ghost {
-  will-change: transform, opacity;
-}
-
-.copy-steamid-ghost :deep(svg) {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-}
 </style>

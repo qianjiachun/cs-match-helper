@@ -2,8 +2,11 @@
 import appIcon from '@app-icon';
 import iconBilibili from '@/assets/icons/bilibili.svg';
 import iconGithub from '@/assets/icons/github.svg';
-import { ExternalLink } from 'lucide-vue-next';
+import iconQq from '@/assets/icons/qq.svg';
+import { Check, Copy, ExternalLink } from 'lucide-vue-next';
+import { useTemplateRef } from 'vue';
 import { useCopyFeedback } from '../../composables/useCopyFeedback';
+import { useCopySuccessAnimation } from '../../composables/useCopySuccessAnimation';
 import { useUpdateCheck } from '../../composables/useUpdateCheck';
 import { openExternalUrl } from '../../native';
 import UpdateBadge from '../UpdateBadge.vue';
@@ -14,15 +17,36 @@ const author = '小淳';
 const authorGithubUrl = 'https://github.com/qianjiachun/';
 const authorBilibiliUrl = 'https://space.bilibili.com/193482';
 const repoUrl = 'https://github.com/qianjiachun/cs-match-helper';
+const repoIssuesUrl = `${repoUrl}/issues`;
+const qqGroupNumber = '1050732555';
 
 const { copyText } = useCopyFeedback();
+const copyWrapRef = useTemplateRef<HTMLElement | null>('copyWrapRef');
+const copyIconRef = useTemplateRef<HTMLElement | null>('copyIconRef');
+const copyCheckTemplateRef = useTemplateRef<HTMLElement | null>('copyCheckTemplateRef');
+const { copyIconHighlighted, playCopySuccessAnimation } = useCopySuccessAnimation({
+  copyWrapRef,
+  copyIconRef,
+  copyCheckTemplateRef,
+});
 
 function openRepo() {
   void openExternalUrl(repoUrl);
 }
 
+function openIssues() {
+  void openExternalUrl(repoIssuesUrl);
+}
+
 async function copyRepo() {
   await copyText(repoUrl, '已复制开源地址');
+}
+
+async function copyQqGroup() {
+  const ok = await copyText(qqGroupNumber, { showToast: false });
+  if (ok) {
+    playCopySuccessAnimation();
+  }
 }
 </script>
 
@@ -82,6 +106,54 @@ async function copyRepo() {
           </a>
         </div>
         <span class="text-[13px] font-semibold text-fg">{{ author }}</span>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
+      <span class="text-[13px] text-fg-muted">反馈</span>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="group inline-flex cursor-pointer rounded-md p-1 transition-colors duration-200 hover:bg-elevated"
+          aria-label="GitHub Issues 反馈"
+          :title="repoIssuesUrl"
+          @click="openIssues"
+        >
+          <img
+            :src="iconGithub"
+            alt=""
+            class="h-4 w-4 opacity-50 transition-opacity duration-200 group-hover:opacity-100"
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="group/copy relative inline-flex cursor-pointer items-center gap-1.5 overflow-visible rounded-md py-px transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          title="点击复制 QQ 群号"
+          @click="copyQqGroup"
+        >
+          <img
+            :src="iconQq"
+            alt=""
+            class="h-4 w-4"
+            aria-hidden="true"
+          />
+          <span class="text-[13px] font-medium text-accent transition-colors duration-200 group-hover/copy:text-accent-hover">
+            QQ群
+          </span>
+          <span ref="copyWrapRef" class="relative inline-flex shrink-0 overflow-visible">
+            <span ref="copyIconRef" class="inline-flex origin-center">
+              <Copy
+                class="h-3.5 w-3.5 text-accent/50 transition-[opacity,color] duration-200 group-hover/copy:text-accent/80 group-hover/copy:opacity-100"
+                :class="copyIconHighlighted ? 'text-emerald-500 opacity-100' : 'text-accent/60'"
+                aria-hidden="true"
+              />
+            </span>
+          </span>
+          <span ref="copyCheckTemplateRef" class="sr-only" aria-hidden="true">
+            <Check class="h-3 w-3" />
+          </span>
+        </button>
       </div>
     </div>
 
