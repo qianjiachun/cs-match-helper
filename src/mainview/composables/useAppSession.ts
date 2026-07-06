@@ -18,6 +18,12 @@ export function useAppSession() {
     phase.value = 'main';
   }
 
+  function resetToP5eLaunch() {
+    setActivePlatformId('5e');
+    selectedPlatform.value = '5e';
+    phase.value = 'p5e-launch';
+  }
+
   function resetToPlatformSelect() {
     selectedPlatform.value = null;
     phase.value = 'select-platform';
@@ -28,6 +34,7 @@ export function useAppSession() {
     selectedPlatform,
     selectPlatform,
     completeP5eSetup,
+    resetToP5eLaunch,
     resetToPlatformSelect,
   };
 }

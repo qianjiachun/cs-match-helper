@@ -2,6 +2,7 @@
 import { defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { getCounterStrafingSnapshot } from '@core/counter-strafing/native';
 import CopyToast from './components/CopyToast.vue';
+import CloseConfirmDialog from './components/CloseConfirmDialog.vue';
 import TitleBar from './components/TitleBar.vue';
 import { useCounterStrafingListening } from './composables/useCounterStrafingListening';
 import { useAiAnalysis } from './composables/useAiAnalysis';
@@ -25,11 +26,8 @@ const PlayerCommentsDrawer = defineAsyncComponent(
   () => import('./components/comments/PlayerCommentsDrawer.vue'),
 );
 const UpdateDialog = defineAsyncComponent(() => import('./components/UpdateDialog.vue'));
-const CloseConfirmDialog = defineAsyncComponent(
-  () => import('./components/CloseConfirmDialog.vue'),
-);
 
-const { phase, selectedPlatform, selectPlatform, completeP5eSetup, resetToPlatformSelect } =
+const { phase, selectedPlatform, selectPlatform, completeP5eSetup, resetToP5eLaunch, resetToPlatformSelect } =
   useAppSession();
 
 const logWatcher = useLogWatcher({ autoInit: false });
@@ -40,7 +38,14 @@ const p5e = useP5eCdp(
   (record) => {
     matches.value = [record];
   },
-  { autoInit: false },
+  {
+    autoInit: false,
+    onClientExit: () => {
+      matches.value = [];
+      currentView.value = 'main';
+      resetToP5eLaunch();
+    },
+  },
 );
 const ai = useAiAnalysis({ autoInit: false });
 const comments = useComments({ autoInit: false });
@@ -60,7 +65,6 @@ const counterStrafingListening = useCounterStrafingListening();
 
 const commentsDrawerMounted = ref(false);
 const updateDialogMounted = ref(false);
-const closeConfirmMounted = ref(false);
 
 watch(
   () => comments.drawerOpen.value,
@@ -71,10 +75,6 @@ watch(
 
 watch(dialogOpen, (open) => {
   if (open) updateDialogMounted.value = true;
-});
-
-watch(closeConfirmOpen, (open) => {
-  if (open) closeConfirmMounted.value = true;
 });
 
 watch(
@@ -273,7 +273,6 @@ function onBackFromP5e() {
       @retry="retryDownload()"
     />
     <CloseConfirmDialog
-      v-if="closeConfirmMounted"
       :open="closeConfirmOpen"
       @cancel="cancelClose()"
       @confirm="confirmClose()"

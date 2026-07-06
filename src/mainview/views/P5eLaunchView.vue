@@ -49,7 +49,6 @@ const canLaunch = computed(
     installChecked.value &&
     installed.value &&
     pathValid.value &&
-    !externalRunning.value &&
     !launching.value &&
     !validating.value,
 );
@@ -90,8 +89,10 @@ function onVisibilityChange() {
 const statusText = computed(() => {
   if (!installChecked.value) return '正在检查环境…';
   if (!installed.value) return '请填写或选择 5E 客户端路径';
-  if (externalRunning.value) return '请先完全退出 5E';
-  if (launching.value) return '正在启动 5E…';
+  if (launching.value) {
+    return externalRunning.value ? '正在结束已运行的 5E 并重新启动…' : '正在启动 5E…';
+  }
+  if (externalRunning.value) return '检测到 5E 正在运行，点击启动将自动结束并重新启动';
   const phase = props.p5e.status.value.phase;
   if (phase === 'collecting' || phase === 'reconnecting') return '已连接，等待对局';
   if (phase === 'error') return props.p5e.status.value.lastError ?? '连接出现问题';
@@ -252,6 +253,12 @@ function teardownProbe() {
   document.removeEventListener('visibilitychange', onVisibilityChange);
 }
 
+function formatLaunchError(message: string): string {
+  return message
+    .replace(/^Error:\s*/, '')
+    .replace(/^TERMINATE_5E_FAILED:\s*/, '');
+}
+
 function goBack() {
   teardownProbe();
   emit('back');
@@ -281,9 +288,12 @@ async function launch() {
   } catch (err) {
     if (!alive) return;
     const message = String(err);
-    if (message.includes('EXTERNAL_5E_RUNNING')) {
+    if (message.includes('TERMINATE_5E_FAILED')) {
       externalRunning.value = true;
-      launchError.value = null;
+      launchError.value = formatLaunchError(message);
+    } else if (message.includes('EXTERNAL_5E_RUNNING')) {
+      externalRunning.value = true;
+      launchError.value = '检测到外部 5E 调试连接，请手动完全退出 5E 后重试';
     } else if (
       message.includes('NOT_INSTALLED_5E') ||
       message.includes('未找到 5E') ||
@@ -294,7 +304,7 @@ async function launch() {
       installChecked.value = true;
       launchError.value = null;
     } else {
-      launchError.value = message.replace(/^Error:\s*/, '');
+      launchError.value = formatLaunchError(message);
     }
   } finally {
     if (alive && !succeeded) {
@@ -436,12 +446,12 @@ onBeforeUnmount(() => {
           </p>
 
           <p
-            v-if="externalRunning"
+            v-if="externalRunning && !launchError"
             class="mt-2 flex items-start gap-1.5 rounded-lg border border-border bg-elevated px-2.5 py-2 text-[11px] leading-relaxed text-fg-secondary"
-            role="alert"
+            role="status"
           >
-            <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
-            5E 正在运行，请<strong class="font-semibold text-fg">完全退出</strong>后再启动。
+            <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
+            5E 正在运行。点击「立即启动」将尝试自动结束进程；若失败请按下方提示手动退出。
           </p>
         </div>
 
@@ -454,11 +464,14 @@ onBeforeUnmount(() => {
         </p>
 
         <p
-          v-if="launchError && installed && !externalRunning"
+          v-if="launchError && installed"
           class="mt-3 w-full rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-[11px] leading-relaxed text-danger"
           role="alert"
         >
-          {{ launchError }}
+          <span class="flex items-start gap-1.5">
+            <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{{ launchError }}</span>
+          </span>
         </p>
 
         <button
