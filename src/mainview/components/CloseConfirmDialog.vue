@@ -53,12 +53,12 @@ onUnmounted(() => {
     >
       <div
         v-if="open"
-        class="close-confirm-dialog__root fixed inset-0 z-210 flex items-center justify-center p-4"
+        class="close-confirm-dialog__root fixed inset-0 z-210 flex items-center justify-center bg-fg/28 p-4 backdrop-blur-[3px]"
         role="presentation"
       >
         <button
           type="button"
-          class="close-confirm-dialog__backdrop absolute inset-0 cursor-default border-0 bg-fg/28 p-0 backdrop-blur-[3px] appearance-none"
+          class="close-confirm-dialog__backdrop absolute inset-0 cursor-default border-0 bg-transparent p-0 appearance-none"
           aria-label="取消"
           @click="onBackdropClick"
         />
@@ -122,17 +122,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.close-confirm-dialog-enter-active .close-confirm-dialog__backdrop,
-.close-confirm-dialog-leave-active .close-confirm-dialog__backdrop {
-  transition:
-    opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    backdrop-filter 260ms cubic-bezier(0.16, 1, 0.3, 1);
+.close-confirm-dialog-enter-active,
+.close-confirm-dialog-leave-active {
+  transition: opacity 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.close-confirm-dialog-enter-from .close-confirm-dialog__backdrop,
-.close-confirm-dialog-leave-to .close-confirm-dialog__backdrop {
+.close-confirm-dialog-enter-from,
+.close-confirm-dialog-leave-to {
   opacity: 0;
-  backdrop-filter: blur(0);
 }
 
 .close-confirm-dialog-enter-active .close-confirm-dialog__panel,
@@ -140,6 +137,7 @@ onUnmounted(() => {
   transition:
     opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
 }
 
 .close-confirm-dialog-enter-active .close-confirm-dialog__panel {
@@ -155,20 +153,5 @@ onUnmounted(() => {
 .close-confirm-dialog-leave-to .close-confirm-dialog__panel {
   opacity: 0;
   transform: translate3d(0, 10px, 0) scale(0.96);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .close-confirm-dialog-enter-active .close-confirm-dialog__backdrop,
-  .close-confirm-dialog-leave-active .close-confirm-dialog__backdrop,
-  .close-confirm-dialog-enter-active .close-confirm-dialog__panel,
-  .close-confirm-dialog-leave-active .close-confirm-dialog__panel {
-    transition-duration: 0.01ms !important;
-    transition-delay: 0ms !important;
-  }
-
-  .close-confirm-dialog-enter-from .close-confirm-dialog__panel,
-  .close-confirm-dialog-leave-to .close-confirm-dialog__panel {
-    transform: none;
-  }
 }
 </style>

@@ -60,7 +60,7 @@ const {
   closeDialog,
   retryDownload,
 } = useUpdateCheck();
-const { closeConfirmOpen, cancelClose, confirmClose } = useCloseConfirm();
+const { closeConfirmOpen, cancelClose, confirmClose, onCloseDialogAfterLeave } = useCloseConfirm();
 const counterStrafingListening = useCounterStrafingListening();
 
 const commentsDrawerMounted = ref(false);
@@ -276,6 +276,7 @@ function onBackFromP5e() {
       :open="closeConfirmOpen"
       @cancel="cancelClose()"
       @confirm="confirmClose()"
+      @after-leave="onCloseDialogAfterLeave()"
     />
   </div>
 </template>
