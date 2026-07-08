@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { P5eMatchAggregator } from './aggregator';
 import fixture from './fixtures/5e-match-success.fixture.json';
 import { createP5eMatchRecord } from './match-parser';
+import { P5E_READY_COUNTDOWN_MS } from './ready-deadline';
 import type { P5eMatchBundle, P5eApiPayload } from './types';
 
 const FIXTURE_UUIDS = [
@@ -52,7 +53,8 @@ describe('P5eMatchParser', () => {
     expect(record.detail.teams.flatMap((t) => t.players).some((p) => p.nickname === 'Naffri')).toBe(true);
     expect(record.detail.teams[0].players[0].score).toBeGreaterThan(0);
     expect(record.detail.parseWarnings.some((w) => w.includes('分队'))).toBe(true);
-    expect(record.detail.readyLeftTimeMs).toBe(30_000);
+    expect(record.detail.readyDeadlineAt).toBe(1781594817 * 1000 + P5E_READY_COUNTDOWN_MS);
+    expect(record.detail.readyLeftTimeMs).toBeLessThanOrEqual(P5E_READY_COUNTDOWN_MS);
   });
 
   it('uses match detail groups and fight stats when available', () => {

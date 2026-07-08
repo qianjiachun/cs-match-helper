@@ -10,6 +10,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { MatchRecord } from '@core/match/models';
+import { useMatchCountdown } from '../composables/useMatchCountdown';
 import MatchInsightsPanel from './MatchInsightsPanel.vue';
 import TeamColumn from './TeamColumn.vue';
 
@@ -42,6 +43,10 @@ const teamB = computed(() => detail.value.teams.find((t) => t.side === 'B'));
 const hasTeams = computed(() => detail.value.teams.length >= 2);
 const hasWarnings = computed(() => detail.value.parseWarnings.length > 0);
 const mapName = computed(() => props.match.summary.mapName ?? detail.value.mapName);
+
+const { timeLeftSec: countdownSec, isActive: hasCountdown } = useMatchCountdown(
+  () => detail.value.readyDeadlineAt,
+);
 
 const extraFields = computed(() => {
   const skip = new Set([
@@ -103,11 +108,11 @@ const fallbackPlayers = computed(() => {
       </div>
 
       <div
-        v-if="detail.readyLeftTimeMs"
+        v-if="hasCountdown"
         class="flex items-center gap-1.5 text-[12px] text-warning"
       >
         <Clock class="h-3.5 w-3.5" />
-        {{ Math.round(detail.readyLeftTimeMs / 1000) }}s 确认
+        {{ countdownSec }}s 确认
       </div>
 
       <div class="flex items-center gap-1.5 text-[12px] text-fg-muted">

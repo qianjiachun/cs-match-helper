@@ -11,6 +11,7 @@ import { formatP5eHomeEnrichError } from './home-api';
 import { P5eMatchAggregator } from './aggregator';
 import { buildP5ePlayer, resolveMatchMap } from './field-mapper';
 import { hasMatchDetailTeams, resolveMapDescFromMatchDetail } from './match-detail-parser';
+import { computeP5eReadyDeadline, P5E_READY_COUNTDOWN_MS } from './ready-deadline';
 import type { P5eApiPayload, P5eMatchBundle } from './types';
 
 const MODE_LABELS: Record<number, string> = {
@@ -19,8 +20,8 @@ const MODE_LABELS: Record<number, string> = {
   6: '1v1',
 };
 
-/** 5E 匹配数据就绪后的确认倒计时（与完美平台 30s 确认窗口一致） */
-export const P5E_READY_COUNTDOWN_MS = 30_000;
+/** @deprecated 使用 ready-deadline 模块导出 */
+export { P5E_READY_COUNTDOWN_MS } from './ready-deadline';
 
 function buildPlayer(uuid: string, index: number, bundle: P5eMatchBundle, matchMap: string | undefined): MatchPlayer {
   return buildP5ePlayer(uuid, index, bundle, matchMap);
@@ -89,11 +90,16 @@ export function buildP5eMatchDetail(bundle: P5eMatchBundle): MatchDetail {
     );
   }
 
+  const readyDeadlineAt = computeP5eReadyDeadline(bundle);
+
   const detail: MatchDetail = {
     platformId: '5e',
     platformGameId: bundle.platformGameId,
     mapName: matchMap,
-    readyLeftTimeMs: P5E_READY_COUNTDOWN_MS,
+    readyDeadlineAt,
+    readyLeftTimeMs: readyDeadlineAt != null
+      ? Math.max(0, readyDeadlineAt - Date.now())
+      : P5E_READY_COUNTDOWN_MS,
     teams,
     unassigned,
     hasExtraInfo: Boolean(bundle.eloInfo && bundle.mapExt),

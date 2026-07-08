@@ -9,6 +9,7 @@ import type {
   RadarDimension,
 } from '@core/match/models';
 import { pickPlayerAvatar } from './media-url';
+import { computePerfectReadyDeadline } from './ready-deadline';
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
@@ -330,17 +331,28 @@ function groupTeams(players: MatchPlayer[]): { teams: MatchTeam[]; unassigned: M
   return { teams, unassigned };
 }
 
-export function buildMatchDetail(data: Record<string, unknown>): MatchDetail {
+export function buildMatchDetail(
+  data: Record<string, unknown>,
+  logLine?: LogLine,
+): MatchDetail {
   const { data: extraMap, warnings } = parseExtraInfo(data.playerlist_extrainfo);
   const rawPlayers = pickPlayers(data);
   const players = rawPlayers.map((p) => mergePlayer(p, extraMap));
   const { teams, unassigned } = groupTeams(players);
 
+  const readyLeftFromLog = pickNumber(data, ['ready_left_time_ms']);
+  const readyDeadlineAt = logLine
+    ? computePerfectReadyDeadline(logLine, readyLeftFromLog)
+    : undefined;
+
   const detail: MatchDetail = {
     platformId: 'perfect',
     platformGameId: pickString(data, ['platform_game_id', 'platformGameId']),
     mapName: pickString(data, ['map_name', 'mapName', 'map']),
-    readyLeftTimeMs: pickNumber(data, ['ready_left_time_ms']),
+    readyDeadlineAt,
+    readyLeftTimeMs: readyDeadlineAt != null
+      ? Math.max(0, readyDeadlineAt - Date.now())
+      : readyLeftFromLog,
     isGreen: pickBool(data, ['is_green']),
     isSingle: pickBool(data, ['is_single']),
     isGrudgeMatch: pickBool(data, ['is_grudge_match']),
@@ -398,6 +410,6 @@ export function createMatchRecord(
     category: logLine.category,
     data,
     summary: summarizeMatch(data),
-    detail: buildMatchDetail(data),
+    detail: buildMatchDetail(data, logLine),
   };
 }

@@ -90,6 +90,8 @@ export interface MatchDetail {
   platformId?: MatchPlatformId;
   platformGameId?: string;
   mapName?: string;
+  /** 准备阶段截止 Unix 毫秒；UI 用 max(0, readyDeadlineAt - Date.now()) */
+  readyDeadlineAt?: number;
   readyLeftTimeMs?: number;
   isGreen?: boolean;
   isSingle?: boolean;

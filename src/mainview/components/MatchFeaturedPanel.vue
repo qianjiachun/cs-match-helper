@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, onUnmounted } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Clock, Table2, GitCompareArrows, Columns3 } from 'lucide-vue-next';
 import AiSparklesIcon from './AiSparklesIcon.vue';
 import PlatformLogo from './PlatformLogo.vue';
@@ -8,6 +8,7 @@ import { isAiAnalysisActive } from '@core/ai/types';
 import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import type { useComments } from '../composables/useComments';
+import { useMatchCountdown } from '../composables/useMatchCountdown';
 import { useMatchHeaderMetaCompaction } from '../composables/useMatchHeaderMetaCompaction';
 import { useMatchRevealAnimation } from '../composables/useMatchRevealAnimation';
 import { useTeamTableColumns } from '../composables/useTeamTableColumns';
@@ -104,8 +105,10 @@ function formatPct(n: number): string {
 const activeTab = ref<'team-data' | 'compare' | 'ai'>('team-data');
 const highlightedSide = ref<'A' | 'B' | null>(null);
 const highlightedSteamId = ref<string | null>(null);
-const timeLeft = ref(0);
-let timer: ReturnType<typeof setInterval> | null = null;
+
+const { timeLeftSec: timeLeft, isUrgent: isCountdownUrgent } = useMatchCountdown(
+  () => detail.value.readyDeadlineAt,
+);
 
 const isAiLoading = computed(() => {
   const s = props.ai.status.value;
@@ -128,31 +131,12 @@ const aiStatusCapsule = computed(() => {
   return null;
 });
 
-function resetCountdown() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-
-  const readyMs = detail.value.readyLeftTimeMs;
-  timeLeft.value = readyMs ? Math.floor(readyMs / 1000) : 0;
-
-  if (timeLeft.value > 0) {
-    timer = setInterval(() => {
-      if (timeLeft.value > 0) {
-        timeLeft.value--;
-      }
-    }, 1000);
-  }
-}
-
 watch(
   () => props.match.id,
   async (nextId, prevId) => {
     activeTab.value = 'team-data';
     highlightedSide.value = null;
     highlightedSteamId.value = null;
-    resetCountdown();
     void props.ai.analyzeMatch(props.match);
     const players = teams.value.flatMap((t) => t.players);
     void props.comments.loadCounts(players, platformId.value);
@@ -174,10 +158,6 @@ function onHighlightPlayer(steamId: string | null) {
   if (steamId) activeTab.value = 'team-data';
 }
 
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
-
 function formatTime(seconds: number) {
   if (seconds <= 0) return '00:00';
   const m = Math.floor(seconds / 60)
@@ -186,8 +166,6 @@ function formatTime(seconds: number) {
   const s = (seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
 }
-
-const isCountdownUrgent = computed(() => timeLeft.value > 0 && timeLeft.value <= 10);
 
 const metaRowRef = ref<HTMLElement | null>(null);
 const { hideEloDiff, hideRecentWin } = useMatchHeaderMetaCompaction(metaRowRef, () => [
