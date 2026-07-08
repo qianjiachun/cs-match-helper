@@ -8,6 +8,8 @@ use tauri::{AppHandle, Emitter};
 
 const GITHUB_RELEASES_URL: &str =
     "https://api.github.com/repos/qianjiachun/cs-match-helper/releases/latest";
+const GITHUB_RELEASES_LIST_URL: &str =
+    "https://api.github.com/repos/qianjiachun/cs-match-helper/releases?per_page=50";
 
 const LUNARIS_USERNAME: &str = "qianjiachun";
 const LUNARIS_PROJECT: &str = "cs-match-helper";
@@ -42,12 +44,31 @@ pub struct UpdateProgressEvent {
     pub percent: Option<f64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangelogReleaseSummary {
+    pub tag_name: String,
+    pub published_at: Option<String>,
+    pub html_url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangelogReleaseDetail {
+    pub tag_name: String,
+    pub published_at: Option<String>,
+    pub html_url: String,
+    pub body: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct GithubRelease {
     tag_name: String,
     body: Option<String>,
     html_url: String,
     published_at: Option<String>,
+    draft: Option<bool>,
+    prerelease: Option<bool>,
 }
 
 fn normalize_version_tag(version: &str) -> String {
@@ -133,6 +154,80 @@ fn http_client() -> Result<reqwest::Client, String> {
         .map_err(|error| error.to_string())
 }
 
+fn github_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent("cs-match-helper")
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+fn normalize_github_tag(tag: &str) -> String {
+    let trimmed = tag.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.starts_with('v') || trimmed.starts_with('V') {
+        trimmed.to_string()
+    } else {
+        format!("v{trimmed}")
+    }
+}
+
+fn is_public_release(release: &GithubRelease) -> bool {
+    !release.draft.unwrap_or(false) && !release.prerelease.unwrap_or(false)
+}
+
+async fn fetch_github_release_list() -> Result<Vec<GithubRelease>, String> {
+    let client = github_client()?;
+    let response = client
+        .get(GITHUB_RELEASES_LIST_URL)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|error| format!("获取发布列表失败: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("获取发布列表失败: HTTP {}", response.status()));
+    }
+
+    response
+        .json::<Vec<GithubRelease>>()
+        .await
+        .map_err(|error| format!("解析发布列表失败: {error}"))
+}
+
+async fn fetch_github_release_by_tag(tag: &str) -> Result<GithubRelease, String> {
+    let normalized = normalize_github_tag(tag);
+    if normalized.is_empty() {
+        return Err("版本号无效".to_string());
+    }
+
+    let url = format!(
+        "https://api.github.com/repos/qianjiachun/cs-match-helper/releases/tags/{normalized}"
+    );
+    let client = github_client()?;
+    let response = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|error| format!("获取更新详情失败: {error}"))?;
+
+    if response.status().as_u16() == 404 {
+        return Err(format!("未找到版本 {normalized} 的发布说明"));
+    }
+
+    if !response.status().is_success() {
+        return Err(format!("获取更新详情失败: HTTP {}", response.status()));
+    }
+
+    response
+        .json::<GithubRelease>()
+        .await
+        .map_err(|error| format!("解析更新详情失败: {error}"))
+}
+
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
@@ -189,6 +284,35 @@ pub async fn check_for_update() -> Result<UpdateCheckResult, String> {
         } else {
             None
         },
+    })
+}
+
+#[tauri::command]
+pub async fn list_changelog_releases() -> Result<Vec<ChangelogReleaseSummary>, String> {
+    let releases = fetch_github_release_list().await?;
+    Ok(releases
+        .into_iter()
+        .filter(|release| is_public_release(release))
+        .map(|release| ChangelogReleaseSummary {
+            tag_name: release.tag_name,
+            published_at: release.published_at,
+            html_url: release.html_url,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub async fn get_changelog_release(tag: String) -> Result<ChangelogReleaseDetail, String> {
+    let release = fetch_github_release_by_tag(&tag).await?;
+    if !is_public_release(&release) {
+        return Err("该版本不可用".to_string());
+    }
+
+    Ok(ChangelogReleaseDetail {
+        tag_name: release.tag_name,
+        published_at: release.published_at,
+        html_url: release.html_url,
+        body: release.body,
     })
 }
 
@@ -424,5 +548,11 @@ mod tests {
     fn compares_semver_parts() {
         assert!(is_newer_version("2.1.0", "2.0.0"));
         assert!(!is_newer_version("2.0.0", "2.0.0"));
+    }
+
+    #[test]
+    fn normalizes_github_tag() {
+        assert_eq!(normalize_github_tag("3.0.0"), "v3.0.0");
+        assert_eq!(normalize_github_tag("v2.1.0"), "v2.1.0");
     }
 }

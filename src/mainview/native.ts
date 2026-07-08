@@ -13,6 +13,7 @@ import type {
   StartAiAnalysisInput,
 } from '@core/ai/types';
 import type { DownloadUpdateResult, UpdateCheckResult, UpdateProgressEvent } from '@core/update/types';
+import type { ChangelogReleaseDetail, ChangelogReleaseSummary } from '@core/update/changelog';
 import type { LogLinePayload, WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
 
@@ -133,6 +134,14 @@ export async function getAppVersion(): Promise<string> {
 
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
   return invoke<UpdateCheckResult>('check_for_update');
+}
+
+export async function listChangelogReleases(): Promise<ChangelogReleaseSummary[]> {
+  return invoke('list_changelog_releases');
+}
+
+export async function getChangelogRelease(tag: string): Promise<ChangelogReleaseDetail> {
+  return invoke('get_changelog_release', { tag });
 }
 
 export async function downloadUpdate(version: string): Promise<DownloadUpdateResult> {

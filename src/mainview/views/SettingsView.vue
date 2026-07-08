@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { Info, MessageCircle, Settings, Sparkles } from 'lucide-vue-next';
+import { Info, MessageCircle, ScrollText, Settings, Sparkles } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import type { useComments } from '../composables/useComments';
 import AboutSettingsSection from '../components/settings/AboutSettingsSection.vue';
 import AiSettingsSection from '../components/settings/AiSettingsSection.vue';
+import ChangelogSettingsSection from '../components/settings/ChangelogSettingsSection.vue';
 import CommentHistorySection from '../components/settings/CommentHistorySection.vue';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 
-export type SettingsTab = 'ai' | 'comments' | 'about';
+export type SettingsTab = 'ai' | 'comments' | 'changelog' | 'about';
 
 const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
@@ -29,12 +30,14 @@ watch(
 const navItems = [
   { id: 'ai' as const, label: 'AI 设置', icon: Sparkles },
   { id: 'comments' as const, label: '我的评论', icon: MessageCircle },
+  { id: 'changelog' as const, label: '更新日志', icon: ScrollText },
   { id: 'about' as const, label: '关于', icon: Info },
 ];
 
 const contentDesc: Record<SettingsTab, string> = {
   ai: 'API 与模型配置',
   comments: '查看和管理你发表过的评论',
+  changelog: '版本更新记录与功能说明',
   about: '版本与作者信息',
 };
 
@@ -108,6 +111,9 @@ function selectTab(tab: SettingsTab) {
               :comments="comments"
               :visible="(visible ?? true) && activeTab === 'comments'"
             />
+          </div>
+          <div v-else-if="activeTab === 'changelog'" key="changelog">
+            <ChangelogSettingsSection />
           </div>
           <div v-else key="about">
             <AboutSettingsSection />

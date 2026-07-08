@@ -4,6 +4,8 @@ description = "允许检查 GitHub 发布版本"
 commands.allow = [
   "get_app_version",
   "check_for_update",
+  "list_changelog_releases",
+  "get_changelog_release",
   "download_update",
   "apply_update_and_restart",
 ]

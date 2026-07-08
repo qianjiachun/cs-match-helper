@@ -20,10 +20,19 @@ function normalizeReleaseNotes(content: string): string {
     .trim();
 }
 
+function wrapListItemContent(html: string): string {
+  return html.replace(/<li>([\s\S]*?)<\/li>/g, (_, inner: string) => {
+    const trimmed = inner.trim();
+    if (!trimmed || trimmed.startsWith('<span class="release-note-li-text"')) return `<li>${inner}</li>`;
+    return `<li><span class="release-note-li-text">${trimmed}</span></li>`;
+  });
+}
+
 const html = computed(() => {
   const normalized = normalizeReleaseNotes(props.content);
   if (!normalized) return '';
-  return marked.parse(normalized) as string;
+  const parsed = marked.parse(normalized) as string;
+  return wrapListItemContent(parsed);
 });
 
 function onContentClick(event: MouseEvent) {
@@ -91,7 +100,9 @@ function onContentClick(event: MouseEvent) {
   border-radius: 0.75rem;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.92), rgb(250 250 250 / 0.88));
   padding: 0.625rem 0.75rem;
-  line-height: 1.5rem;
+  line-height: 1.625;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -105,12 +116,18 @@ function onContentClick(event: MouseEvent) {
 
 .release-notes :deep(ul > li::before) {
   flex: none;
+  align-self: center;
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 9999px;
   background: color-mix(in srgb, var(--color-accent) 16%, white);
   box-shadow: inset 0 0 0 2px var(--color-accent);
   content: '';
+}
+
+.release-notes :deep(.release-note-li-text) {
+  min-width: 0;
+  flex: 1;
 }
 
 .release-notes :deep(ol) {
@@ -122,8 +139,9 @@ function onContentClick(event: MouseEvent) {
 }
 
 .release-notes :deep(ol > li::before) {
-  display: inline-flex;
   flex: none;
+  align-self: center;
+  display: inline-flex;
   width: 1.125rem;
   height: 1.125rem;
   align-items: center;
@@ -140,6 +158,7 @@ function onContentClick(event: MouseEvent) {
 .release-notes :deep(strong) {
   color: var(--color-fg);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .release-notes :deep(a) {
