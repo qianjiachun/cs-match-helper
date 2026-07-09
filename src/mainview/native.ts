@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { homeDir } from '@tauri-apps/api/path';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, PhysicalSize } from '@tauri-apps/api/window';
 import type {
   AiAnalysisDeltaEvent,
   AiAnalysisDoneEvent,
@@ -18,6 +18,26 @@ import type { LogLinePayload, WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
 
 const appWindow = getCurrentWindow();
+
+function waitForFirstPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+/** 首帧绘制完成后再显示主窗口，并做一次 1px resize 以规避 WebView2 首帧白屏。 */
+export async function showMainWindowAfterFirstPaint(): Promise<void> {
+  await waitForFirstPaint();
+  await appWindow.show();
+
+  try {
+    const size = await appWindow.innerSize();
+    await appWindow.setSize(new PhysicalSize(size.width + 1, size.height));
+    await appWindow.setSize(new PhysicalSize(size.width, size.height));
+  } catch {
+    // resize nudge 失败不影响正常使用
+  }
+}
 
 export async function openExternalUrl(url: string): Promise<void> {
   try {

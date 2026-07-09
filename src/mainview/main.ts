@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import App from './App.vue';
+import { showMainWindowAfterFirstPaint } from './native';
 import { installAppGuards } from './utils/app-guards';
 import { installNoTabFocus } from './utils/no-tab-focus';
 import { logRuntimeDiagnostics } from './utils/runtime-diagnostics';
@@ -14,6 +15,7 @@ installNoTabFocus();
 createApp(App).mount('#app');
 
 startupMark('vue mount called');
+void showMainWindowAfterFirstPaint();
 
 window.setTimeout(() => {
   logRuntimeDiagnostics();

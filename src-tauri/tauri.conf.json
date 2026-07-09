@@ -21,7 +21,7 @@
         "decorations": false,
         "resizable": true,
         "center": true,
-        "visible": true,
+        "visible": false,
         "devtools": false
       }
     ],
