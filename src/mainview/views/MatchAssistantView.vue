@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openSettings: [];
+  back: [];
 }>();
 
 const latestMatch = computed(() => props.matches[0] ?? null);
@@ -41,6 +42,7 @@ const latestMatch = computed(() => props.matches[0] ?? null);
       :watcher="watcher"
       :platform="platform"
       :p5e-phase="p5e?.status.value.phase"
+      @back="emit('back')"
     />
   </div>
 </template>

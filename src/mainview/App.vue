@@ -164,9 +164,15 @@ function onP5eReady() {
   completeP5eSetup();
 }
 
-function onBackFromP5e() {
+async function onBackToPlatformSelect() {
   resetToPlatformSelect();
+  matches.value = [];
+  await stopWatching();
   void p5e.stopCollect();
+}
+
+function onBackFromP5e() {
+  void onBackToPlatformSelect();
 }
 </script>
 
@@ -222,6 +228,7 @@ function onBackFromP5e() {
             :platform="selectedPlatform ?? 'perfect'"
             :p5e="p5e"
             @open-settings="openSettings"
+            @back="onBackToPlatformSelect"
           />
         </Transition>
       </div>

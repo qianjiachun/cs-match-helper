@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { animate } from 'animejs';
 import { stagger } from 'animejs';
+import { ArrowLeft } from 'lucide-vue-next';
 import type { WatcherStatus } from '@core/types';
 import type { PlatformId } from '@platforms/types';
 import type { P5eCdpPhase } from '@platforms/5e/types';
@@ -10,6 +11,10 @@ const props = defineProps<{
   watcher: WatcherStatus;
   platform?: PlatformId;
   p5ePhase?: P5eCdpPhase;
+}>();
+
+const emit = defineEmits<{
+  back: [];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -106,6 +111,17 @@ onMounted(() => {
 
 <template>
   <div class="wait-container" ref="containerRef" role="status" aria-label="等待对局数据">
+    <div class="wait__back">
+      <button
+        type="button"
+        class="group flex cursor-pointer items-center gap-1.5 rounded-full bg-surface/50 px-4 py-2.5 text-[13px] font-medium text-fg-secondary backdrop-blur-md transition-colors duration-200 hover:bg-elevated hover:text-fg shadow-sm"
+        @click="emit('back')"
+      >
+        <ArrowLeft class="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+        更换平台
+      </button>
+    </div>
+
     <div class="wait__bg-mesh" aria-hidden="true"></div>
 
     <div class="wait__visual">
@@ -165,6 +181,20 @@ onMounted(() => {
   flex: 1;
   overflow: hidden;
   background-color: transparent;
+}
+
+.wait__back {
+  position: absolute;
+  left: 1.5rem;
+  top: 1.5rem;
+  z-index: 20;
+}
+
+@media (min-width: 640px) {
+  .wait__back {
+    left: 2.5rem;
+    top: 2.5rem;
+  }
 }
 
 .wait__bg-mesh {
