@@ -38,6 +38,75 @@ fn clamp_hud_width(width: f64) -> f64 {
 fn clamp_hud_height(height: f64) -> f64 {
     height.clamp(1.0, HUD_MAX_HEIGHT)
 }
+
+fn shooting_hud_bounds_complete(settings: &CounterStrafingSettings) -> bool {
+    settings.hud_x.is_some()
+        && settings.hud_y.is_some()
+        && settings.hud_width.is_some()
+        && settings.hud_height.is_some()
+}
+
+fn assessment_hud_bounds_complete(settings: &CounterStrafingSettings) -> bool {
+    settings.assessment_hud_x.is_some()
+        && settings.assessment_hud_y.is_some()
+        && settings.assessment_hud_width.is_some()
+        && settings.assessment_hud_height.is_some()
+}
+
+fn shooting_hud_bounds_layout_changed(
+    old: &CounterStrafingSettings,
+    new: &CounterStrafingSettings,
+) -> bool {
+    old.hud_anchor != new.hud_anchor
+        || old.hud_x != new.hud_x
+        || old.hud_y != new.hud_y
+        || old.hud_width != new.hud_width
+        || old.hud_height != new.hud_height
+}
+
+fn assessment_hud_bounds_layout_changed(
+    old: &CounterStrafingSettings,
+    new: &CounterStrafingSettings,
+) -> bool {
+    old.assessment_hud_anchor != new.assessment_hud_anchor
+        || old.assessment_hud_x != new.assessment_hud_x
+        || old.assessment_hud_y != new.assessment_hud_y
+        || old.assessment_hud_width != new.assessment_hud_width
+        || old.assessment_hud_height != new.assessment_hud_height
+}
+
+fn capture_shooting_hud_bounds_from_window_if_missing(
+    window: &tauri::WebviewWindow,
+    settings: &mut CounterStrafingSettings,
+) {
+    if shooting_hud_bounds_complete(settings) {
+        return;
+    }
+    let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) else {
+        return;
+    };
+    settings.hud_x = Some(position.x);
+    settings.hud_y = Some(position.y);
+    settings.hud_width = Some(clamp_hud_width(size.width as f64));
+    settings.hud_height = Some(clamp_hud_height(size.height as f64));
+}
+
+fn capture_assessment_hud_bounds_from_window_if_missing(
+    window: &tauri::WebviewWindow,
+    settings: &mut CounterStrafingSettings,
+) {
+    if assessment_hud_bounds_complete(settings) {
+        return;
+    }
+    let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) else {
+        return;
+    };
+    settings.assessment_hud_x = Some(position.x);
+    settings.assessment_hud_y = Some(position.y);
+    settings.assessment_hud_width = Some(clamp_hud_width(size.width as f64));
+    settings.assessment_hud_height = Some(clamp_hud_height(size.height as f64));
+}
+
 const MIN_RECV_TIMEOUT: Duration = Duration::from_millis(1);
 const MAX_RECV_TIMEOUT: Duration = Duration::from_millis(50);
 
@@ -315,13 +384,23 @@ impl CounterStrafingRuntime {
         app: &AppHandle,
         mut settings: CounterStrafingSettings,
     ) -> Result<CounterStrafingSnapshot, String> {
-        {
+        let previous_settings = {
             let inner = self.inner.lock().unwrap();
             preserve_hud_bounds(&mut settings, &inner.settings);
             preserve_assessment_hud_bounds(&mut settings, &inner.settings);
-        }
+            inner.settings.clone()
+        };
         normalize_gamebar_layout(&mut settings);
         save_counter_strafing_settings(&settings)?;
+
+        let shooting_bounds_changed =
+            shooting_hud_bounds_layout_changed(&previous_settings, &settings);
+        let assessment_bounds_changed =
+            assessment_hud_bounds_layout_changed(&previous_settings, &settings);
+        let shooting_lock_changed = previous_settings.hud_locked != settings.hud_locked;
+        let assessment_lock_changed =
+            previous_settings.assessment_hud_locked != settings.assessment_hud_locked;
+
         let (hud_visible, assessment_hud_visible, snap, snapshot_signal) = {
             let mut inner = self.inner.lock().unwrap();
             inner.settings = settings.clone();
@@ -343,15 +422,51 @@ impl CounterStrafingRuntime {
             signal.bump();
         }
 
+        let mut captured_shooting_bounds = false;
+        let mut captured_assessment_bounds = false;
+
         if let Some(window) = app.get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL) {
             if assessment_hud_visible {
-                sync_assessment_hud_window(&window, &settings);
+                if assessment_bounds_changed {
+                    let had_bounds = assessment_hud_bounds_complete(&settings);
+                    capture_assessment_hud_bounds_from_window_if_missing(&window, &mut settings);
+                    captured_assessment_bounds =
+                        !had_bounds && assessment_hud_bounds_complete(&settings);
+                    sync_assessment_hud_window(&window, &settings);
+                } else if assessment_lock_changed {
+                    let _ = window.set_ignore_cursor_events(settings.assessment_hud_locked);
+                }
             }
         }
         if let Some(window) = app.get_webview_window(HUD_WINDOW_LABEL) {
             if hud_visible {
-                sync_hud_window(&window, &settings);
+                if shooting_bounds_changed {
+                    let had_bounds = shooting_hud_bounds_complete(&settings);
+                    capture_shooting_hud_bounds_from_window_if_missing(&window, &mut settings);
+                    captured_shooting_bounds =
+                        !had_bounds && shooting_hud_bounds_complete(&settings);
+                    sync_hud_window(&window, &settings);
+                } else if shooting_lock_changed {
+                    let _ = window.set_ignore_cursor_events(settings.hud_locked);
+                }
             }
+        }
+
+        if captured_shooting_bounds || captured_assessment_bounds {
+            let mut inner = self.inner.lock().unwrap();
+            if captured_shooting_bounds {
+                inner.settings.hud_x = settings.hud_x;
+                inner.settings.hud_y = settings.hud_y;
+                inner.settings.hud_width = settings.hud_width;
+                inner.settings.hud_height = settings.hud_height;
+            }
+            if captured_assessment_bounds {
+                inner.settings.assessment_hud_x = settings.assessment_hud_x;
+                inner.settings.assessment_hud_y = settings.assessment_hud_y;
+                inner.settings.assessment_hud_width = settings.assessment_hud_width;
+                inner.settings.assessment_hud_height = settings.assessment_hud_height;
+            }
+            let _ = save_counter_strafing_settings(&inner.settings);
         }
 
         let _ = app.emit("counter-strafing-snapshot", snap.clone());
@@ -502,9 +617,7 @@ impl CounterStrafingRuntime {
         width: f64,
         height: f64,
     ) -> Result<(), String> {
-        let Ok(mut inner) = self.inner.try_lock() else {
-            return Ok(());
-        };
+        let mut inner = self.inner.lock().unwrap();
         inner.settings.assessment_hud_x = Some(x);
         inner.settings.assessment_hud_y = Some(y);
         inner.settings.assessment_hud_width = Some(clamp_hud_width(width));
@@ -519,9 +632,7 @@ impl CounterStrafingRuntime {
         width: f64,
         height: f64,
     ) -> Result<(), String> {
-        let Ok(mut inner) = self.inner.try_lock() else {
-            return Ok(());
-        };
+        let mut inner = self.inner.lock().unwrap();
         inner.settings.hud_x = Some(x);
         inner.settings.hud_y = Some(y);
         inner.settings.hud_width = Some(clamp_hud_width(width));
@@ -1149,6 +1260,7 @@ fn show_hud_inner(app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
         .get_webview_window(HUD_WINDOW_LABEL)
         .ok_or_else(|| "HUD 窗口不存在".to_string())?;
 
+    capture_shooting_hud_bounds_from_window_if_missing(&window, &mut settings);
     apply_hud_bounds(&window, &settings);
     window
         .show()
@@ -1179,6 +1291,7 @@ fn show_assessment_hud_inner(app: &AppHandle) -> Result<CounterStrafingAssessmen
         .get_webview_window(ASSESSMENT_HUD_WINDOW_LABEL)
         .ok_or_else(|| "急停评估 HUD 窗口不存在".to_string())?;
 
+    capture_assessment_hud_bounds_from_window_if_missing(&window, &mut settings);
     apply_assessment_hud_bounds(&window, &settings);
     window
         .show()
@@ -1191,9 +1304,12 @@ fn show_assessment_hud_inner(app: &AppHandle) -> Result<CounterStrafingAssessmen
         let inner = runtime.inner.lock().unwrap();
         inner.hud_visible
     };
-    if shooting_visible && settings.hud_x.is_none() && settings.hud_y.is_none() {
+    if shooting_visible && !shooting_hud_bounds_complete(&settings) {
         if let Some(shooting) = app.get_webview_window(HUD_WINDOW_LABEL) {
-            sync_hud_window(&shooting, &settings);
+            capture_shooting_hud_bounds_from_window_if_missing(&shooting, &mut settings);
+            if !shooting_hud_bounds_complete(&settings) {
+                sync_hud_window(&shooting, &settings);
+            }
         }
     }
 
