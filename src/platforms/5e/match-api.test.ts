@@ -6,6 +6,7 @@ import {
   fetchP5eMatchDetailCached,
   pickLatestMatchCode,
   resolveMapFromMatchDetail,
+  validateP5eMatchDetail,
 } from './match-api';
 import type { P5eMatchBundle } from './types';
 
@@ -18,6 +19,7 @@ import { fetch5eMatchDetail } from '@core/platform/5e';
 const mockedFetch = vi.mocked(fetch5eMatchDetail);
 
 const UUID_B6 = 'b6c90410-53b8-11ef-ac9f-ec0d9a7185e0';
+const UUID_OTHER = 'aaaaaaaa-bbbb-cccc-dddd-111111111111';
 
 function makeBundle(): P5eMatchBundle {
   return {
@@ -43,6 +45,30 @@ function makeBundle(): P5eMatchBundle {
   };
 }
 
+function makeWsBundle(): P5eMatchBundle {
+  const uuids = Array.from({ length: 10 }, (_, i) =>
+    `aaaaaaaa-bbbb-cccc-dddd-${String(i).padStart(12, '0')}`,
+  );
+  return {
+    platformGameId: 'g161-n-ws-test',
+    gameId: 'g161-n-ws-test',
+    uuids,
+    capturedAt: new Date().toISOString(),
+    wsAnchor: {
+      gameId: 'g161-n-ws-test',
+      team1Uuids: uuids.slice(0, 5),
+      team2Uuids: uuids.slice(5),
+      teamSideByUuid: Object.fromEntries(
+        uuids.map((u, i) => [u, i < 5 ? 1 : 2]),
+      ) as Record<string, 1 | 2>,
+      partyRooms: [],
+      readyUuids: [],
+      capturedAt: new Date().toISOString(),
+      eventHint: 'game_ctx',
+    },
+  };
+}
+
 describe('P5e match API helpers', () => {
   afterEach(() => {
     clearP5eMatchDetailCacheForTests();
@@ -54,15 +80,21 @@ describe('P5e match API helpers', () => {
       () =>
         new Promise((resolve) => {
           setTimeout(
-            () => resolve({ data: { main: { map: 'de_dust2' } } }),
+            () =>
+              resolve({
+                data: {
+                  main: { map: 'de_dust2', match_code: 'g161-test' },
+                  group_1: [{ user_info: { user_data: { uuid: UUID_OTHER } } }],
+                },
+              }),
             20,
           );
         }),
     );
 
     const [a, b] = await Promise.all([
-      fetchP5eMatchDetailCached('g161-test'),
-      fetchP5eMatchDetailCached('g161-test'),
+      fetchP5eMatchDetailCached('g161-test', { allowNoMap: true }),
+      fetchP5eMatchDetailCached('g161-test', { allowNoMap: true }),
     ]);
 
     expect(mockedFetch).toHaveBeenCalledTimes(1);
@@ -99,5 +131,38 @@ describe('P5e match API helpers', () => {
       data: { main: { map: 'de_dust2', map_desc: '炙热沙城2' } },
     });
     expect(map).toBe('de_dust2');
+  });
+
+  it('rejects stale match detail with mismatched uuids', () => {
+    const bundle = makeWsBundle();
+    const result = validateP5eMatchDetail(
+      {
+        data: {
+          main: { map: 'de_inferno', match_code: 'g161-n-ws-test' },
+          group_1: [{ user_info: { user_data: { uuid: UUID_OTHER } } }],
+        },
+      },
+      bundle,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('does not cache map-not-ready responses during enrich', async () => {
+    const bundle = makeWsBundle();
+    mockedFetch.mockResolvedValue({
+      data: {
+        main: { match_code: 'g161-n-ws-test' },
+        group_1: bundle.uuids.slice(0, 5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+        group_2: bundle.uuids.slice(5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+      },
+    });
+
+    const enriched = await enrichP5eBundleWithLiveMap(bundle);
+    expect(enriched.mapName).toBeUndefined();
+    expect(mockedFetch).toHaveBeenCalled();
   });
 });

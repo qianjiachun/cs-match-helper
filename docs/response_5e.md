@@ -8,7 +8,7 @@
 
 ## 1. 总览
 
-进入 5E 房间并打开对阵界面时，客户端会**批量**请求玩家数据；匹配 enrich 阶段会主动拉取接口 4（地图/分队）与接口 7（玩家主页 season_data）。CDP 白名单监听接口 1–3。
+进入 5E 房间并打开对阵界面时，客户端会**批量**请求玩家数据；匹配 enrich 阶段会主动拉取接口 4（地图/分队）与接口 7（玩家主页 season_data）。**生产路径**以 Comet WebSocket `game_ctx` 定锚 10 人，CDP 被动旁听接口 1–3 并按 UUID 合并；fixture / NDJSON 回放仍走 `P5eMatchAggregator`。
 
 | 序号 | 用途 | 方法 | 完整 URL（样本） | 白名单匹配 |
 |------|------|------|------------------|------------|
@@ -22,12 +22,153 @@
 
 > 注意：接口 1–3 路径前缀多为 `cranenew`；接口 4 为 `crane`（无 `new`）。
 
+### 1.0 Comet WebSocket 定锚（生产路径）
+
+Arena 页面通过 Comet 长连接推送对局上下文。应用经 CDP 监听 `Network.webSocket*`，仅采集 `wss://comet-client-arena.5eplay.com/`（及测试 CDN 同路径）上的帧，解码后由 `game-context.ts` 解析定锚，再由 `P5eMatchSession` 与近期 HTTP batch 合并产出 `MatchRecord`。
+
+#### 1.0.1 采集与调试
+
+| 项 | 说明 |
+|----|------|
+| 传输 | Chrome DevTools Protocol → `platform_5e_cdp.rs` 订阅 WS 创建/收帧/关闭 |
+| 解码 | `platform_5e_ws.rs`：`opcode 1` 原文；`opcode 2` Base64 → 二进制 |
+| 前端事件 | `P5eWsFrameEvent`（`decodedJson` / `decodedText` / `eventHint` / `innerJson`） |
+| 默认开关 | Gate 调试、**WS 调试**默认开启（`useP5eCdp.ensureReady`） |
+| 日志筛选 | 调试面板支持 **全部 / HTTP / Gate / WS / 状态 / 匹配** 与关键词搜索 |
+
+操作：本应用启动 5E（`--remote-debugging-port`）→ **调试 → 5E 数据** → 开始匹配。日志中应出现 `WS 打开`、`WS 帧`；定锚后另有 **「WS 定锚」** 摘要（接受人数、user/elo/map 覆盖率）。
+
+#### 1.0.2 帧编码与 JSON 提取
+
+| opcode | 载荷 | 处理 |
+|--------|------|------|
+| `1` | 文本 | 直接解析；若整段为 Base64 则再解一层 |
+| `2` | Base64 二进制 | 解码后常见 **约 12 字节协议头 + JSON** |
+| `8`/`9` | 控制帧 | 跳过，记 `parseError` |
+
+**关键**：有效 JSON 不一定从偏移 0 开始。Rust `find_json_slice` 从首个 `{` 或 `[` 做括号/字符串感知截取，结果写入 `decodedJson`（此前因整段非纯 JSON 导致 `decodedJson` 为空的问题已修复）。
+
+`eventHint` 由 JSON 顶层 key 推断，常见值：
+
+| eventHint | 含义 |
+|-----------|------|
+| `game_ctx` | 对局定锚（匹配成功后出现） |
+| `room_ctx` | 当前开黑房间上下文（**不能**定 10 人局） |
+| `game_ctx_update` | 同局增量（接受人数、地图候选等） |
+
+#### 1.0.3 `game_ctx` 结构（2026-07-10 实机样本）
+
+匹配成功判定点：出现含 `game_ctx.id` 的帧，例如：
+
+```text
+g161-n-20260710122439267141317
+```
+
+**定锚字段**（解析见 `src/platforms/5e/game-context.ts`）：
+
+```text
+{
+  "game_ctx": {
+    "id": "g161-n-20260710122439267141317",
+    "status": 0,
+    "gmi": {
+      "map": 0,
+      "selected_map": 0,
+      "t1": { "rooms": [ { "id": "...", "members": ["uuid", ...] } ] },
+      "t2": { "rooms": [ { "id": "...", "members": ["uuid", ...] } ] }
+    }
+  },
+  "ready_members": ["uuid", ...]   // 常在根级，随接受递增
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `game_ctx.id` | **gameId**，会话主键、`platformGameId`；与 Gate `match_code` 需校验关联，**不做字符串截取猜测** |
+| `gmi.t1.rooms[].members` | 队伍 1，展平后须 **5** 个 UUID |
+| `gmi.t2.rooms[].members` | 队伍 2，展平后须 **5** 个 UUID |
+| `ready_members` | 已点「接受」的 UUID 列表，**仅状态**；不能用来确定参赛者 |
+| `gmi.map` / `selected_map` | 数字地图 ID；**接受前样本均为 `0`**，地图未定 |
+| `status` | 对局状态码（含义待接受后样本校准） |
+
+**定锚条件**：`gameId` 非空；两队各 5 人；10 个 UUID 唯一且符合 GUID 格式。相同 `gameId` 的后续帧只更新 `ready_members` / 地图 ID，**不重复建局**。
+
+#### 1.0.4 `room_ctx` 与 HTTP batch 键
+
+| 来源 | 能否定 10 人 | UUID 形态 |
+|------|--------------|-----------|
+| `game_ctx.gmi.t1/t2` | **能**（权威） | 已是 Comet **UUID**（GUID） |
+| `room_ctx.members` | **不能**（仅开黑房成员） | UUID |
+| HTTP map-ext / user-info 请求体 `uuids` | 旁听合并 | UUID |
+| HTTP elo 请求体 `user` | 旁听合并 | UUID |
+| HTTP 响应里的 `uid` | 仅响应字段 | **数字**，用于 match detail 关联，**不替换** canonical UUID |
+
+> 纠正：batch 请求体同样是 UUID 列表，并非「必须先有数字 uid 才能请求 batch」。WS 定锚的 10 个 UUID 可直接作为 batch 合并键。
+
+#### 1.0.5 `P5eMatchSession` 合并逻辑
+
+```mermaid
+sequenceDiagram
+  participant Ws as Comet_WS
+  participant Http as HTTP_batch_1to3
+  participant Session as P5eMatchSession
+  participant Enrich as enrich_map_home
+  participant Record as MatchRecord
+
+  Http->>Session: 15s 环形缓冲（可先到达）
+  Ws->>Session: game_ctx 定锚 gameId + 10 UUID
+  Session->>Session: 回放缓冲并按 UUID 逐人合并
+  Http->>Session: 分批 user/elo/map-ext（求交 10 人）
+  Session->>Enrich: bundle（gameId 去重）
+  Enrich->>Enrich: GET match/gameId 校验 10 人
+  Enrich->>Record: buildP5eMatchDetail
+```
+
+| 项 | 行为 |
+|----|------|
+| 主键 | `gameId`（`game_ctx.id`） |
+| HTTP 缓冲 | 最近约 **15s**，定锚后回放 |
+| 合并 | 按 `responseBody.data[uuid]` 逐人合并；过滤局外 UUID |
+| 进度 | user / elo / map 各类 **已覆盖人数**（如 10/10） |
+| 完成 | 三类均 10/10 → 产出；超时 **30s** → `incomplete: true` |
+| 去重 | 同一 `gameId` 只 emit 一次 `MatchRecord` |
+
+#### 1.0.6 地图与分队（与 HTTP 的关系）
+
+| 优先级 | 地图 `mapName` | 分队 `teamSide` |
+|--------|----------------|-----------------|
+| 1 | 校验通过的 match detail `main.map`（`GET match/{gameId}`，10 人集合一致） | WS `gmi.t1` → 1，`t2` → 2 |
+| 2 | 接受后实机确认的 WS `selected_map` / `gmi.map` → `P5E_WS_MAP_ID_TO_NAME`（**表待填**） | match detail `group_1/2`（校验用） |
+| 3 | 未知 / 「地图待定」 | 无锚点时按数组前五后五（仅 fixture 回退） |
+
+**已移除**：map-ext 多数票作为**本局地图**依据（map-ext 仍用于每位玩家该地图的生涯统计）。
+
+match detail 接受前校验：响应内玩家 UUID 须与 WS 10 人集合一致；`match_code` 与 `gameId` 须可对应；无地图时不缓存、按退避重试。Gate 与 WS 地图冲突时优先 Gate 并写入 `parseWarnings`。
+
+#### 1.0.7 CDP 连接维护（与 WS 采集相关）
+
+5E **客户端自更新**后会自行重启且通常**不带** `--remote-debugging-port`，表现为进程仍在但 CDP 长期不可达。collector 在 **45s** 后上报 `phase: needsRelaunch`；本应用启动的会话会自动 **stop → launch5eWithCdp → start** 一次（失败则回启动页）。短暂抖动仍走 `reconnecting` 退避。
+
+#### 1.0.8 代码索引（WS / 会话）
+
+| 模块 | 路径 |
+|------|------|
+| WS 解帧（Rust） | `src-tauri/src/platform/platform_5e_cdp.rs`、`platform_5e_ws.rs` |
+| `game_ctx` 解析 | `src/platforms/5e/game-context.ts` |
+| 会话聚合 | `src/platforms/5e/match-session.ts` |
+| HTTP 按人合并 | `src/platforms/5e/api-merge.ts` |
+| 编排 / 日志 | `src/mainview/composables/useP5eCdp.ts` |
+| 日志筛选 | `src/platforms/5e/debug-log-filter.ts` |
+| fixture 聚合（非生产） | `src/platforms/5e/aggregator.ts` |
+
 ### 1.1 关联键
 
 - 接口 1–3 以 **玩家 UUID**（形如 `76af4325-dd04-11ed-9ce2-ec0d9a495494`）为关联键。
-- 接口 4 以 **match_code**（形如 `g161-20260614142743982331607`）为路径参数；响应内再用 **uid**（数字）与 **uuid** 关联玩家。
-- 一次房间合成（接口 1–3）：**同一批 10 个 UUID** 的三份响应到齐（见 `P5eMatchAggregator`）。
-- **match_code 来源**：接口 2 的 `specialData.match_data[].match_id`（非空字符串）；或接口 4 请求 URL 路径段。
+- **WS 定锚**：`game_ctx.id` → `gameId` / `platformGameId`；10 人 UUID 来自 `gmi.t1/t2.rooms[].members`。
+- 接口 4 以 **match_code**（形如 `g161-20260614142743982331607` 或 `g161-n-…`）为路径参数；可与 `gameId` 校验关联，响应内再用 **uid**（数字）与 **uuid** 关联玩家。
+- **生产合成**：`P5eMatchSession` 在 WS 定锚后，将 CDP 旁听的接口 1–3 按 10 UUID **逐人合并**（不要求三批请求 UUID 列表完全相同）。
+- **fixture / NDJSON**：`P5eMatchAggregator` 仍要求同一批 UUID 三份响应到齐。
+- **match_code 来源（补充）**：优先 `game_ctx.id`；Gate 响应 `main.match_code` 校验通过后写入 bundle；或接口 2 的 `specialData.match_data[].match_id`。
 - 接口 1、3 请求体字段名为 `uuids`；接口 2 为 `user`（值同为 UUID 列表）。
 
 ### 1.2 响应包裹层差异
@@ -155,7 +296,7 @@ data: Record<uuid, Record<mapKey, MapStatEntry>>
 | `mapWinRate` / `mapTotalNum`（优先） | **接口 5** `match_map_data[当前地图]` | 本赛季本图，非生涯 |
 | `rating` / `adpr` / `weRaw`（回退） | map-ext 当前地图 | 仅无 season 数据时 |
 | `mapWinRate` 等（回退） | map-ext | 生涯地图统计 |
-| 对局地图推断 | 多数玩家 `matchTotal > 0` 的地图投票 | **应改用接口 4 `main.map`** |
+| 对局地图推断 | ~~map-ext 多数票~~ | **已移除**；见 §1.0.6 match detail / WS 地图 ID |
 
 **未使用（map-ext）**：`level`, `dexterity`, `process`, `nextLevelDexterity`（仍可用于 tags）
 
@@ -724,19 +865,21 @@ curl.exe -s "https://gate.5eplay.com/crane/http/api/data/match/g161-202606141427
 | 2 | 小宇y1y | 27986408 | 731007f4-56a5-11f1-bfd6-043f72fd82b0 |
 | 2 | 下次丶换你爱我 | 16874361 | 40915f47-ac81-11ee-9ce2-ec0d9a495494 |
 
-### 5.15 与接口 1–3 的衔接（规划）
+### 5.15 与 WS / 接口 1–3 的衔接（当前实现）
 
-1. 房间阶段：接口 1–3 凑齐 10 人 UUID 与赛季统计。
-2. 从接口 2 `specialData.match_data` 提取最近非空 `match_id` → `match_code`。
-3. GET 接口 4：`main.map` 覆盖地图推断；`group_1`/`group_2` 覆盖分队。
-4. 合并：接口 5 提供赛季 Rating/ADR/RWS；接口 4 `fight.*` 仅作当局 K/D 等；map-ext 作回退。
+1. **WS 定锚**：`game_ctx` 给出 `gameId`、10 UUID、分队（§1.0.3）。
+2. **HTTP 旁听**：CDP 捕获 map-ext / elo / user-info，按 UUID 子集合并进 `P5eMatchSession`。
+3. **Enrich**：`GET match/{gameId}` 校验 10 人与 `match_code`；`player/home` ×10（HMAC）。
+4. **合并**：`season_data` 提供赛季 Rating/ADR/RWS；match detail `fight.*` 作当局 K/D 等；map-ext 仅作地图**统计**回退。
 
 ### 5.16 当前应用状态
 
 | 项 | 状态 |
 |----|------|
-| CDP 白名单 | 接口 1–3；接口 4/5 为主动拉取 |
-| 地图 / 分队 | match detail 可用时覆盖推断 |
+| 定锚 | **WS `game_ctx`**（`P5eMatchSession`） |
+| CDP 旁听 | 接口 1–3；Gate 调试可选 |
+| 地图 | match detail 校验通过 → 待定；**不用 map-ext 投票** |
+| 分队 | **WS t1/t2** 优先；match detail 校验 |
 | season Rating | **已接入** `player/home` enrich（`season_data`） |
 
 ---
@@ -870,56 +1013,58 @@ GET /cranenew/http/api/data/chart/curve?uuid={uuid}&type=0&sel_type=0&range_type
 
 ---
 
-## 9. 六接口联调与合成逻辑
+## 9. 数据流与合成逻辑
 
 ```mermaid
 sequenceDiagram
-  participant Client as 5E Client
+  participant Client as 5E_Client
+  participant Comet as Comet_WS
   participant Gate as gate.5eplay.com
   participant Platform as platform-api.5eplay.com
   participant App as CS匹配助手
 
-  Client->>Gate: POST map-ext/batch {uuids}
-  Client->>Gate: POST elo/info/batch {user, match_mode:[9]}
-  Client->>Platform: POST user/info {uuids}
-  Client->>Gate: GET match/{match_code}（对局后/查看战绩）
-  App-->>App: 主动 GET player/home ×10（enrich，HMAC）
-  App-->>App: CDP 截获 responseBody（接口 1–3）
-  App-->>App: P5eMatchAggregator 按 UUID 合成
-  App-->>App: 可选：match 详情覆盖地图/分队；player/home 覆盖 Rating/ADR/RWS
-  App-->>App: buildP5ePlayer × 10 → MatchRecord
+  Client->>Comet: game_ctx / ready_members
+  App->>App: CDP 解码 WS 帧并定锚 gameId
+  Client->>Gate: POST map-ext / elo batch
+  Client->>Platform: POST user/info
+  App->>App: P5eMatchSession 按 UUID 合并 1–3
+  App->>Gate: GET match/gameId 校验地图与 10 人
+  App->>Gate: GET player/home ×10 enrich
+  App->>App: buildP5ePlayer × 10 → MatchRecord
 ```
 
-### 8.1 合成前提（接口 1–3）
+### 9.1 合成前提（生产路径）
 
-1. 请求体中 UUID 列表一致（10 人）。
-2. 三份响应 `data` 均包含这 10 个 key。
-3. `match_mode[0]` 决定读取 `modes` 下的子 key（默认 `"9"`）。
+1. WS `game_ctx` 定锚：`gameId` + 10 UUID（5+5）。
+2. 接口 1–3 在定锚后按人合并；每类 API 覆盖 10 人即视为该类完成。
+3. `match_mode[0]` 决定读取 elo `modes` 下的子 key（默认 `"9"`）。
 
-### 8.2 对局地图（`mapName`）
+### 9.2 对局地图（`mapName`）
 
-| 方案 | 来源 | 说明 |
-|------|------|------|
-| 当前实现 | map-ext 投票 | `resolveMatchMap()`，可能不准 |
-| **推荐** | 接口 4 `main.map` | 权威，无需推测 |
-| 回退 | 接口 4 `fight.map` | 与 main 一致 |
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1 | 接口 4 `main.map` | 须通过对 `gameId` 的请求且 10 人 UUID 校验 |
+| 2 | WS `selected_map` / `gmi.map` | 非零 ID → 名称映射表（**待接受后样本校准**） |
+| 3 | 无 | 显示待定；**不用 map-ext 投票** |
 
-### 8.3 分队（`teamSide`）
+### 9.3 分队（`teamSide`）
 
-| 方案 | 来源 | 说明 |
-|------|------|------|
-| 当前实现 | UUID 数组前 5 / 后 5 | 临时方案 |
-| **推荐** | 接口 4 `group_1` / `group_2` | 按 `user_info.user_data.uuid` 对齐 |
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1 | WS `gmi.t1` / `t2` | `teamSide` 1 / 2 |
+| 2 | 接口 4 `group_1` / `group_2` | 与 WS 校验一致时采用 |
+| 3 | UUID 数组前 5 / 后 5 | 仅 fixture / 无锚点回退 |
 
-### 8.4 `match_code` 获取路径
+### 9.4 `match_code` / `gameId` 获取路径
 
-1. 接口 2 → `modes.9.specialData` → `match_data[].match_id`（非空）。
-2. 接口 4 请求 URL 路径最后一段。
-3. 样本格式：`g161-{yyyyMMdd}{序号}` 或 `g161-n-{…}`。
+1. **WS** → `game_ctx.id`（`gameId`，定锚主键）。
+2. **接口 4** → `main.match_code`（校验通过后写入 bundle）。
+3. **接口 2** → `modes.9.specialData` → `match_data[].match_id`（历史对局列表，非当前局定锚）。
+4. 样本格式：`g161-{yyyyMMdd}{序号}` 或 `g161-n-{…}`；二者关系须用 Gate 响应校验，不假设可互相截取。
 
 ---
 
-## 9. 样本玩家速查（10 人，接口 1–3 房间）
+## 10. 样本玩家速查（10 人，接口 1–3 房间）
 
 | UUID（前 8 位） | username | steam_id | elo(9) | 备注 |
 |-----------------|----------|----------|--------|------|
@@ -936,40 +1081,45 @@ sequenceDiagram
 
 ---
 
-## 10. 已知问题与待人工修正项
+## 11. 已知问题与待人工修正项
 
 | # | 问题 | 建议 |
 |---|------|------|
 | 1 | `user.csgo_elo_9` 与 `elo.modes.9.elo` 偶尔不一致 | **以 elo 接口为准** |
 | 2 | ~~`csgo_rating` / map-ext 作赛季 Rating~~ | **已修正**：以 `player/home season_data` 为准；map-ext 仅地图回退 |
-| 3 | 地图/分队靠推测不准 | **接入接口 4**（§5.15） |
+| 3 | ~~地图/分队靠推测~~ | **已接入 WS 定锚 + match detail 校验**；WS 地图 ID 表待填 |
 | 4 | `matchStatus` / `round_sfui_type` 枚举未完全确认 | 对照 5E 客户端 |
 | 5 | `isVip` 用 `vip_grade` 可能不准 | `vip_level > 0` 或 `is_plus === 1` |
 | 6 | `cranenew` vs `crane` 路径前缀不同 | 白名单按路径片段匹配 |
 | 7 | 数值类型混用 string / number | 解析层统一 `numOrUndef()` |
 | 8 | 接口 4 头像字段为 `profile.avatarUrl`（驼峰） | 与接口 3 `avatar_url` 区分 |
+| 9 | WS `gmi.map` / `selected_map` 数字 ID → 地图名 | 需「接受后至进服」实机样本填入 `P5E_WS_MAP_ID_TO_NAME` |
+| 10 | `game_ctx.id` 与 Gate `match_code` 对应关系 | 以 match detail 校验为准，勿字符串截取 |
 
 ---
 
-## 11. 代码索引
+## 12. 代码索引
 
 | 模块 | 路径 |
 |------|------|
 | 字段映射 | `src/platforms/5e/field-mapper.ts` |
 | 事件白名单 | `src/platforms/5e/events.ts` |
-| 接口聚合 | `src/platforms/5e/aggregator.ts` |
+| WS `game_ctx` 解析 | `src/platforms/5e/game-context.ts` |
+| 生产会话聚合 | `src/platforms/5e/match-session.ts` |
+| HTTP 按人合并 | `src/platforms/5e/api-merge.ts` |
+| fixture 聚合 | `src/platforms/5e/aggregator.ts` |
 | MatchRecord | `src/platforms/5e/match-parser.ts` |
-| CDP 白名单（Rust） | `src-tauri/src/platform/platform_5e_sink.rs` |
+| CDP + WS（Rust） | `src-tauri/src/platform/platform_5e_cdp.rs`、`platform_5e_ws.rs` |
+| HTTP 白名单（Rust） | `src-tauri/src/platform/platform_5e_sink.rs` |
 | Match detail 拉取 | `src/platforms/5e/match-api.ts` |
-| 赛季 API 拉取 | `src/platforms/5e/home-api.ts` + `platform_5e_player_home.rs` |
-| 赛季 HTTP（Rust） | `src-tauri/src/platform/platform_5e_season.rs` |
+| 玩家主页拉取 | `src/platforms/5e/home-api.ts` + `platform_5e_player_home.rs` |
+| 调试日志筛选 | `src/platforms/5e/debug-log-filter.ts` |
 | 测试夹具 | `src/platforms/5e/fixtures/5e-match-success.fixture.json` |
-| season 夹具 | `src/platforms/5e/fixtures/5e-player-season.fixture.json` |
 | **本文档** | `docs/response_5e.md` |
 
 ---
 
-## 12. 修订记录
+## 13. 修订记录
 
 | 日期 | 说明 |
 |------|------|
@@ -977,3 +1127,4 @@ sequenceDiagram
 | 2026-06-16 | 增补接口 4 对局详情（match/{match_code}）全字段与 uid 对照 |
 | 2026-07-05 | 接口 7 player/home 替换接口 5；HMAC 签名拉取，无需 Cookie |
 | 2026-07-04 | 增补接口 5 player/season、接口 6 chart/curve；修正 Rating 映射为 contrast_data |
+| 2026-07-10 | WS 定锚生产路径：`game_ctx`、`P5eMatchSession`、地图/分队优先级；§1.0 扩写；CDP 自更新重连说明 |

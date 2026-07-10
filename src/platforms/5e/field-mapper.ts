@@ -1,5 +1,6 @@
 import type { MatchPlayer } from '@core/match/models';
 import type { P5eMatchBundle } from './types';
+import { resolveWsMapName } from './game-context';
 import {
   getP5eHomeData,
   recentResultsFromMatchList,
@@ -125,30 +126,8 @@ export function resolveMatchMap(bundle: P5eMatchBundle): string | undefined {
   if (bundle.mapName) return bundle.mapName;
   const fromMatch = mapFromMatchDetail(bundle);
   if (fromMatch) return fromMatch;
-
-  const data = getApiData(bundle.mapExt);
-  if (!data) return undefined;
-
-  const votes = new Map<string, number>();
-  for (const uuid of bundle.uuids) {
-    const playerMaps = data[uuid];
-    if (!playerMaps || typeof playerMaps !== 'object') continue;
-    for (const [mapName, raw] of Object.entries(playerMaps)) {
-      if (!raw || typeof raw !== 'object') continue;
-      const total = numOrUndef((raw as Record<string, unknown>).matchTotal) ?? 0;
-      if (total > 0) votes.set(mapName, (votes.get(mapName) ?? 0) + 1);
-    }
-  }
-
-  let bestMap: string | undefined;
-  let bestVotes = 0;
-  for (const [mapName, count] of votes) {
-    if (count > bestVotes) {
-      bestVotes = count;
-      bestMap = mapName;
-    }
-  }
-  return bestMap;
+  const wsMap = bundle.wsAnchor ? resolveWsMapName(bundle.wsAnchor) : undefined;
+  return wsMap;
 }
 
 function parseMapEntry(mapName: string, raw: Record<string, unknown>): P5eMapStats {
@@ -406,10 +385,12 @@ export function buildP5ePlayer(
   }
 
   const teamSideMap = buildUuidTeamSideMap(bundle);
+  const wsSide = bundle.wsAnchor?.teamSideByUuid?.[uuid];
   const useDetailTeams = hasMatchDetailTeams(bundle);
   const mappedSide = teamSideMap.get(uuid);
   const teamSide =
     teamSideOverride
+    ?? (wsSide === 1 || wsSide === 2 ? wsSide : undefined)
     ?? mappedSide
     ?? (useDetailTeams ? 0 : index < 5 ? 1 : 2);
 

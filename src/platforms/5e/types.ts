@@ -12,7 +12,39 @@ export interface P5eHttpEvent {
   captureError?: string;
 }
 
-export type P5eRawEvent = P5eHttpEvent;
+export interface P5eWsOpenEvent {
+  kind: 'ws_open';
+  requestId: string;
+  url: string;
+  capturedAt: string;
+}
+
+export interface P5eWsCloseEvent {
+  kind: 'ws_close';
+  requestId: string;
+  url: string;
+  capturedAt: string;
+}
+
+export interface P5eWsFrameEvent {
+  kind: 'ws_frame';
+  requestId: string;
+  url: string;
+  capturedAt: string;
+  opcode: number;
+  payloadRaw?: string;
+  decodedText?: string;
+  decodedJson?: unknown;
+  innerBase64Text?: string;
+  innerJson?: unknown;
+  eventHint?: string;
+  parseError?: string;
+  truncated?: boolean;
+}
+
+export type P5eWsEvent = P5eWsOpenEvent | P5eWsCloseEvent | P5eWsFrameEvent;
+export type P5eCdpEvent = P5eHttpEvent | P5eWsEvent;
+export type P5eRawEvent = P5eCdpEvent;
 
 export type P5eApiKind = 'userInfo' | 'eloInfo' | 'mapExt';
 
@@ -26,10 +58,16 @@ export interface P5eApiPayload {
 export interface P5eMatchBundle {
   platformGameId: string;
   uuids: string[];
+  /** WS game_ctx.id，定锚主键 */
+  gameId?: string;
+  /** WS 定锚元数据（10 人 UUID、分队、接受状态） */
+  wsAnchor?: import('./game-context').P5eWsGameAnchor;
   matchMode?: number[];
-  /** 来自 match API 或 elo specialData */
+  /** Gate match detail 确认后的 match_code（与 gameId 校验关联） */
   matchCode?: string;
   mapName?: string;
+  /** WS 地图候选与 Gate 不一致时的调试告警 */
+  mapConflictWarning?: string;
   matchDetail?: unknown;
   capturedAt: string;
   userInfo?: P5eApiPayload;
@@ -67,8 +105,11 @@ export type P5eCdpPhase =
   | 'cdpReady'
   | 'collecting'
   | 'reconnecting'
+  | 'needsRelaunch'
   | 'stopped'
   | 'error';
+
+export type P5eCdpStatusReason = 'cdp_lost_process_alive' | 'client_exited';
 
 export interface P5eCdpStatus {
   running: boolean;
@@ -80,5 +121,9 @@ export interface P5eCdpStatus {
   eventsEmitted: number;
   lastError?: string;
   gateDebugMode?: boolean;
+  wsDebugMode?: boolean;
   clientExited?: boolean;
+  needsRelaunch?: boolean;
+  cdpLostSince?: string;
+  reason?: P5eCdpStatusReason | string;
 }

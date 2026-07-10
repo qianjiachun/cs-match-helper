@@ -1,4 +1,9 @@
 import { fetch5eMatchDetail } from '@core/platform/5e';
+import { resolveWsMapName } from './game-context';
+import {
+  extractUuidFromMatchEntry,
+  parseGroupEntries,
+} from './match-detail-parser';
 import type { P5eMatchBundle } from './types';
 
 function parseMatchIdsFromSpecialData(raw: string): string[] {
@@ -28,6 +33,8 @@ export interface P5eMatchDetailResponse {
   success?: boolean;
   data?: {
     main?: P5eMatchDetailMain;
+    group_1?: unknown;
+    group_2?: unknown;
     [key: string]: unknown;
   };
 }
@@ -73,6 +80,67 @@ export function resolveMapFromMatchDetail(detail: P5eMatchDetailResponse | undef
   return typeof map === 'string' && map.length > 0 ? map : undefined;
 }
 
+export function extractUuidsFromMatchDetail(detail: P5eMatchDetailResponse | undefined): string[] {
+  const data = detail?.data;
+  if (!data || typeof data !== 'object') return [];
+  const uuids = new Set<string>();
+  const uidToUuid = new Map<string, string>();
+
+  for (const entry of [
+    ...parseGroupEntries(data.group_1),
+    ...parseGroupEntries(data.group_2),
+  ]) {
+    const uuid = extractUuidFromMatchEntry(entry, uidToUuid);
+    if (uuid) uuids.add(uuid);
+  }
+  return [...uuids];
+}
+
+export interface P5eMatchDetailValidation {
+  ok: boolean;
+  reason?: string;
+  matchCode?: string;
+  mapName?: string;
+}
+
+export function validateP5eMatchDetail(
+  detail: P5eMatchDetailResponse | undefined,
+  bundle: P5eMatchBundle,
+): P5eMatchDetailValidation {
+  if (!detail?.data) return { ok: false, reason: 'empty_detail' };
+
+  const detailUuids = extractUuidsFromMatchDetail(detail);
+  const expected = new Set(bundle.uuids);
+  if (detailUuids.length > 0) {
+    if (detailUuids.length !== expected.size) {
+      return { ok: false, reason: 'uuid_count_mismatch' };
+    }
+    for (const uuid of detailUuids) {
+      if (!expected.has(uuid)) return { ok: false, reason: 'uuid_set_mismatch' };
+    }
+  }
+
+  const matchCode = detail.data.main?.match_code;
+  const gameId = bundle.gameId ?? bundle.wsAnchor?.gameId;
+  if (gameId && typeof matchCode === 'string' && matchCode.length > 0) {
+    if (matchCode !== gameId && !matchCodesMayCorrespond(gameId, matchCode)) {
+      return { ok: false, reason: 'match_code_mismatch' };
+    }
+  }
+
+  const mapName = resolveMapFromMatchDetail(detail);
+  return {
+    ok: true,
+    matchCode: typeof matchCode === 'string' ? matchCode : undefined,
+    mapName,
+  };
+}
+
+/** 不做字符串截取猜测；仅允许完全一致或同局双 ID 完全相等 */
+export function matchCodesMayCorrespond(gameId: string, matchCode: string): boolean {
+  return gameId === matchCode;
+}
+
 async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -95,39 +163,98 @@ async function withRetry<T>(
   throw lastErr;
 }
 
+function resolveMatchDetailQueryId(bundle: P5eMatchBundle): string | undefined {
+  return bundle.gameId ?? bundle.wsAnchor?.gameId ?? bundle.matchCode ?? pickLatestMatchCode(extractP5eMatchCodes(bundle));
+}
+
 /** 通过 match 接口实时拉取地图并写入 bundle */
 export async function enrichP5eBundleWithLiveMap(bundle: P5eMatchBundle): Promise<P5eMatchBundle> {
   if (bundle.mapName) return bundle;
 
-  const cachedMap = resolveMapFromMatchDetail(bundle.matchDetail as P5eMatchDetailResponse | undefined);
-  if (cachedMap) return { ...bundle, mapName: cachedMap };
-
-  const matchCode = bundle.matchCode ?? pickLatestMatchCode(extractP5eMatchCodes(bundle));
-  if (!matchCode) return bundle;
-
-  try {
-    const detail = await withRetry(() => fetchP5eMatchDetailCached(matchCode));
-    const mapName = resolveMapFromMatchDetail(detail);
+  const cachedValidation = validateP5eMatchDetail(
+    bundle.matchDetail as P5eMatchDetailResponse | undefined,
+    bundle,
+  );
+  if (cachedValidation.ok && cachedValidation.mapName) {
     return {
       ...bundle,
-      matchCode,
+      matchCode: cachedValidation.matchCode ?? bundle.matchCode,
+      mapName: cachedValidation.mapName,
+    };
+  }
+
+  const queryId = resolveMatchDetailQueryId(bundle);
+  if (!queryId) {
+    const wsMap = resolveWsMapName(bundle.wsAnchor);
+    return wsMap ? { ...bundle, mapName: wsMap } : bundle;
+  }
+
+  try {
+    const detail = await withRetry(() => fetchP5eMatchDetailValidated(queryId, bundle));
+    const validation = validateP5eMatchDetail(detail, bundle);
+    if (!validation.ok) {
+      const wsMap = resolveWsMapName(bundle.wsAnchor);
+      return wsMap ? { ...bundle, mapName: wsMap } : bundle;
+    }
+
+    const gateMap = validation.mapName;
+    const wsMap = resolveWsMapName(bundle.wsAnchor);
+    let mapConflictWarning: string | undefined;
+    let mapName = gateMap ?? wsMap;
+    if (gateMap && wsMap && gateMap !== wsMap) {
+      mapConflictWarning = `Gate 地图 ${gateMap} 与 WS 候选 ${wsMap} 不一致，已采用 Gate`;
+      mapName = gateMap;
+    }
+
+    return {
+      ...bundle,
+      matchCode: validation.matchCode ?? bundle.matchCode,
       matchDetail: detail,
-      mapName: mapName ?? bundle.mapName,
+      mapName,
+      mapConflictWarning,
     };
   } catch {
-    return { ...bundle, matchCode };
+    const wsMap = resolveWsMapName(bundle.wsAnchor);
+    return wsMap ? { ...bundle, mapName: wsMap } : bundle;
   }
 }
 
 const matchDetailCache = new Map<string, Promise<P5eMatchDetailResponse>>();
 
+async function fetchP5eMatchDetailValidated(
+  matchCode: string,
+  bundle: P5eMatchBundle,
+): Promise<P5eMatchDetailResponse> {
+  const detail = await fetchP5eMatchDetailCached(matchCode, { allowNoMap: true });
+  const validation = validateP5eMatchDetail(detail, bundle);
+  if (!validation.ok) {
+    matchDetailCache.delete(matchCode.trim());
+    throw new Error(validation.reason ?? 'invalid_match_detail');
+  }
+  if (!validation.mapName) {
+    matchDetailCache.delete(matchCode.trim());
+    throw new Error('map_not_ready');
+  }
+  return detail;
+}
+
 /** 同一 match_code 只发起一次网络请求（并发调用共享同一 Promise） */
-export function fetchP5eMatchDetailCached(matchCode: string): Promise<P5eMatchDetailResponse> {
+export function fetchP5eMatchDetailCached(
+  matchCode: string,
+  options?: { allowNoMap?: boolean },
+): Promise<P5eMatchDetailResponse> {
   const code = matchCode.trim();
   let pending = matchDetailCache.get(code);
   if (!pending) {
     pending = fetch5eMatchDetail(code)
-      .then((response) => response as P5eMatchDetailResponse)
+      .then((response) => {
+        const detail = response as P5eMatchDetailResponse;
+        if (!options?.allowNoMap && !resolveMapFromMatchDetail(detail)) {
+          matchDetailCache.delete(code);
+          throw new Error('map_not_ready');
+        }
+        return detail;
+      })
       .catch((err) => {
         matchDetailCache.delete(code);
         throw err;

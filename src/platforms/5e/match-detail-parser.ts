@@ -26,7 +26,7 @@ export function resolveMapDescFromMatchDetail(bundle: P5eMatchBundle): string | 
   return typeof desc === 'string' && desc.trim() ? desc.trim() : undefined;
 }
 
-function parseGroupEntries(raw: unknown): P5ePlayerMatchEntry[] {
+export function parseGroupEntries(raw: unknown): P5ePlayerMatchEntry[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((item) => asRecord(item))

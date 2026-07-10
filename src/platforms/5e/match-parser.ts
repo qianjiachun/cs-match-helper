@@ -42,13 +42,23 @@ function groupByIndexSplit(players: MatchPlayer[]): { teams: MatchTeam[]; unassi
 }
 
 function groupP5eTeams(players: MatchPlayer[], bundle: P5eMatchBundle): { teams: MatchTeam[]; unassigned: MatchPlayer[] } {
-  if (!hasMatchDetailTeams(bundle)) {
-    return groupByIndexSplit(players);
-  }
-
   const team1 = players.filter((p) => p.teamSide === 1);
   const team2 = players.filter((p) => p.teamSide === 2);
   const unassigned = players.filter((p) => p.teamSide !== 1 && p.teamSide !== 2);
+
+  if (team1.length === 5 && team2.length === 5 && unassigned.length === 0) {
+    return {
+      teams: [
+        { side: 'A', id: 1, players: team1, singleCount: 0, partyGroups: [] },
+        { side: 'B', id: 2, players: team2, singleCount: 0, partyGroups: [] },
+      ],
+      unassigned: [],
+    };
+  }
+
+  if (!hasMatchDetailTeams(bundle)) {
+    return groupByIndexSplit(players);
+  }
 
   if (unassigned.length > 0 || team1.length !== 5 || team2.length !== 5) {
     return groupByIndexSplit(players);
@@ -76,8 +86,11 @@ export function buildP5eMatchDetail(bundle: P5eMatchBundle): MatchDetail {
   const players = bundle.uuids.map((uuid, i) => buildPlayer(uuid, i, bundle, matchMap));
   const { teams, unassigned } = groupP5eTeams(players, bundle);
 
-  if (!hasMatchDetailTeams(bundle)) {
+  if (!bundle.wsAnchor && !hasMatchDetailTeams(bundle)) {
     warnings.push('未获取 match 详情分队，已按 UUID 顺序临时分队');
+  }
+  if (bundle.mapConflictWarning) {
+    warnings.push(bundle.mapConflictWarning);
   }
 
   const homeCount = Object.keys(bundle.playerHome ?? {}).length;

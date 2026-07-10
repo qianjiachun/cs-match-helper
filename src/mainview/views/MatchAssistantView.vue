@@ -42,6 +42,7 @@ const latestMatch = computed(() => props.matches[0] ?? null);
       :watcher="watcher"
       :platform="platform"
       :p5e-phase="p5e?.status.value.phase"
+      :p5e-recovering="p5e?.autoRecovering.value"
       @back="emit('back')"
     />
   </div>

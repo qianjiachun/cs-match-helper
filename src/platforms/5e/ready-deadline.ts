@@ -10,10 +10,11 @@ function extractApiTimestamp(payload?: P5eApiPayload): number | undefined {
 
 export function computeP5eReadyDeadline(bundle: P5eMatchBundle): number | undefined {
   const anchors = [
+    bundle.wsAnchor?.capturedAt ? Date.parse(bundle.wsAnchor.capturedAt) : undefined,
     extractApiTimestamp(bundle.userInfo),
     extractApiTimestamp(bundle.eloInfo),
     extractApiTimestamp(bundle.mapExt),
-  ].filter((v): v is number => v != null);
+  ].filter((v): v is number => v != null && Number.isFinite(v));
 
   const anchor = anchors.length
     ? Math.max(...anchors)

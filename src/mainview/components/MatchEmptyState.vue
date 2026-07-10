@@ -11,6 +11,7 @@ const props = defineProps<{
   watcher: WatcherStatus;
   platform?: PlatformId;
   p5ePhase?: P5eCdpPhase;
+  p5eRecovering?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +22,12 @@ const containerRef = ref<HTMLElement | null>(null);
 
 const showPlatformHint = computed(() => {
   if (props.platform === '5e') {
-    return props.p5ePhase === 'reconnecting' || props.p5ePhase === 'error';
+    return (
+      props.p5eRecovering
+      || props.p5ePhase === 'needsRelaunch'
+      || props.p5ePhase === 'reconnecting'
+      || props.p5ePhase === 'error'
+    );
   }
   return (
     props.watcher.running &&
@@ -31,6 +37,9 @@ const showPlatformHint = computed(() => {
 
 const hintText = computed(() => {
   if (props.platform === '5e') {
+    if (props.p5eRecovering || props.p5ePhase === 'needsRelaunch') {
+      return '检测到 5E 可能已更新并重启，正在重新连接…';
+    }
     if (props.p5ePhase === 'reconnecting') return '正在连接 5E，请稍候…';
     if (props.p5ePhase === 'error') return '连接中断，请尝试重新启动 5E';
     return '';

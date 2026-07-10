@@ -46,6 +46,8 @@ export const p5eAdapter: PlatformAdapter = {
 };
 
 export { P5eMatchAggregator } from './aggregator';
+export { P5eMatchSession, type P5eCaptureProgress } from './match-session';
+export { parseGameContextFromJson, parseGameContextFromWsEvent } from './game-context';
 export { classifyP5eUrl, isP5eWhitelistedUrl, parseP5eNdjsonLine, sanitizeP5eHttpEvent } from './events';
 export { buildP5eMatchDetail, createP5eMatchRecord, parseP5eMatchInput, summarizeP5eMatch } from './match-parser';
 export { buildP5ePlayer, resolveMatchMap } from './field-mapper';

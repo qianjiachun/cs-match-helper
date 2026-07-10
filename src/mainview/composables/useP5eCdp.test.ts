@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getP5eLaunchCollectError } from './useP5eCdp';
+import {
+  getP5eLaunchCollectError,
+  P5E_AUTO_RECOVER_MAX,
+  shouldPromptManualP5eRelaunch,
+  shouldTriggerP5eAutoRecover,
+} from './useP5eCdp';
 
 describe('getP5eLaunchCollectError', () => {
   it('allows collect when cdp is ready and launched by app', () => {
@@ -40,5 +45,61 @@ describe('getP5eLaunchCollectError', () => {
         message: '',
       }),
     ).toBe('未能连接 5E，请完全退出后重试');
+  });
+});
+
+describe('5E auto recover helpers', () => {
+  it('triggers auto recover only for app-launched session with needsRelaunch', () => {
+    expect(
+      shouldTriggerP5eAutoRecover({
+        needsRelaunch: true,
+        appLaunchedSession: true,
+        autoRecovering: false,
+        autoRecoverAttempts: 0,
+        intentionalStop: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldTriggerP5eAutoRecover({
+        needsRelaunch: true,
+        appLaunchedSession: false,
+        autoRecovering: false,
+        autoRecoverAttempts: 0,
+        intentionalStop: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('does not auto recover after max attempts', () => {
+    expect(
+      shouldTriggerP5eAutoRecover({
+        needsRelaunch: true,
+        appLaunchedSession: true,
+        autoRecovering: false,
+        autoRecoverAttempts: P5E_AUTO_RECOVER_MAX,
+        intentionalStop: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('prompts manual relaunch after auto recover is exhausted', () => {
+    expect(
+      shouldPromptManualP5eRelaunch({
+        needsRelaunch: true,
+        autoRecoverAttempts: P5E_AUTO_RECOVER_MAX,
+        intentionalStop: false,
+        alreadyPrompted: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldPromptManualP5eRelaunch({
+        needsRelaunch: true,
+        autoRecoverAttempts: P5E_AUTO_RECOVER_MAX,
+        intentionalStop: false,
+        alreadyPrompted: true,
+      }),
+    ).toBe(false);
   });
 });
