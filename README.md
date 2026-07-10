@@ -4,21 +4,20 @@
 
 # CS 匹配助手
 
+<p>
+  <a href="https://github.com/qianjiachun/cs-match-helper/stargazers"><img src="https://img.shields.io/github/stars/qianjiachun/cs-match-helper?style=flat-square&logo=github&labelColor=FFF3C4&color=EAB308&logoColor=333" alt="GitHub stars" /></a>
+  <a href="https://github.com/qianjiachun/cs-match-helper/releases"><img src="https://img.shields.io/github/downloads/qianjiachun/cs-match-helper/total?style=flat-square&logo=github&labelColor=D1FAE5&color=16A34A&logoColor=333" alt="All releases downloads" /></a>
+  <a href="https://github.com/qianjiachun/cs-match-helper/releases/latest"><img src="https://img.shields.io/github/v/release/qianjiachun/cs-match-helper?style=flat-square&logo=github&labelColor=E9E0FF&color=7C3AED&logoColor=333" alt="Latest release" /></a>
+  <a href="https://github.com/qianjiachun/cs-match-helper/releases/latest"><img src="https://img.shields.io/github/release-date/qianjiachun/cs-match-helper?style=flat-square&logo=github&labelColor=CFFAFE&color=0891B2&logoColor=333" alt="Release date" /></a>
+  <a href="https://github.com/qianjiachun/cs-match-helper/graphs/commit-activity"><img src="https://img.shields.io/github/commit-activity/m/qianjiachun/cs-match-helper?style=flat-square&logo=github&labelColor=FFEDD5&color=EA580C&logoColor=333" alt="Commit activity" /></a>
+  <a href="https://space.bilibili.com/193482"><img src="https://img.shields.io/badge/Bilibili-小淳-FB7299?style=flat-square&logo=bilibili&labelColor=FB7299&color=FB7299&logoColor=white" alt="Bilibili" /></a>
+</p>
+
 在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析。
 
 [**软件下载**](https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download) · [**GitHub Release 下载**](https://github.com/qianjiachun/cs-match-helper/releases/latest)
 
 </div>
-
-## 功能
-
-- 🗺️ **对局信息**：地图、倒计时、双方阵容
-- 📊 **选手数据**：段位、输出、评分、赛季统计等
-- ⚔️ **队伍对比**：雷达图、组排识别
-- 🤖 **AI 分析**：胜率预测与赛前评估（需配置 DeepSeek 密钥）
-- 💬 **玩家评论**：对局页查看/发表评论，设置页管理我的评论历史
-- 🎮 **多平台**：完美对战平台、5E 对战平台
-- 🎯 **急停助手**：量化开枪稳定与急停质量，支持游戏内 HUD 与 Game Bar 小组件（详见下文）
 
 ## 界面预览
 
@@ -27,6 +26,18 @@
   <img src="https://github.com/user-attachments/assets/dc70a30e-2c2b-447d-b633-27368f483431" width="32%" alt="队伍对比" />
   <img src="https://github.com/user-attachments/assets/fd436175-01e8-410e-865c-e1b5489b77eb" width="32%" alt="AI 赛前分析" />
 </p>
+
+## 功能
+
+- ⚡ **极致轻量**：5 MB、内存占用低、启动迅速，不影响游戏帧数
+- 🖱️ **开箱即用**：无需安装，匹配进入准备界面后自动读取并展示数据，无需手动操作或复杂配置
+- 🗺️ **对局信息**：地图、倒计时、双方阵容
+- 📊 **选手数据**：段位、输出、评分、赛季统计等
+- ⚔️ **队伍对比**：雷达图、组排识别
+- 🤖 **AI 分析**：胜率预测与赛前评估（需配置 DeepSeek 密钥）
+- 💬 **玩家评论**：对局页查看/发表评论，设置页管理我的评论历史
+- 🎮 **多平台**：完美对战平台、5E 对战平台
+- 🎯 **急停助手**：量化开枪稳定与急停质量，支持游戏内 HUD 与 Game Bar 小组件（详见下文）
 
 ## 支持平台
 
