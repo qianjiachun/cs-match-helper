@@ -19,7 +19,7 @@ use platform::{
     fetch_http_json, fetch_proxied_image, launch_with_cdp,
     probe_5e_environment, relaunch_current_exe_as_admin, wait_for_cdp_port,
     P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
-    get_cdp_status, set_cdp_gate_debug_mode, start_cdp_collector, stop_cdp_collector,
+    get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, stop_cdp_collector,
 };
 use std::sync::Mutex;
 use std::thread;
@@ -145,6 +145,14 @@ fn set_5e_cdp_gate_debug_mode(
 }
 
 #[tauri::command]
+fn set_5e_cdp_ws_debug_mode(
+    state: tauri::State<'_, P5eCdpRuntime>,
+    enabled: bool,
+) -> P5eCdpStatus {
+    set_cdp_ws_debug_mode(state, enabled)
+}
+
+#[tauri::command]
 fn open_app_devtools(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
@@ -219,6 +227,7 @@ pub fn run() {
             stop_5e_cdp_collector,
             get_5e_cdp_status,
             set_5e_cdp_gate_debug_mode,
+            set_5e_cdp_ws_debug_mode,
             probe_5e_cdp_active,
             fetch_5e_match_detail,
             fetch_5e_player_home,

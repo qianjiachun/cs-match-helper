@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-set-5e-cdp-ws-debug-mode"
+description = "允许切换 5E CDP Comet WebSocket 调试采集"
+commands.allow = ["set_5e_cdp_ws_debug_mode"]

@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { P5eCdpStatus, P5eHttpEvent, P5eLaunchResult, P5eProbeResult } from '@platforms/5e/types';
+import type { P5eCdpStatus, P5eCdpEvent, P5eLaunchResult, P5eProbeResult } from '@platforms/5e/types';
 
 export type {
+  P5eCdpEvent,
   P5eCdpPhase,
   P5eCdpStatus,
   P5eHttpEvent,
@@ -10,6 +11,8 @@ export type {
   P5eMatchBundle,
   P5eProbeResult,
   P5eRawEvent,
+  P5eWsEvent,
+  P5eWsFrameEvent,
 } from '@platforms/5e/types';
 
 export async function launch5eWithCdp(options?: {
@@ -58,10 +61,14 @@ export async function set5eCdpGateDebugMode(enabled: boolean): Promise<P5eCdpSta
   return invoke<P5eCdpStatus>('set_5e_cdp_gate_debug_mode', { enabled });
 }
 
+export async function set5eCdpWsDebugMode(enabled: boolean): Promise<P5eCdpStatus> {
+  return invoke<P5eCdpStatus>('set_5e_cdp_ws_debug_mode', { enabled });
+}
+
 export async function on5eCdpEvent(
-  handler: (event: P5eHttpEvent) => void,
+  handler: (event: P5eCdpEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<P5eHttpEvent>('5e-cdp-event', (ev) => handler(ev.payload));
+  return listen<P5eCdpEvent>('5e-cdp-event', (ev) => handler(ev.payload));
 }
 
 export async function on5eCdpStatus(

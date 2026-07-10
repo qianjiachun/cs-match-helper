@@ -7,6 +7,11 @@ import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vu
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import {
+  filterP5eLogEntries,
+  P5E_LOG_FILTER_OPTIONS,
+  type P5eLogFilterKey,
+} from '@platforms/5e/debug-log-filter';
+import {
   p5eSimulateClientNotFound,
   toggleP5eSimulateClientNotFound,
 } from '@platforms/5e/p5e-dev-overrides';
@@ -87,10 +92,15 @@ const p5eNdjsonInput = ref('');
 const p5eError = ref('');
 const devtoolsError = ref('');
 const mockReleaseNotes = ref(MOCK_RELEASE_NOTES);
+const p5eLogFilter = ref<P5eLogFilterKey>('all');
+const p5eLogSearch = ref('');
 
 const p5eLogEntries = computed(() => props.p5e?.logEntries.value ?? []);
+const filteredP5eLogEntries = computed(() =>
+  filterP5eLogEntries(p5eLogEntries.value, p5eLogFilter.value, p5eLogSearch.value),
+);
 const activeLogEntries = computed(() =>
-  logSubTab.value === 'p5e' ? p5eLogEntries.value : props.logEntries,
+  logSubTab.value === 'p5e' ? filteredP5eLogEntries.value : props.logEntries,
 );
 const totalLogCount = computed(
   () => props.logEntries.length + (props.p5e?.logEntries.value.length ?? 0),
@@ -102,6 +112,7 @@ const p5ePhaseLabel: Record<string, string> = {
   cdpReady: '已连接',
   collecting: '采集中',
   reconnecting: '重连中',
+  needsRelaunch: '需重连',
   stopped: '已停止',
   error: '错误',
 };
@@ -164,6 +175,20 @@ async function toggleP5eGateDebugMode(event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
   try {
     await props.p5e.setGateDebugMode(checked);
+  } catch (err) {
+    p5eError.value = String(err);
+  }
+}
+
+async function toggleP5eWsDebugMode(event: Event) {
+  p5eError.value = '';
+  if (!props.p5e) {
+    p5eError.value = '5E 模块未就绪';
+    return;
+  }
+  const checked = (event.target as HTMLInputElement).checked;
+  try {
+    await props.p5e.setWsDebugMode(checked);
   } catch (err) {
     p5eError.value = String(err);
   }
@@ -305,7 +330,14 @@ function levelClass(level?: string) {
 }
 
 watch(
-  () => [props.logEntries.length, p5eLogEntries.value.length] as const,
+  () =>
+    [
+      props.logEntries.length,
+      p5eLogEntries.value.length,
+      filteredP5eLogEntries.value.length,
+      p5eLogFilter.value,
+      p5eLogSearch.value,
+    ] as const,
   async () => {
     if (!autoScroll.value || activeTab.value !== 'logs') return;
     await nextTick();
@@ -763,7 +795,7 @@ watch(
                 · 缺 {{ p5e.captureProgress.value.missing.join(', ') }}
               </template>
             </span>
-            <span>展示 {{ p5eLogEntries.length }} 条</span>
+            <span>展示 {{ filteredP5eLogEntries.length }}/{{ p5eLogEntries.length }} 条</span>
             <span v-if="p5e.lastError.value" class="text-danger truncate" :title="p5e.lastError.value">
               错误: {{ p5e.lastError.value }}
             </span>
@@ -779,6 +811,19 @@ watch(
             </span>
           </template>
           <div class="ml-auto flex items-center gap-2">
+            <label
+              v-if="logSubTab === 'p5e' && p5e"
+              class="flex cursor-pointer items-center gap-1"
+              title="监听 Comet WebSocket 帧（解码后输出到本页），不参与匹配聚合"
+            >
+              <input
+                type="checkbox"
+                class="accent-accent"
+                :checked="p5e.wsDebugMode.value"
+                @change="toggleP5eWsDebugMode"
+              />
+              WS 调试
+            </label>
             <label
               v-if="logSubTab === 'p5e' && p5e"
               class="flex cursor-pointer items-center gap-1"
@@ -802,7 +847,7 @@ watch(
               :disabled="!activeLogEntries.length"
               :title="
                 logSubTab === 'p5e'
-                  ? '复制当前 5E 数据列表（完整内容）'
+                  ? '复制当前筛选后的 5E 数据列表（完整内容）'
                   : '复制当前完美日志列表（完整内容）'
               "
               @click="copyAllLogs"
@@ -820,6 +865,34 @@ watch(
         </div>
 
         <div
+          v-if="logSubTab === 'p5e' && p5e"
+          class="flex flex-wrap items-center gap-2 border-b border-border bg-base px-4 py-2"
+        >
+          <div class="flex flex-wrap items-center gap-1">
+            <button
+              v-for="opt in P5E_LOG_FILTER_OPTIONS"
+              :key="opt.key"
+              type="button"
+              class="cursor-pointer rounded px-2 py-0.5 text-[10px] transition-colors"
+              :class="
+                p5eLogFilter === opt.key
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
+              "
+              @click="p5eLogFilter = opt.key"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <input
+            v-model="p5eLogSearch"
+            type="search"
+            placeholder="搜索内容…"
+            class="ml-auto min-w-[8rem] flex-1 rounded border border-border bg-surface px-2 py-1 text-[10px] text-fg outline-none focus:border-accent/50 sm:max-w-[12rem] sm:flex-none"
+          />
+        </div>
+
+        <div
           ref="logListRef"
           class="selectable max-h-[min(420px,50vh)] overflow-y-auto p-3"
         >
@@ -828,7 +901,12 @@ watch(
             class="py-8 text-center text-[11px] text-fg-muted"
           >
             <template v-if="logSubTab === 'p5e'">
-              暂无 5E 数据。启动 5E 并开始匹配后，采集到的 API 响应会显示在这里。
+              <template v-if="p5eLogEntries.length">
+                当前筛选无结果。可切换分类或清空搜索关键词。
+              </template>
+              <template v-else>
+                暂无 5E 数据。启动 5E 并开始匹配后，采集到的 API 与 WebSocket 解码内容会显示在这里。
+              </template>
             </template>
             <template v-else>
               暂无日志。开始监听后，每行 log 的解析结果会显示在这里。

@@ -6,11 +6,12 @@ mod platform_5e_launch;
 mod platform_5e_match;
 mod platform_5e_player_home;
 mod platform_5e_sink;
+mod platform_5e_ws;
 mod platform_board;
 
 pub use platform_5e_cdp::{
-    get_cdp_status, set_cdp_gate_debug_mode, start_cdp_collector, stop_cdp_collector,
-    P5eCdpRuntime, P5eCdpStatus,
+    get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector,
+    stop_cdp_collector, P5eCdpRuntime, P5eCdpStatus,
 };
 pub use platform_5e_launch::{
     launch_with_cdp, probe_5e_environment, wait_for_cdp_port, P5E_DEFAULT_CDP_PORT,
