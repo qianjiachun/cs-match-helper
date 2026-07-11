@@ -3,8 +3,8 @@ import appIcon from '@app-icon';
 import iconBilibili from '@/assets/icons/bilibili.svg';
 import iconGithub from '@/assets/icons/github.svg';
 import iconQq from '@/assets/icons/qq.svg';
-import { Check, Copy, ExternalLink } from 'lucide-vue-next';
-import { useTemplateRef } from 'vue';
+import { Check, Copy, ExternalLink, Loader2, RefreshCw } from 'lucide-vue-next';
+import { computed, useTemplateRef } from 'vue';
 import { useCopyFeedback } from '../../composables/useCopyFeedback';
 import { useCopySuccessAnimation } from '../../composables/useCopySuccessAnimation';
 import { useUpdateCheck } from '../../composables/useUpdateCheck';
@@ -12,7 +12,7 @@ import { openExternalUrl } from '../../native';
 import UpdateBadge from '../UpdateBadge.vue';
 
 const appName = 'CS 匹配助手';
-const { state, formattedVersion, openDialog } = useUpdateCheck();
+const { state, formattedVersion, isBusy, checkManual, openDialog } = useUpdateCheck();
 const author = '小淳';
 const authorGithubUrl = 'https://github.com/qianjiachun/';
 const authorBilibiliUrl = 'https://space.bilibili.com/193482';
@@ -29,6 +29,8 @@ const { copyIconHighlighted, playCopySuccessAnimation } = useCopySuccessAnimatio
   copyIconRef,
   copyCheckTemplateRef,
 });
+
+const updateActionLabel = computed(() => (state.checking ? '检查中…' : '检查更新'));
 
 function openRepo() {
   void openExternalUrl(repoUrl);
@@ -67,10 +69,32 @@ async function copyQqGroup() {
     </div>
 
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
-      <span class="text-[13px] text-fg-muted">版本</span>
-      <div class="flex items-center gap-2">
-        <span class="text-[13px] font-semibold text-fg">{{ formattedVersion }}</span>
-        <UpdateBadge v-if="state.hasUpdate" @click="openDialog" />
+      <span class="shrink-0 text-[13px] text-fg-muted">版本</span>
+      <div class="min-w-0 text-right">
+        <div class="flex items-center justify-end gap-2">
+          <span class="text-[13px] font-semibold tabular-nums text-fg">{{ formattedVersion }}</span>
+          <UpdateBadge v-if="state.hasUpdate" @click="openDialog" />
+        </div>
+        <button
+          v-if="!state.hasUpdate"
+          type="button"
+          class="group mt-1 inline-flex cursor-pointer items-center gap-1 rounded-md py-0.5 text-[12px] font-medium leading-none text-accent transition-colors duration-200 hover:bg-accent/10 hover:text-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="state.checking || isBusy"
+          :aria-label="updateActionLabel"
+          @click="checkManual()"
+        >
+          <span>{{ updateActionLabel }}</span>
+          <Loader2
+            v-if="state.checking"
+            class="h-3.5 w-3.5 shrink-0 animate-spin text-accent"
+            aria-hidden="true"
+          />
+          <RefreshCw
+            v-else
+            class="h-3.5 w-3.5 shrink-0 text-accent/75 transition-colors duration-200 group-hover:text-accent"
+            aria-hidden="true"
+          />
+        </button>
       </div>
     </div>
 

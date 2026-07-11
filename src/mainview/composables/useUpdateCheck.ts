@@ -8,6 +8,7 @@ import {
   getAppVersion,
   onUpdateProgress,
 } from '../native';
+import { showToast } from './useCopyFeedback';
 
 const state = reactive({
   currentVersion: '',
@@ -132,28 +133,40 @@ export function useUpdateCheck() {
     }
   }
 
-  async function check() {
+  async function check(options?: { silent?: boolean }) {
     if (state.checking) return;
 
+    const silent = options?.silent ?? false;
     state.checking = true;
     state.phase = 'checking';
     try {
       const result = await checkForUpdate();
       applyResult(result);
 
-      if (result.hasUpdate && !autoDownloadStarted) {
-        autoDownloadStarted = true;
+      if (result.hasUpdate) {
         dialogOpen.value = true;
-        void startDownload();
+        if (!autoDownloadStarted) {
+          autoDownloadStarted = true;
+          void startDownload();
+        }
+      } else if (!silent) {
+        showToast('当前已是最新版本');
       }
     } catch (error) {
       state.error = error instanceof Error ? error.message : String(error);
       state.checked = true;
       state.phase = 'idle';
       await ensureVersion();
+      if (!silent) {
+        showToast(state.error || '检查更新失败，请稍后重试', 'error');
+      }
     } finally {
       state.checking = false;
     }
+  }
+
+  function checkManual() {
+    return check({ silent: false });
   }
 
   function openDialog() {
@@ -227,6 +240,7 @@ export function useUpdateCheck() {
     isBusy,
     ensureVersion,
     check,
+    checkManual,
     openDialog,
     closeDialog,
     retryDownload,

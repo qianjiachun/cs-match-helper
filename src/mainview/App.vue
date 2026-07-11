@@ -101,7 +101,7 @@ onMounted(() => {
   });
 
   void ensureVersion();
-  window.setTimeout(() => void check(), 12000);
+  window.setTimeout(() => void check({ silent: true }), 12000);
   void getCounterStrafingSnapshot()
     .then((snap) => {
       counterStrafingListening.value = snap.listening;
