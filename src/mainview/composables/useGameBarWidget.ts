@@ -224,6 +224,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       `githubDownloadUrl: ${updateCheck.value?.githubDownloadUrl ?? '-'}`,
       `downloadUrl: ${updateCheck.value?.downloadUrl ?? '-'}`,
       `hasUpdate: ${updateCheck.value?.hasUpdate ?? '-'}`,
+      `updateCheckError: ${updateCheck.value?.error ?? '-'}`,
       `phase: ${phase.value}`,
       `error: ${error.value ?? '-'}`,
       `progress: ${progress.value ? formatWidgetProgressMessage(progress.value) : '-'}`,

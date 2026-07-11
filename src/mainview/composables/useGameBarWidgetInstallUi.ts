@@ -103,7 +103,8 @@ export function useGameBarWidgetInstallUi(
   const installPanelHint = computed(() => {
     if (downloadSources.value.length) return null;
     if (widgetUpdate.value?.error) {
-      return '在线版本信息暂时获取失败，可稍后重试，或直接选择本地安装包';
+      const base = '在线版本信息暂时获取失败，可稍后重试，或直接选择本地安装包';
+      return `${base}（${widgetUpdate.value.error}）`;
     }
     return '暂时还没有可用的下载地址，请稍候或选择本地安装包';
   });
@@ -162,7 +163,7 @@ export function useGameBarWidgetInstallUi(
   }
 
   async function redetectWidget() {
-    await widget.refreshStatus();
+    await Promise.all([widget.refreshStatus(), widget.checkUpdate({ silent: true })]);
     toast(
       widgetReady.value ? '小组件已就绪' : '尚未检测到小组件',
       widgetReady.value ? 'success' : 'warning',
