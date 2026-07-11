@@ -15,6 +15,8 @@ import {
 import {
   clampHudChartOpacity,
   clampHudLineStrokeWidth,
+  showHudChartContent,
+  showHudTextContent,
 } from '@core/counter-strafing/hudDisplay';
 import type {
   CounterStrafingAssessmentRecord,
@@ -56,6 +58,9 @@ const lineStrokeWidth = computed(() =>
 const assessmentChartOpacity = computed(() =>
   clampHudChartOpacity(snapshot.value.hudAssessmentChartOpacity ?? 1),
 );
+const contentMode = computed(() => snapshot.value.hudContentMode ?? 'all');
+const showText = computed(() => showHudTextContent(contentMode.value));
+const showChart = computed(() => showHudChartContent(contentMode.value));
 const HUD_HISTORY_LIMIT = 64;
 
 function createRafCoalescer<T>(apply: (value: T) => void) {
@@ -216,7 +221,7 @@ onUnmounted(() => {
       class="hud-layout pointer-events-none absolute inset-0 z-1 flex flex-col gap-0.5 overflow-hidden px-2 py-1.5"
       :style="{ opacity: assessmentChartOpacity }"
     >
-      <div v-if="statsVisibility.showBar" class="hud-assessment-stats shrink-0">
+      <div v-if="showText && statsVisibility.showBar" class="hud-assessment-stats shrink-0">
         <div class="hud-assessment-stats-main">
           <div v-if="statsVisibility.showAvg" class="hud-shooting-stat">
             <span
@@ -277,6 +282,7 @@ onUnmounted(() => {
       </div>
       <div ref="chartWrapRef" class="assessment-hud-chart relative min-h-0 w-full flex-1">
         <CounterStrafingLineChart
+          v-if="showChart"
           :records="snapshot.records"
           :max-points="32"
           :height="chartHeight"

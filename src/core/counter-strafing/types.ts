@@ -1,3 +1,6 @@
+import type { HudContentMode } from './hudDisplay';
+import { clampHudContentMode } from './hudDisplay';
+
 export type BindingRole = 'forward' | 'back' | 'left' | 'right' | 'crouch' | 'fire';
 
 export type InputBinding =
@@ -50,6 +53,8 @@ export interface ShootingErrorRecord {
   shotSequenceIndex?: number;
 }
 
+export type { HudContentMode } from './hudDisplay';
+
 export type HudAnchor =
   | 'topLeft'
   | 'topCenter'
@@ -73,6 +78,8 @@ export interface CounterStrafingSnapshot {
   hudAssessmentChartOpacity: number;
   /** 开枪柱状图整体透明度（0.15–1） */
   hudShootingChartOpacity: number;
+  /** 统计文字与图表显隐：all / chartOnly / textOnly */
+  hudContentMode: HudContentMode;
   shotRecords: ShootingErrorRecord[];
   avgError: number;
   stableRate: number;
@@ -117,6 +124,7 @@ export interface CounterStrafingAssessmentSnapshot {
   hudLineStrokeWidth?: number;
   hudAssessmentChartOpacity?: number;
   hudShootingChartOpacity?: number;
+  hudContentMode?: HudContentMode;
 }
 
 export interface ShotFeedback {
@@ -179,6 +187,7 @@ export interface CounterStrafingSettings {
   hudLineStrokeWidth: number;
   hudAssessmentChartOpacity: number;
   hudShootingChartOpacity: number;
+  hudContentMode: HudContentMode;
 }
 
 export const DEFAULT_KEY_MAP: CounterStrafingKeyMap = {
@@ -238,6 +247,7 @@ export function mergeCounterStrafingSettings(
     hudLineStrokeWidth: loaded.hudLineStrokeWidth ?? 1.5,
     hudAssessmentChartOpacity: loaded.hudAssessmentChartOpacity ?? 1,
     hudShootingChartOpacity: loaded.hudShootingChartOpacity ?? 1,
+    hudContentMode: clampHudContentMode(loaded.hudContentMode),
     keyMap: {
       ...DEFAULT_KEY_MAP,
       ...loaded.keyMap,
@@ -295,6 +305,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   hudLineStrokeWidth: 1.5,
   hudAssessmentChartOpacity: 1,
   hudShootingChartOpacity: 1,
+  hudContentMode: 'all',
 };
 
 export const BINDING_ROLE_LABELS: Record<BindingRole, string> = {

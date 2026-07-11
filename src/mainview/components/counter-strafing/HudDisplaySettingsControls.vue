@@ -5,10 +5,12 @@ import {
   clampHudStatTextScale,
   HUD_CHART_OPACITY_MAX,
   HUD_CHART_OPACITY_MIN,
+  HUD_CONTENT_MODES,
   HUD_LINE_STROKE_WIDTH_MAX,
   HUD_LINE_STROKE_WIDTH_MIN,
   HUD_STAT_TEXT_SCALE_MAX,
   HUD_STAT_TEXT_SCALE_MIN,
+  type HudContentMode,
 } from '@core/counter-strafing/hudDisplay';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 
@@ -20,6 +22,12 @@ const props = defineProps<{
 }>();
 
 const settings = props.cs.settings;
+
+const contentModeOptions: { value: HudContentMode; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'chartOnly', label: '仅图表' },
+  { value: 'textOnly', label: '仅文字' },
+];
 
 const sliderClass =
   'hud-display-slider w-full disabled:pointer-events-none disabled:opacity-50';
@@ -60,6 +68,11 @@ function patchShootingOpacity(raw: string) {
   );
 }
 
+function patchContentMode(mode: HudContentMode) {
+  if (!HUD_CONTENT_MODES.includes(mode)) return;
+  void props.cs.applySettings({ hudContentMode: mode });
+}
+
 function pct(value: number, min: number, max: number): string {
   return `${((value - min) / (max - min)) * 100}%`;
 }
@@ -75,6 +88,30 @@ function pct(value: number, min: number, max: number): string {
       <p class="mt-0.5 text-[10px] leading-relaxed text-fg-muted">
         同时作用于游戏内悬浮窗与 Game Bar 小组件；透明度含统计文字与图表
       </p>
+    </div>
+
+    <div class="space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-[12px] font-medium text-fg-secondary">内容显示</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button
+          v-for="option in contentModeOptions"
+          :key="option.value"
+          type="button"
+          class="cursor-pointer rounded-lg border px-2 py-2 text-[12px] font-medium transition-colors duration-200"
+          :class="
+            settings.hudContentMode === option.value
+              ? 'border-accent bg-accent/10 text-accent'
+              : 'border-border bg-base text-fg-secondary hover:border-accent/35 hover:bg-elevated/80'
+          "
+          :disabled="disabled"
+          :aria-pressed="settings.hudContentMode === option.value"
+          @click="patchContentMode(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
     <div class="space-y-1.5">

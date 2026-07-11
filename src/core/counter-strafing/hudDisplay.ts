@@ -5,6 +5,23 @@ export const HUD_LINE_STROKE_WIDTH_MAX = 4;
 export const HUD_CHART_OPACITY_MIN = 0.15;
 export const HUD_CHART_OPACITY_MAX = 1;
 
+export type HudContentMode = 'all' | 'chartOnly' | 'textOnly';
+
+export const HUD_CONTENT_MODES: HudContentMode[] = ['all', 'chartOnly', 'textOnly'];
+
+export function clampHudContentMode(mode: unknown): HudContentMode {
+  if (mode === 'chartOnly' || mode === 'textOnly') return mode;
+  return 'all';
+}
+
+export function showHudTextContent(mode: HudContentMode): boolean {
+  return mode !== 'chartOnly';
+}
+
+export function showHudChartContent(mode: HudContentMode): boolean {
+  return mode !== 'textOnly';
+}
+
 export const HUD_STAT_LABEL_MIN_PX = 7;
 export const HUD_STAT_LABEL_MAX_PX = 14;
 export const HUD_STAT_VALUE_MIN_PX = 8;

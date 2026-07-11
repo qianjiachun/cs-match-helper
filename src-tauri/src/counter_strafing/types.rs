@@ -133,6 +133,20 @@ pub enum AssessmentTiming {
     Perfect,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HudContentMode {
+    All,
+    ChartOnly,
+    TextOnly,
+}
+
+impl Default for HudContentMode {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CounterStrafingAssessmentRecord {
@@ -177,6 +191,8 @@ pub struct CounterStrafingAssessmentSnapshot {
     pub hud_assessment_chart_opacity: f64,
     #[serde(default = "default_hud_chart_opacity")]
     pub hud_shooting_chart_opacity: f64,
+    #[serde(default)]
+    pub hud_content_mode: HudContentMode,
 }
 
 impl Default for CounterStrafingAssessmentSnapshot {
@@ -197,6 +213,7 @@ impl Default for CounterStrafingAssessmentSnapshot {
             hud_line_stroke_width: default_hud_line_stroke_width(),
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
+            hud_content_mode: HudContentMode::default(),
         }
     }
 }
@@ -239,6 +256,8 @@ pub struct GameBarWidgetLayout {
     pub assessment_chart_opacity: f64,
     #[serde(default = "default_hud_chart_opacity")]
     pub shooting_chart_opacity: f64,
+    #[serde(default)]
+    pub content_mode: HudContentMode,
 }
 
 impl Default for GameBarWidgetLayout {
@@ -252,6 +271,7 @@ impl Default for GameBarWidgetLayout {
             line_stroke_width: default_hud_line_stroke_width(),
             assessment_chart_opacity: default_hud_chart_opacity(),
             shooting_chart_opacity: default_hud_chart_opacity(),
+            content_mode: HudContentMode::default(),
         }
     }
 }
@@ -354,6 +374,8 @@ pub struct CounterStrafingSnapshot {
     pub hud_assessment_chart_opacity: f64,
     #[serde(default = "default_hud_chart_opacity")]
     pub hud_shooting_chart_opacity: f64,
+    #[serde(default)]
+    pub hud_content_mode: HudContentMode,
 }
 
 impl Default for CounterStrafingSnapshot {
@@ -377,6 +399,7 @@ impl Default for CounterStrafingSnapshot {
             hud_line_stroke_width: default_hud_line_stroke_width(),
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
+            hud_content_mode: HudContentMode::default(),
         }
     }
 }
@@ -482,6 +505,8 @@ pub struct CounterStrafingSettings {
     pub hud_assessment_chart_opacity: f64,
     #[serde(default = "default_hud_chart_opacity")]
     pub hud_shooting_chart_opacity: f64,
+    #[serde(default)]
+    pub hud_content_mode: HudContentMode,
 }
 
 pub const GAMEBAR_ASSESSMENT_RATIO_MIN: f64 = 0.05;
@@ -517,6 +542,13 @@ pub fn normalize_hud_display_settings(settings: &mut CounterStrafingSettings) {
         clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
     settings.hud_shooting_chart_opacity =
         clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
+    settings.hud_content_mode = normalize_hud_content_mode(settings.hud_content_mode);
+}
+
+pub fn normalize_hud_content_mode(mode: HudContentMode) -> HudContentMode {
+    match mode {
+        HudContentMode::All | HudContentMode::ChartOnly | HudContentMode::TextOnly => mode,
+    }
 }
 
 pub fn normalize_gamebar_layout(settings: &mut CounterStrafingSettings) {
@@ -538,6 +570,7 @@ pub fn gamebar_layout_from_settings(settings: &CounterStrafingSettings) -> GameB
         line_stroke_width: clamp_hud_line_stroke_width(settings.hud_line_stroke_width),
         assessment_chart_opacity: clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity),
         shooting_chart_opacity: clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity),
+        content_mode: normalize_hud_content_mode(settings.hud_content_mode),
     }
 }
 
@@ -550,6 +583,7 @@ pub fn apply_hud_display_to_assessment_snapshot(
     snap.hud_assessment_chart_opacity =
         clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
     snap.hud_shooting_chart_opacity = clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
+    snap.hud_content_mode = normalize_hud_content_mode(settings.hud_content_mode);
 }
 
 pub fn apply_hud_display_to_snapshot(snap: &mut CounterStrafingSnapshot, settings: &CounterStrafingSettings) {
@@ -558,6 +592,7 @@ pub fn apply_hud_display_to_snapshot(snap: &mut CounterStrafingSnapshot, setting
     snap.hud_assessment_chart_opacity =
         clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
     snap.hud_shooting_chart_opacity = clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
+    snap.hud_content_mode = normalize_hud_content_mode(settings.hud_content_mode);
 }
 
 fn default_gamebar_assessment_ratio() -> f64 {
@@ -692,6 +727,7 @@ impl Default for CounterStrafingSettings {
             hud_line_stroke_width: default_hud_line_stroke_width(),
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
+            hud_content_mode: HudContentMode::default(),
         }
     }
 }

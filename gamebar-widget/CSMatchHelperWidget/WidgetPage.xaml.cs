@@ -51,6 +51,7 @@ namespace CSMatchHelperWidget
         private double _lineStrokeWidth = 1.5;
         private double _assessmentChartOpacity = 1.0;
         private double _shootingChartOpacity = 1.0;
+        private string _contentMode = "all";
         private static readonly CoreCursor SplitterArrowCursor = new CoreCursor(CoreCursorType.Arrow, 0);
         private static readonly CoreCursor SplitterResizeCursor = new CoreCursor(CoreCursorType.SizeNorthSouth, 0);
 
@@ -364,6 +365,26 @@ namespace CSMatchHelperWidget
             return show ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        private bool ShowTextContent => _contentMode != "chartOnly";
+
+        private bool ShowChartContent => _contentMode != "textOnly";
+
+        private static string NormalizeContentMode(string mode)
+        {
+            if (mode == "chartOnly" || mode == "textOnly")
+            {
+                return mode;
+            }
+
+            return "all";
+        }
+
+        private void ApplyContentModeVisibility()
+        {
+            AssessmentChart.Visibility = StatVisibility(ShowChartContent);
+            ShootingChart.Visibility = StatVisibility(ShowChartContent);
+        }
+
         private void UpdateChartStatsVisibility()
         {
             UpdateAssessmentStatsVisibility();
@@ -421,6 +442,15 @@ namespace CSMatchHelperWidget
                 showTendency = true;
             }
 
+            if (!ShowTextContent)
+            {
+                showBar = false;
+                showAvg = false;
+                showSuccess = false;
+                showStdDev = false;
+                showTendency = false;
+            }
+
             AssessmentStatsRow.Visibility = StatVisibility(showBar);
             AssessmentAvgStatGroup.Visibility = StatVisibility(showAvg);
             AssessmentSuccessStatGroup.Visibility = StatVisibility(showSuccess);
@@ -453,6 +483,13 @@ namespace CSMatchHelperWidget
                 showBar = true;
                 showError = true;
                 showStable = true;
+            }
+
+            if (!ShowTextContent)
+            {
+                showBar = false;
+                showError = false;
+                showStable = false;
             }
 
             ShootingStatsRow.Visibility = StatVisibility(showBar);
@@ -547,6 +584,7 @@ namespace CSMatchHelperWidget
             var lineStrokeWidth = _lineStrokeWidth;
             var assessmentChartOpacity = _assessmentChartOpacity;
             var shootingChartOpacity = _shootingChartOpacity;
+            var contentMode = _contentMode;
             if (root.TryGetValue("layout", out var layoutValue) && layoutValue.ValueType == JsonValueType.Object)
             {
                 var layout = layoutValue.GetObject();
@@ -558,6 +596,7 @@ namespace CSMatchHelperWidget
                 lineStrokeWidth = JsonHelpers.GetNumber(layout, "lineStrokeWidth", 1.5);
                 assessmentChartOpacity = JsonHelpers.GetNumber(layout, "assessmentChartOpacity", 1.0);
                 shootingChartOpacity = JsonHelpers.GetNumber(layout, "shootingChartOpacity", 1.0);
+                contentMode = NormalizeContentMode(JsonHelpers.GetString(layout, "contentMode", "all"));
             }
 
             statTextScale = HudDisplayMetrics.ClampStatTextScale(statTextScale);
@@ -580,6 +619,7 @@ namespace CSMatchHelperWidget
                 LineStrokeWidth = lineStrokeWidth,
                 AssessmentChartOpacity = assessmentChartOpacity,
                 ShootingChartOpacity = shootingChartOpacity,
+                ContentMode = contentMode,
             };
             if (fingerprint.Equals(_lastLayoutFingerprint))
             {
@@ -595,7 +635,9 @@ namespace CSMatchHelperWidget
             _lineStrokeWidth = lineStrokeWidth;
             _assessmentChartOpacity = assessmentChartOpacity;
             _shootingChartOpacity = shootingChartOpacity;
+            _contentMode = contentMode;
             ApplyDisplaySettings(false);
+            ApplyContentModeVisibility();
             ApplyWidgetLayout();
         }
 
@@ -994,7 +1036,14 @@ namespace CSMatchHelperWidget
             if (_showAssessmentChart)
             {
                 var assessmentRecords = JsonHelpers.GetArray(root, "records");
-                _assessmentChart.Update(assessmentRecords);
+                if (ShowChartContent)
+                {
+                    _assessmentChart.Update(assessmentRecords);
+                }
+                else
+                {
+                    _assessmentChart.Reset();
+                }
             }
             else
             {
@@ -1016,7 +1065,14 @@ namespace CSMatchHelperWidget
 
                 _shootingShowStableBars = showStableBars;
                 _shootingShowTapMarkers = showTapMarkers;
-                _shootingChart.Update(shotRecords, showStableBars, showTapMarkers);
+                if (ShowChartContent)
+                {
+                    _shootingChart.Update(shotRecords, showStableBars, showTapMarkers);
+                }
+                else
+                {
+                    _shootingChart.Reset();
+                }
             }
             else
             {
@@ -1066,6 +1122,7 @@ namespace CSMatchHelperWidget
             public double LineStrokeWidth;
             public double AssessmentChartOpacity;
             public double ShootingChartOpacity;
+            public string ContentMode;
 
             public bool Equals(LayoutFingerprint other)
             {
@@ -1076,7 +1133,8 @@ namespace CSMatchHelperWidget
                     && Math.Abs(StatTextScale - other.StatTextScale) < 0.001
                     && Math.Abs(LineStrokeWidth - other.LineStrokeWidth) < 0.001
                     && Math.Abs(AssessmentChartOpacity - other.AssessmentChartOpacity) < 0.001
-                    && Math.Abs(ShootingChartOpacity - other.ShootingChartOpacity) < 0.001;
+                    && Math.Abs(ShootingChartOpacity - other.ShootingChartOpacity) < 0.001
+                    && string.Equals(ContentMode, other.ContentMode, StringComparison.Ordinal);
             }
 
             public override bool Equals(object obj)
@@ -1097,6 +1155,7 @@ namespace CSMatchHelperWidget
                     hash = hash * 31 + LineStrokeWidth.GetHashCode();
                     hash = hash * 31 + AssessmentChartOpacity.GetHashCode();
                     hash = hash * 31 + ShootingChartOpacity.GetHashCode();
+                    hash = hash * 31 + (ContentMode?.GetHashCode() ?? 0);
                     return hash;
                 }
             }

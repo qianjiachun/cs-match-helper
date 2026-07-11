@@ -116,6 +116,7 @@ export function useCounterStrafing() {
     hudLineStrokeWidth: 1.5,
     hudAssessmentChartOpacity: 1,
     hudShootingChartOpacity: 1,
+    hudContentMode: 'all',
     shotRecords: [],
     avgError: 0,
     stableRate: 0,

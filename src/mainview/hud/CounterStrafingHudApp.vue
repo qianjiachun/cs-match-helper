@@ -8,7 +8,7 @@ import {
   onCounterStrafingSnapshot,
   onCounterStrafingStatus,
 } from '@core/counter-strafing/native';
-import { clampHudChartOpacity } from '@core/counter-strafing/hudDisplay';
+import { clampHudChartOpacity, showHudChartContent, showHudTextContent } from '@core/counter-strafing/hudDisplay';
 import {
   appendShotRecord,
   mergeCounterStrafingSnapshot,
@@ -70,6 +70,7 @@ const snapshot = ref<CounterStrafingSnapshot>({
   hudLineStrokeWidth: 1.5,
   hudAssessmentChartOpacity: 1,
   hudShootingChartOpacity: 1,
+  hudContentMode: 'all',
   shotRecords: [],
   avgError: 0,
   stableRate: 0,
@@ -88,6 +89,9 @@ const statFontSizes = useHudStatFontSizes(statTextScale);
 const shootingChartOpacity = computed(() =>
   clampHudChartOpacity(snapshot.value.hudShootingChartOpacity ?? 1),
 );
+const contentMode = computed(() => snapshot.value.hudContentMode ?? 'all');
+const showText = computed(() => showHudTextContent(contentMode.value));
+const showChart = computed(() => showHudChartContent(contentMode.value));
 const sessionAvgError = computed(() => latestPressSessionAvgError(snapshot.value.shotRecords));
 
 let unlisteners: UnlistenFn[] = [];
@@ -198,7 +202,7 @@ onUnmounted(() => {
       class="hud-layout pointer-events-none relative z-1 flex h-full flex-col gap-0.5 overflow-hidden px-2 py-1.5"
       :style="{ opacity: shootingChartOpacity }"
     >
-      <div v-if="statsVisibility.showBar" class="hud-shooting-stats shrink-0">
+      <div v-if="showText && statsVisibility.showBar" class="hud-shooting-stats shrink-0">
         <div v-if="statsVisibility.showError" class="hud-shooting-stat">
           <span
             class="hud-shooting-stat-label"
@@ -230,7 +234,7 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
-      <div ref="chartWrapRef" class="hud-chart-wrap min-h-0 w-full flex-1">
+      <div v-if="showChart" ref="chartWrapRef" class="hud-chart-wrap min-h-0 w-full flex-1">
         <ShootingErrorBars
           :records="snapshot.shotRecords"
           :max-points="32"
