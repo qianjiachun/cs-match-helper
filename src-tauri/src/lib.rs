@@ -175,7 +175,7 @@ struct AppState {
     watcher: Mutex<WatcherState>,
 }
 
-fn shutdown_app(app: &tauri::AppHandle) {
+pub(crate) fn shutdown_app(app: &tauri::AppHandle) {
     if !shutdown::begin_app_shutdown() {
         return;
     }
@@ -214,6 +214,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
             }
+
+            update::startup_update_maintenance(app.handle());
 
             Ok(())
         })

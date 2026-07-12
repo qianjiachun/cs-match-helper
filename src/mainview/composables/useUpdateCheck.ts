@@ -1,6 +1,7 @@
 import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
 import type { UpdateCheckResult, UpdatePhase } from '@core/update/types';
 import { computed, reactive, ref } from 'vue';
+import { listen } from '@tauri-apps/api/event';
 import {
   applyUpdateAndRestart,
   checkForUpdate,
@@ -31,7 +32,15 @@ const state = reactive({
 
 const dialogOpen = ref(false);
 let progressUnlisten: (() => void) | null = null;
+let previousFailureUnlisten: (() => void) | null = null;
 let autoDownloadStarted = false;
+
+async function ensurePreviousFailureListener() {
+  if (previousFailureUnlisten) return;
+  previousFailureUnlisten = await listen('update-previous-failed', () => {
+    showToast('上次自动更新未完成，请手动检查更新', 'warning');
+  });
+}
 
 function applyResult(result: UpdateCheckResult) {
   state.currentVersion = result.currentVersion;
@@ -99,6 +108,7 @@ export function useUpdateCheck() {
   );
 
   async function ensureVersion() {
+    await ensurePreviousFailureListener();
     if (state.currentVersion) return;
     try {
       state.currentVersion = await getAppVersion();
