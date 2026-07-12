@@ -177,6 +177,21 @@ watch(
   { immediate: true },
 );
 
+const resolvedMapName = computed(
+  () => (detail.value.mapName || props.match.summary.mapName || '').trim(),
+);
+
+watch(
+  () => ({ id: props.match.id, map: resolvedMapName.value }),
+  (next, prev) => {
+    if (isHistory.value) return;
+    if (platformId.value !== '5e') return;
+    if (!next.map) return;
+    if (!prev || next.id !== prev.id || prev.map) return;
+    void props.ai.supplementMapAnalysis(props.match);
+  },
+);
+
 function onHighlightSide(side: 'A' | 'B' | null) {
   highlightedSide.value = side;
   if (side) activeTab.value = 'team-data';

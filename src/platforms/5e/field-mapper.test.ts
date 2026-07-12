@@ -49,6 +49,14 @@ describe('P5e field mapper', () => {
     expect(map?.rws).toBe(6.34);
   });
 
+  it('returns undefined when preferredMap is missing', () => {
+    const map = pickMapStats({
+      de_dust2: { matchTotal: '18', winTotal: '5', perWin: 0.28 },
+      de_mirage: { matchTotal: '40', winTotal: '20', perWin: 0.5 },
+    });
+    expect(map).toBeUndefined();
+  });
+
   it('maps full player from three API shapes', () => {
     const bundle = makeBundle({
       userInfo: {
@@ -130,6 +138,27 @@ describe('P5e field mapper', () => {
     expect(player.rankLevel).toBe('2026s3 Lv.41');
     expect(player.rankNum).toBe(1760646);
     expect(resolveMatchMap(bundle)).toBe('de_dust2');
+  });
+
+  it('buildP5ePlayer omits mapWinRate when match map is unknown', () => {
+    const bundle = makeBundle({
+      mapName: undefined,
+      mapExt: {
+        url: 'https://gate.5eplay.com/.../map-ext/batch',
+        requestBody: { uuids: [UUID_JERRY] },
+        responseBody: {
+          data: {
+            [UUID_JERRY]: {
+              de_dust2: { matchTotal: '18', winTotal: '5', perWin: 0.28 },
+              de_mirage: { matchTotal: '40', winTotal: '20', perWin: 0.5 },
+            },
+          },
+        },
+      },
+    });
+    const player = buildP5ePlayer(UUID_JERRY, 0, bundle, undefined);
+    expect(player.mapWinRate).toBeUndefined();
+    expect(player.mapTotalNum).toBeUndefined();
   });
 
   it('resolves map from match detail before map-ext voting', () => {

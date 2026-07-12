@@ -155,17 +155,7 @@ export function pickMapStats(
     return parseMapEntry(preferredMap, mapData[preferredMap] as Record<string, unknown>);
   }
 
-  let best: P5eMapStats | undefined;
-  for (const [mapName, raw] of Object.entries(mapData)) {
-    if (!raw || typeof raw !== 'object') continue;
-    const parsed = parseMapEntry(mapName, raw as Record<string, unknown>);
-    const total = parsed.matchTotal ?? 0;
-    if (total <= 0) continue;
-    if (!best || (parsed.matchTotal ?? 0) > (best.matchTotal ?? 0)) {
-      best = parsed;
-    }
-  }
-  return best;
+  return undefined;
 }
 
 export function parseP5eSpecialData(raw: unknown): P5eSpecialStats {

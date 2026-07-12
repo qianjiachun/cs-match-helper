@@ -5,7 +5,8 @@ export const AI_OUTPUT_LANGUAGE_RULES = `输出语言（硬性，面向中国玩
 - 仅 JSON 键名、predictedWinner 枚举（A/B/Even/Unknown）、playerNotes.role（entry/awp/lurk 等）保持英文
 - 允许句中夹杂少量 CS 专业名词或缩写：Rating、ADR、RWS、ELO、K/D、MVP、AWP 等；不要把整句或整段写成英文
 - 严禁全英文输出；严禁用英文写 headline、理由、队伍总结、风险提示等可读内容
-- 禁止英文长句、英文段落、英文标题式表达；不要直译英文分析腔`;
+- 禁止英文长句、英文段落、英文标题式表达；不要直译英文分析腔
+- 称呼对局参与者一律用「玩家」，禁止使用「球员」`;
 
 /** 共享 AI 输出 JSON schema 说明（完美 / 5E 通用） */
 export const AI_USER_PROMPT_SCHEMA = `请在 30 秒确认场景下快速给出赛前判断。

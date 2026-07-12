@@ -139,6 +139,7 @@ describe('5E AI prompt', () => {
 
     expect(summary.platform).toBe('5e');
     expect(summary.match.mapName).toBe('de_dust2');
+    expect(summary.match.mapStatus).toBe('ready');
     expect(summary.dataQuality.missingApis).toBeUndefined();
     expect(summary.dataQuality.hasMatchDetail).toBe(false);
     expect(summary.dataQuality.teamSource).toBe('inferred');

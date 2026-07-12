@@ -1,4 +1,5 @@
 import type { AiAnalysisResult, AiPredictedWinner, AiTokenUsage } from '@core/ai/types';
+import { sanitizeAiAnalysisResult } from '@core/ai/sanitize-result';
 import type {
   MatchDetail,
   MatchInsights,
@@ -254,7 +255,7 @@ export function normalizeAiResult(raw: unknown): AiAnalysisResult | null {
   const winProb = asRecord(obj.winProbability);
   const A = asNumber(winProb?.A) ?? 50;
   const B = asNumber(winProb?.B) ?? 50;
-  return {
+  return sanitizeAiAnalysisResult({
     predictedWinner,
     winProbability: { A, B },
     confidence: asNumber(obj.confidence) ?? 0,
@@ -275,7 +276,7 @@ export function normalizeAiResult(raw: unknown): AiAnalysisResult | null {
         }
       : undefined,
     stabilityReason: asString(obj.stabilityReason),
-  };
+  });
 }
 
 export function normalizeAiUsage(raw: unknown): AiTokenUsage | null {

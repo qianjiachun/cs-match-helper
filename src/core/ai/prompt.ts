@@ -3,6 +3,7 @@ import { RADAR_LABELS } from '@core/match/insights';
 import { AI_USER_PROMPT_SCHEMA, AI_OUTPUT_LANGUAGE_RULES } from './ai-prompt-schema';
 import { METRIC_BASELINES_TEXT, mapFitHint } from './baselines';
 import { buildP5eAiAnalysisRequest } from './p5e-prompt';
+import { sanitizeAiAnalysisResult } from './sanitize-result';
 import type { StartAiAnalysisInput } from './types';
 
 export const PERFECT_SYSTEM_PROMPT = `你是 CS2 完美世界匹配赛前分析助手。你只能基于输入数据做概率判断，不要编造缺失字段。
@@ -229,14 +230,14 @@ export function parseAiAnalysisResult(raw: string): import('./types').AiAnalysis
     const cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '');
     const parsed = JSON.parse(cleaned) as import('./types').AiAnalysisResult;
     if (!parsed.predictedWinner || !parsed.winProbability) return null;
-    return {
+    return sanitizeAiAnalysisResult({
       ...parsed,
       keyFactors: parsed.keyFactors ?? [],
       playerNotes: parsed.playerNotes ?? [],
       risks: parsed.risks ?? [],
       recommendedFocus: parsed.recommendedFocus,
       dataQuality: parsed.dataQuality ?? '',
-    };
+    });
   } catch {
     return null;
   }

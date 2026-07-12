@@ -1,4 +1,5 @@
 import type { AiAnalysisResult, AiPredictedWinner } from './types';
+import { sanitizeAiAnalysisResult, sanitizeAiText } from './sanitize-result';
 
 function extractJsonStringField(text: string, field: string): string | null {
   const re = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`);
@@ -68,7 +69,7 @@ export function extractPartialAiResult(text: string): Partial<AiAnalysisResult> 
 
   const headline = extractJsonStringField(trimmed, 'headline');
   if (headline) {
-    partial.headline = headline;
+    partial.headline = sanitizeAiText(headline);
     hasAny = true;
   }
 
@@ -80,13 +81,13 @@ export function extractPartialAiResult(text: string): Partial<AiAnalysisResult> 
 
   const quickReasons = extractStringArray(trimmed, 'quickReasons');
   if (quickReasons) {
-    partial.quickReasons = quickReasons;
+    partial.quickReasons = quickReasons.map(sanitizeAiText);
     hasAny = true;
   }
 
   const stabilityReason = extractJsonStringField(trimmed, 'stabilityReason');
   if (stabilityReason) {
-    partial.stabilityReason = stabilityReason;
+    partial.stabilityReason = sanitizeAiText(stabilityReason);
     hasAny = true;
   }
 
@@ -97,7 +98,7 @@ export function mergePartialResult(
   current: AiAnalysisResult | null,
   partial: Partial<AiAnalysisResult>,
 ): AiAnalysisResult {
-  return {
+  return sanitizeAiAnalysisResult({
     predictedWinner: partial.predictedWinner ?? current?.predictedWinner ?? 'Unknown',
     winProbability: partial.winProbability ?? current?.winProbability ?? { A: 50, B: 50 },
     confidence: partial.confidence ?? current?.confidence ?? 0,
@@ -111,5 +112,5 @@ export function mergePartialResult(
     mapFitNotes: current?.mapFitNotes,
     teamSummary: current?.teamSummary,
     stabilityReason: partial.stabilityReason ?? current?.stabilityReason,
-  };
+  });
 }

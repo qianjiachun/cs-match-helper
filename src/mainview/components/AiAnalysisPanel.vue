@@ -83,6 +83,7 @@ const isDisabled = computed(() => showSetupGuide.value);
 const isLoading = computed(
   () => props.ai.status.value === 'loading' || props.ai.status.value === 'streaming',
 );
+const isMapSupplementing = computed(() => props.ai.analysisPhase.value === 'map-supplement');
 const isError = computed(() => props.ai.status.value === 'error');
 const isNoKey = computed(() => props.ai.status.value === 'no-key');
 const result = computed(() => props.ai.result.value);
@@ -166,7 +167,18 @@ const elapsedLabel = computed(() => {
 const usageLabel = computed(() => {
   const u = props.ai.usage.value;
   if (!u) return isLoading.value ? '统计中…' : '—';
+  const breakdown = props.ai.usageBreakdown.value;
+  if (breakdown && breakdown.mapSupplement.totalTokens > 0) {
+    return `输入 ${u.promptTokens} · 输出 ${u.completionTokens} · 合计 ${u.totalTokens}`;
+  }
   return `输入 ${u.promptTokens} · 输出 ${u.completionTokens} · 合计 ${u.totalTokens}`;
+});
+
+const usageTooltip = computed(() => {
+  const breakdown = props.ai.usageBreakdown.value;
+  if (!breakdown || breakdown.mapSupplement.totalTokens <= 0) return '';
+  const { base, mapSupplement } = breakdown;
+  return `首轮 输入 ${base.promptTokens} · 输出 ${base.completionTokens} · 地图补充 输入 ${mapSupplement.promptTokens} · 输出 ${mapSupplement.completionTokens}`;
 });
 
 const costLabel = computed(() => {
@@ -387,15 +399,21 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
       </button>
     </div>
 
-    <!-- 加载状态：首包未到时显示动画（非历史模式） -->
+    <!-- 加载状态：首包未到时显示动画（非历史模式；地图补充时保留已有结论） -->
     <div
-      v-else-if="isLoading && !result?.headline"
+      v-else-if="isLoading && !result?.headline && !isMapSupplementing"
       class="flex h-full flex-col items-center justify-center"
     >
       <AiLoadingAnimation />
     </div>
 
     <div v-else class="mx-auto flex w-full max-w-5xl flex-col gap-3">
+      <p
+        v-if="isMapSupplementing"
+        class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800"
+      >
+        地图已确认，正在补充分析…
+      </p>
       <!-- 主结论卡 -->
       <section
         class="ai-hero-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm"
@@ -473,7 +491,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
           <span>耗时 {{ elapsedLabel }}</span>
           <span v-if="result?.dataQuality" class="text-slate-400">{{ result.dataQuality }}</span>
           <span class="flex items-center gap-2">
-            <span>Tokens · {{ usageLabel }}</span>
+            <span :title="usageTooltip || undefined">Tokens · {{ usageLabel }}</span>
             <span
               v-if="costLabel"
               class="font-medium text-slate-600"
@@ -510,7 +528,11 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
             <h3 class="text-[12px] font-bold text-slate-800">看点</h3>
           </div>
           <ul v-if="highlightFactors.length" class="space-y-1.5">
-            <li v-for="(f, i) in highlightFactors" :key="'h-' + i">
+            <li
+              v-for="(f, i) in highlightFactors"
+              :key="'h-' + i"
+              :class="f.type === 'map' && isMapSupplementing ? 'animate-pulse' : ''"
+            >
               <button
                 type="button"
                 class="flex w-full cursor-pointer items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11px] leading-relaxed transition-colors duration-200 hover:shadow-sm"
