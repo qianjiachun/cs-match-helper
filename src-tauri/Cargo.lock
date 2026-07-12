@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "cs-match-helper"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "base64 0.22.1",
  "crossbeam-channel",
