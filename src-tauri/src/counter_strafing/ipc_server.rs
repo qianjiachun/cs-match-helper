@@ -375,6 +375,10 @@ fn handle_stream_connection(
     stream.write_all(headers.as_bytes())?;
     stream.flush()?;
 
+    // Drop backlog accumulated while no Widget was connected; initial snapshot
+    // already carries the tail window the UI should show statically.
+    let _ = ipc_stream_queue.drain();
+
     let initial_snapshot = get_snapshot();
     let mut last_revision = snapshot_revision(&initial_snapshot);
     let initial_json = match serde_json::to_string(&initial_snapshot) {

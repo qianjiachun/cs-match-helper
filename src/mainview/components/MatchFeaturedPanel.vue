@@ -248,7 +248,7 @@ function eloCompareTitle(
 
           <div
             data-match-reveal="meta"
-            class="flex items-center gap-1.5 transition-all duration-300"
+            class="flex shrink-0 items-center gap-1.5 whitespace-nowrap transition-all duration-300"
             :class="
               isCountdownUrgent
                 ? 'countdown-urgent rounded-md bg-rose-50 px-2 py-1 ring-1 ring-rose-300/80'
