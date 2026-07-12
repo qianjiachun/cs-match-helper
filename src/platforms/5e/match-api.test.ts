@@ -165,4 +165,38 @@ describe('P5e match API helpers', () => {
     expect(enriched.mapName).toBeUndefined();
     expect(mockedFetch).toHaveBeenCalled();
   });
+
+  it('can enrich map on a later poll after map_not_ready', async () => {
+    const bundle = makeWsBundle();
+    mockedFetch.mockResolvedValue({
+      data: {
+        main: { match_code: 'g161-n-ws-test' },
+        group_1: bundle.uuids.slice(0, 5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+        group_2: bundle.uuids.slice(5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+      },
+    });
+
+    const first = await enrichP5eBundleWithLiveMap(bundle);
+    expect(first.mapName).toBeUndefined();
+    clearP5eMatchDetailCacheForTests();
+    mockedFetch.mockReset();
+    mockedFetch.mockResolvedValue({
+      data: {
+        main: { match_code: 'g161-n-ws-test', map: 'de_dust2' },
+        group_1: bundle.uuids.slice(0, 5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+        group_2: bundle.uuids.slice(5).map((uuid) => ({
+          user_info: { user_data: { uuid } },
+        })),
+      },
+    });
+
+    const second = await enrichP5eBundleWithLiveMap(bundle);
+    expect(second.mapName).toBe('de_dust2');
+  });
 });

@@ -16,14 +16,29 @@ const WHITELIST_PATTERNS: { kind: P5eApiKind; pattern: string }[] = [
   { kind: 'mapExt', pattern: '/player/map-ext/batch' },
 ];
 
+const MATCHING_BATCH_PATH = '/api/match/matching/batch';
 const GATE_DEBUG_HOST = 'gate.5eplay.com';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface P5eMatchingBatchMapSignal {
+  mapName: string;
+  uuids: string[];
+  t1Uuids: string[];
+  t2Uuids: string[];
+}
 
 export function isP5eGateDebugUrl(url: string): boolean {
   return url.toLowerCase().includes(GATE_DEBUG_HOST);
 }
 
+export function isP5eMatchingBatchUrl(url: string): boolean {
+  return url.toLowerCase().includes(MATCHING_BATCH_PATH);
+}
+
 export function isP5eWhitelistedUrl(url: string): boolean {
-  return classifyP5eUrl(url) != null;
+  return classifyP5eUrl(url) != null || isP5eMatchingBatchUrl(url);
 }
 
 export function classifyP5eUrl(url: string): P5eApiKind | null {
@@ -113,4 +128,43 @@ export function extractUuidsFromRequest(requestBody: unknown): string[] {
   const list = body.uuids ?? body.user;
   if (!Array.isArray(list)) return [];
   return list.filter((u): u is string => typeof u === 'string' && u.length > 0);
+}
+
+function parseUuidTeam(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || raw.length !== 5) return null;
+  const uuids: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string' || !UUID_RE.test(item)) return null;
+    uuids.push(item);
+  }
+  return uuids;
+}
+
+/** 从 matching/batch 请求体解析本局地图；严格要求两队各 5 个唯一 UUID */
+export function parseMatchingBatchMapSignal(
+  requestBody: unknown,
+): P5eMatchingBatchMapSignal | null {
+  if (!requestBody || typeof requestBody !== 'object') return null;
+  const body = requestBody as Record<string, unknown>;
+  const mapName = typeof body.game_map === 'string' ? body.game_map.trim() : '';
+  if (!mapName) return null;
+
+  const t1Uuids = parseUuidTeam(body.t1_uuids);
+  const t2Uuids = parseUuidTeam(body.t2_uuids);
+  if (!t1Uuids || !t2Uuids) return null;
+
+  const uuids = [...t1Uuids, ...t2Uuids];
+  if (new Set(uuids).size !== 10) return null;
+
+  return { mapName, uuids, t1Uuids, t2Uuids };
+}
+
+export function sameUuidSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  if (setB.size !== b.length) return false;
+  for (const uuid of a) {
+    if (!setB.has(uuid)) return false;
+  }
+  return true;
 }

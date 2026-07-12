@@ -4,7 +4,14 @@ import {
   intersectsCanonicalUuids,
   mergeApiPayload,
 } from './api-merge';
-import { classifyP5eUrl, extractUuidsFromRequest } from './events';
+import {
+  classifyP5eUrl,
+  extractUuidsFromRequest,
+  isP5eMatchingBatchUrl,
+  parseMatchingBatchMapSignal,
+  sameUuidSet,
+  type P5eMatchingBatchMapSignal,
+} from './events';
 import {
   mergeGameAnchors,
   parseGameContextFromWsEvent,
@@ -35,6 +42,8 @@ interface SessionState {
   userInfo?: P5eApiPayload;
   eloInfo?: P5eApiPayload;
   mapExt?: P5eApiPayload;
+  /** matching/batch 或外部补图写入的本局地图 */
+  mapName?: string;
 }
 
 export interface P5eCaptureProgress {
@@ -50,7 +59,10 @@ export interface P5eCaptureProgress {
 export class P5eMatchSession {
   private session: SessionState | null = null;
   private readonly httpBuffer: BufferedHttpEvent[] = [];
+  /** 已完成首次 finalize 的 gameId */
   private readonly emitted = new Set<string>();
+  /** 各 gameId 最近一次成功发出的地图（空串表示曾以无图发出） */
+  private readonly lastEmittedMap = new Map<string, string>();
   private readonly sessionTimeoutMs: number;
   private onMatch?: (bundle: P5eMatchBundle) => void;
   private onProgress?: (progress: P5eCaptureProgress) => void;
@@ -107,6 +119,10 @@ export class P5eMatchSession {
   }
 
   ingestHttp(event: P5eHttpEvent): P5eMatchBundle | null {
+    if (isP5eMatchingBatchUrl(event.url)) {
+      return this.ingestMatchingBatch(event);
+    }
+
     const apiKind = classifyP5eUrl(event.url);
     if (!apiKind) return null;
 
@@ -139,8 +155,69 @@ export class P5eMatchSession {
     return this.tryFinalize(false);
   }
 
+  /** 直接应用已解析的地图信号（供外部 Gate 轮询等通道） */
+  applyMapSignal(signal: P5eMatchingBatchMapSignal): P5eMatchBundle | null {
+    return this.applyResolvedMap(signal.mapName, signal.uuids);
+  }
+
   getAnchor(): P5eWsGameAnchor | undefined {
     return this.session?.anchor;
+  }
+
+  getPendingMapName(): string | undefined {
+    return this.session?.mapName;
+  }
+
+  private ingestMatchingBatch(event: P5eHttpEvent): P5eMatchBundle | null {
+    const signal = parseMatchingBatchMapSignal(event.requestBody);
+    if (!signal) return null;
+    if (this.session) {
+      this.session.lastActivityAt = Date.now();
+    }
+    return this.applyResolvedMap(signal.mapName, signal.uuids);
+  }
+
+  private applyResolvedMap(mapName: string, uuids: string[]): P5eMatchBundle | null {
+    const trimmed = mapName.trim();
+    if (!trimmed) return null;
+    if (!this.session) return null;
+    if (!sameUuidSet(uuids, this.canonicalUuids())) return null;
+
+    const gameId = this.session.anchor.gameId;
+    const previous = this.session.mapName;
+    if (previous === trimmed) {
+      // 已持有相同地图：若曾无图发出则仍可能需要补发
+      return this.tryEmitMapUpdate(trimmed);
+    }
+
+    this.session.mapName = trimmed;
+    this.session.lastActivityAt = Date.now();
+
+    if (!this.emitted.has(gameId)) {
+      // 首次 emit 前预存地图；若已齐数据则直接带图发出
+      return this.tryFinalize(false);
+    }
+
+    return this.tryEmitMapUpdate(trimmed);
+  }
+
+  private tryEmitMapUpdate(mapName: string): P5eMatchBundle | null {
+    if (!this.session) return null;
+    const gameId = this.session.anchor.gameId;
+    if (!this.emitted.has(gameId)) return null;
+
+    const last = this.lastEmittedMap.get(gameId);
+    if (last === mapName) return null;
+    // 仅允许从「无图」补到「有图」，或纠正为空后的首次有效值
+    if (last && last.length > 0) return null;
+
+    const hasAny = Boolean(this.session.userInfo || this.session.eloInfo || this.session.mapExt);
+    if (!hasAny) return null;
+
+    const bundle = this.buildBundle(!this.isComplete());
+    this.lastEmittedMap.set(gameId, mapName);
+    this.onMatch?.(bundle);
+    return bundle;
   }
 
   private canonicalUuids(): string[] {
@@ -209,6 +286,7 @@ export class P5eMatchSession {
       matchMode: session.matchMode,
       capturedAt: session.capturedAt,
       wsAnchor: session.anchor,
+      mapName: session.mapName,
       userInfo: session.userInfo,
       eloInfo: session.eloInfo,
       mapExt: session.mapExt,
@@ -230,6 +308,7 @@ export class P5eMatchSession {
 
     const bundle = this.buildBundle(!complete);
     this.emitted.add(gameId);
+    this.lastEmittedMap.set(gameId, bundle.mapName?.trim() ?? '');
     this.onMatch?.(bundle);
     return bundle;
   }

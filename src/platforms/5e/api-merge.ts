@@ -52,12 +52,17 @@ export function mergeApiPayload(
     existing?.responseBody && typeof existing.responseBody === 'object'
       ? { ...(existing.responseBody as Record<string, unknown>) }
       : {};
+  const incomingBody =
+    incoming.responseBody && typeof incoming.responseBody === 'object'
+      ? { ...(incoming.responseBody as Record<string, unknown>) }
+      : {};
 
   return {
     url: incoming.url,
     requestBody: incoming.requestBody,
     responseBody: {
       ...existingBody,
+      ...incomingBody,
       data: mergedData,
     },
   };

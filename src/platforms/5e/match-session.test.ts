@@ -145,7 +145,74 @@ describe('P5eMatchSession', () => {
     session.ingestHttp(httpEvent('eloInfo', TEAM2, rowsFor(TEAM2)));
     expect(onMatch).toHaveBeenCalledTimes(1);
   });
+
+  it('stores matching/batch map before first emit', () => {
+    const onMatch = vi.fn();
+    const session = new P5eMatchSession({ onMatch });
+    session.ingestWs(wsFrame());
+    session.ingestHttp(matchingBatchEvent('de_dust2', TEAM1, TEAM2));
+    expect(onMatch).not.toHaveBeenCalled();
+    expect(session.getPendingMapName()).toBe('de_dust2');
+
+    for (const kind of ['userInfo', 'eloInfo', 'mapExt'] as const) {
+      session.ingestHttp(httpEvent(kind, ALL, rowsFor(ALL)));
+    }
+    expect(onMatch).toHaveBeenCalledTimes(1);
+    expect(onMatch.mock.calls[0][0].mapName).toBe('de_dust2');
+  });
+
+  it('re-emits same gameId once when map arrives after unknown-map emit', () => {
+    const onMatch = vi.fn();
+    const session = new P5eMatchSession({ onMatch });
+    session.ingestWs(wsFrame());
+    for (const kind of ['userInfo', 'eloInfo', 'mapExt'] as const) {
+      session.ingestHttp(httpEvent(kind, ALL, rowsFor(ALL)));
+    }
+    expect(onMatch).toHaveBeenCalledTimes(1);
+    expect(onMatch.mock.calls[0][0].mapName).toBeUndefined();
+
+    session.ingestHttp(matchingBatchEvent('de_dust2', TEAM1, TEAM2));
+    expect(onMatch).toHaveBeenCalledTimes(2);
+    expect(onMatch.mock.calls[1][0].mapName).toBe('de_dust2');
+    expect(onMatch.mock.calls[1][0].gameId).toBe(GAME_ID);
+
+    session.ingestHttp(matchingBatchEvent('de_dust2', TEAM1, TEAM2));
+    expect(onMatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores matching/batch with mismatched uuids or empty map', () => {
+    const onMatch = vi.fn();
+    const session = new P5eMatchSession({ onMatch });
+    session.ingestWs(wsFrame());
+    for (const kind of ['userInfo', 'eloInfo', 'mapExt'] as const) {
+      session.ingestHttp(httpEvent(kind, ALL, rowsFor(ALL)));
+    }
+    expect(onMatch).toHaveBeenCalledTimes(1);
+
+    const outsiderTeam2 = [...TEAM2.slice(0, 4), OUTSIDER];
+    session.ingestHttp(matchingBatchEvent('de_dust2', TEAM1, outsiderTeam2));
+    session.ingestHttp(matchingBatchEvent('', TEAM1, TEAM2));
+    expect(onMatch).toHaveBeenCalledTimes(1);
+  });
 });
+
+function matchingBatchEvent(
+  mapName: string,
+  t1: string[],
+  t2: string[],
+): P5eHttpEvent {
+  return {
+    kind: 'http',
+    url: 'https://gate.5eplay.com/cranenew/http/api/match/matching/batch',
+    method: 'POST',
+    capturedAt: new Date().toISOString(),
+    requestBody: {
+      game_map: mapName,
+      t1_uuids: t1,
+      t2_uuids: t2,
+    },
+  };
+}
 
 describe('parseGameContextFromJson teams', () => {
   it('requires unique 10 uuids', () => {

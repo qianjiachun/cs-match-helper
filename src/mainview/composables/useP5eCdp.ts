@@ -6,7 +6,10 @@ import { P5eMatchSession } from '@platforms/5e/match-session';
 import {
   classifyP5eUrl,
   extractUuidsFromRequest,
+  isP5eMatchingBatchUrl,
+  parseMatchingBatchMapSignal,
   parseP5eNdjsonLine,
+  sameUuidSet,
   sanitizeP5eHttpEvent,
 } from '@platforms/5e/events';
 import { enrichP5eBundleWithLiveMap } from '@platforms/5e/match-api';
@@ -26,10 +29,26 @@ import {
   stop5eCdpCollector,
 } from '@core/platform/5e';
 import { onUnmounted, ref, shallowRef } from 'vue';
+import { debugEnabled } from './useDebugUnlock';
 
-const MAX_P5E_DEBUG_LOG_ENTRIES = 100;
 const DISCONNECT_WARN_MS = 5_000;
 export const P5E_AUTO_RECOVER_MAX = 1;
+export const P5E_MAP_BACKFILL_MAX_MS = 60_000;
+export const P5E_MAP_BACKFILL_INITIAL_DELAY_MS = 1_000;
+export const P5E_MAP_BACKFILL_MAX_DELAY_MS = 16_000;
+
+export function nextMapBackfillDelayMs(currentDelayMs: number): number {
+  return Math.min(Math.max(currentDelayMs, 1) * 2, P5E_MAP_BACKFILL_MAX_DELAY_MS);
+}
+
+interface MapBackfillState {
+  gameId: string;
+  bundle: P5eMatchBundle;
+  timer: ReturnType<typeof setTimeout> | null;
+  cancelled: boolean;
+  startedAt: number;
+  delayMs: number;
+}
 
 const API_KIND_LABEL: Record<string, string> = {
   userInfo: '用户信息',
@@ -102,12 +121,15 @@ function jsonByteSize(value: unknown): number {
 
 function summarizeHttpEvent(event: P5eHttpEvent): string {
   const apiKind = classifyP5eUrl(event.url);
-  const uuids = extractUuidsFromRequest(event.requestBody);
+  const matchingBatch = isP5eMatchingBatchUrl(event.url);
+  const signal = matchingBatch ? parseMatchingBatchMapSignal(event.requestBody) : null;
+  const uuids = signal?.uuids ?? extractUuidsFromRequest(event.requestBody);
   const reqBytes = jsonByteSize(event.requestBody);
   const respBytes = jsonByteSize(event.responseBody);
   const parts = [
     `${event.method} ${event.url}`,
-    apiKind ? `api=${apiKind}` : null,
+    matchingBatch ? 'api=matchingBatch' : apiKind ? `api=${apiKind}` : null,
+    signal?.mapName ? `map=${signal.mapName}` : null,
     uuids.length ? `uuids=${uuids.length}` : null,
     `req=${reqBytes}B`,
     `resp=${respBytes}B`,
@@ -135,6 +157,8 @@ export function useP5eCdp(
   const autoRecovering = ref(false);
   const logEntries = shallowRef<DebugLogEntry[]>([]);
   const emitInFlight = new Map<string, Promise<void>>();
+  /** 各 gameId 最近一次发布到 UI 的地图（空串表示曾以无图发出） */
+  const lastPublishedMap = new Map<string, string>();
 
   let appLaunchedSession = false;
   let intentionalStop = false;
@@ -143,6 +167,12 @@ export function useP5eCdp(
   let recoverInFlight: Promise<void> | null = null;
   let disconnectSince: number | null = null;
   let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let mapBackfill: MapBackfillState | null = null;
+
+  function appendDebugLogEntry(entry: DebugLogEntry) {
+    if (!debugEnabled.value) return;
+    logEntries.value = [...logEntries.value, entry];
+  }
 
   function pushStatusLog(category: string, message: string, level: 'INFO' | 'WARN' | 'ERROR' = 'INFO') {
     const entry: DebugLogEntry = {
@@ -156,11 +186,7 @@ export function useP5eCdp(
       },
       isMatchEvent: false,
     };
-    const next = [...logEntries.value, entry];
-    logEntries.value =
-      next.length > MAX_P5E_DEBUG_LOG_ENTRIES
-        ? next.slice(next.length - MAX_P5E_DEBUG_LOG_ENTRIES)
-        : next;
+    appendDebugLogEntry(entry);
   }
 
   function pushWsLogEntry(event: P5eWsEvent) {
@@ -187,20 +213,18 @@ export function useP5eCdp(
       },
       isMatchEvent: false,
     };
-    const next = [...logEntries.value, entry];
-    logEntries.value =
-      next.length > MAX_P5E_DEBUG_LOG_ENTRIES
-        ? next.slice(next.length - MAX_P5E_DEBUG_LOG_ENTRIES)
-        : next;
+    appendDebugLogEntry(entry);
   }
 
   function pushLogEntry(event: P5eHttpEvent, isMatchEvent = false) {
     const apiKind = classifyP5eUrl(event.url);
     const category = event.gateDebug
       ? API_KIND_LABEL.gateDebug
-      : apiKind
-        ? (API_KIND_LABEL[apiKind] ?? apiKind)
-        : '5E HTTP';
+      : isP5eMatchingBatchUrl(event.url)
+        ? '匹配地图'
+        : apiKind
+          ? (API_KIND_LABEL[apiKind] ?? apiKind)
+          : '5E HTTP';
 
     const decoded =
       gateDebugMode.value && event.gateDebug
@@ -228,11 +252,7 @@ export function useP5eCdp(
       },
       isMatchEvent,
     };
-    const next = [...logEntries.value, entry];
-    logEntries.value =
-      next.length > MAX_P5E_DEBUG_LOG_ENTRIES
-        ? next.slice(next.length - MAX_P5E_DEBUG_LOG_ENTRIES)
-        : next;
+    appendDebugLogEntry(entry);
   }
 
   function pushMatchLogEntry(record: MatchRecord) {
@@ -260,11 +280,7 @@ export function useP5eCdp(
       },
       isMatchEvent: true,
     };
-    const next = [...logEntries.value, entry];
-    logEntries.value =
-      next.length > MAX_P5E_DEBUG_LOG_ENTRIES
-        ? next.slice(next.length - MAX_P5E_DEBUG_LOG_ENTRIES)
-        : next;
+    appendDebugLogEntry(entry);
   }
 
   function clearLogEntries() {
@@ -272,7 +288,74 @@ export function useP5eCdp(
   }
 
   function bundleEmitKey(bundle: P5eMatchBundle): string {
-    return bundle.gameId ?? bundle.wsAnchor?.gameId ?? [...bundle.uuids].sort().join('|');
+    return bundle.gameId ?? bundle.wsAnchor?.gameId ?? bundle.platformGameId ?? [...bundle.uuids].sort().join('|');
+  }
+
+  function cancelMapBackfill() {
+    if (!mapBackfill) return;
+    mapBackfill.cancelled = true;
+    if (mapBackfill.timer != null) {
+      clearTimeout(mapBackfill.timer);
+      mapBackfill.timer = null;
+    }
+    mapBackfill = null;
+  }
+
+  function cancelMapBackfillIfGame(gameId: string) {
+    if (mapBackfill?.gameId === gameId) {
+      cancelMapBackfill();
+    }
+  }
+
+  function scheduleMapBackfill(bundle: P5eMatchBundle) {
+    const gameId = bundleEmitKey(bundle);
+    if (!gameId) return;
+    cancelMapBackfill();
+    mapBackfill = {
+      gameId,
+      bundle: { ...bundle },
+      timer: null,
+      cancelled: false,
+      startedAt: Date.now(),
+      delayMs: P5E_MAP_BACKFILL_INITIAL_DELAY_MS,
+    };
+    armMapBackfillTimer();
+  }
+
+  function armMapBackfillTimer() {
+    if (!mapBackfill || mapBackfill.cancelled) return;
+    const state = mapBackfill;
+    state.timer = setTimeout(() => {
+      void pollMapBackfill(state);
+    }, state.delayMs);
+  }
+
+  async function pollMapBackfill(state: MapBackfillState) {
+    if (mapBackfill !== state || state.cancelled) return;
+    if (Date.now() - state.startedAt >= P5E_MAP_BACKFILL_MAX_MS) {
+      pushStatusLog(
+        '地图补全',
+        `超时未获取地图 · ${state.gameId.slice(0, 24)}…`,
+        'WARN',
+      );
+      cancelMapBackfill();
+      return;
+    }
+
+    try {
+      const enriched = await enrichP5eBundleWithLiveMap(state.bundle);
+      if (mapBackfill !== state || state.cancelled) return;
+      if (enriched.mapName?.trim()) {
+        await emitMatch(enriched, { source: 'gate-poll' });
+        return;
+      }
+    } catch {
+      // 瞬时失败继续退避轮询
+    }
+
+    if (mapBackfill !== state || state.cancelled) return;
+    state.delayMs = nextMapBackfillDelayMs(state.delayMs);
+    armMapBackfillTimer();
   }
 
   async function enrichBundleForMatch(bundle: P5eMatchBundle): Promise<P5eMatchBundle> {
@@ -292,16 +375,13 @@ export function useP5eCdp(
     }
   }
 
-  async function emitMatch(bundle: P5eMatchBundle) {
+  async function emitMatch(
+    bundle: P5eMatchBundle,
+    meta?: { source?: 'matching-batch' | 'gate-poll' | 'session' },
+  ) {
     const key = bundleEmitKey(bundle);
-    const existing = emitInFlight.get(key);
-    if (existing) {
-      await existing;
-      return;
-    }
-
-    const task = (async () => {
-      if (bundle.incomplete) {
+    const run = async () => {
+      if (bundle.incomplete && !meta?.source) {
         const missing = [
           !bundle.userInfo ? MISSING_API_LABEL.userInfo : null,
           !bundle.eloInfo ? MISSING_API_LABEL.eloInfo : null,
@@ -315,22 +395,51 @@ export function useP5eCdp(
       }
 
       const enriched = await enrichBundleForMatch(bundle);
+      const mapName = enriched.mapName?.trim() ?? '';
+      const prevMap = lastPublishedMap.get(key);
+
+      // 同图重复补丁直接跳过
+      if (prevMap !== undefined && prevMap === mapName && Boolean(meta?.source || prevMap.length > 0)) {
+        if (mapName) cancelMapBackfillIfGame(key);
+        return;
+      }
+
       logHomeEnrichGap(enriched);
       const record = createP5eMatchRecord(enriched);
       onMatch(record);
+      lastPublishedMap.set(key, mapName);
       pushMatchLogEntry(record);
       captureProgress.value = null;
-    })();
 
-    emitInFlight.set(key, task);
+      if (mapName) {
+        cancelMapBackfillIfGame(key);
+        if (prevMap === '' || meta?.source) {
+          pushStatusLog(
+            '地图补全',
+            `来源 ${meta?.source ?? 'session'} · ${key.slice(0, 24)}… · ${mapName}`,
+            'INFO',
+          );
+        }
+      } else if (!meta?.source) {
+        scheduleMapBackfill(enriched);
+      }
+    };
+
+    const prev = emitInFlight.get(key) ?? Promise.resolve();
+    const task = prev.then(run, run);
+    emitInFlight.set(
+      key,
+      task.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
     try {
       await task;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       pushStatusLog('匹配 enrich', formatP5eHomeEnrichError(message), 'ERROR');
       lastError.value = formatP5eHomeEnrichError(message);
-    } finally {
-      emitInFlight.delete(key);
     }
   }
 
@@ -353,7 +462,7 @@ export function useP5eCdp(
           lastWsCovKey = covKey;
           pushStatusLog(
             'WS 定锚',
-            `对局 ${progress.gameId.slice(0, 24)}… · 接受 ${progress.readyCount ?? 0}/${progress.playerTotal ?? 10} · user ${userCov?.covered ?? 0}/${userCov?.total ?? 10} · elo ${eloCov?.covered ?? 0}/${eloCov?.total ?? 10} · map ${mapCov?.covered ?? 0}/${mapCov?.total ?? 10}`,
+            `对局 ${progress.gameId.slice(0, 24)}… · 接受 ${progress.readyCount ?? 0}/${progress.playerTotal ?? 10} · user ${userCov?.covered ?? 0}/${userCov?.total ?? 10} · elo ${eloCov?.covered ?? 0}/${eloCov?.total ?? 10} · mapExt ${mapCov?.covered ?? 0}/${mapCov?.total ?? 10}`,
             'INFO',
           );
         }
@@ -484,8 +593,23 @@ export function useP5eCdp(
     if (!status.clientExited || !appLaunchedSession || intentionalStop) return;
     appLaunchedSession = false;
     captureProgress.value = null;
+    cancelMapBackfill();
     pushStatusLog('5E 连接', '5E 已关闭，请重新启动', 'WARN');
     options?.onClientExit?.();
+  }
+
+  function tryApplyMatchingBatchToBackfill(event: P5eHttpEvent) {
+    if (!mapBackfill || mapBackfill.cancelled) return;
+    const signal = parseMatchingBatchMapSignal(event.requestBody);
+    if (!signal) return;
+    if (!sameUuidSet(signal.uuids, mapBackfill.bundle.uuids)) return;
+    void emitMatch(
+      {
+        ...mapBackfill.bundle,
+        mapName: signal.mapName,
+      },
+      { source: 'matching-batch' },
+    );
   }
 
   function handleEvent(raw: P5eCdpEvent) {
@@ -500,8 +624,12 @@ export function useP5eCdp(
     const event = sanitizeP5eHttpEvent(raw);
     if (!event) return;
     pushLogEntry(event);
-    if (classifyP5eUrl(event.url)) {
-      matchSession.ingestHttp(event);
+    if (classifyP5eUrl(event.url) || isP5eMatchingBatchUrl(event.url)) {
+      const emitted = matchSession.ingestHttp(event);
+      // session 已清空时，仍可用 backfill 缓存关联 matching/batch
+      if (!emitted && isP5eMatchingBatchUrl(event.url)) {
+        tryApplyMatchingBatchToBackfill(event);
+      }
     }
   }
 
@@ -619,6 +747,7 @@ export function useP5eCdp(
   async function stopCollect() {
     intentionalStop = true;
     appLaunchedSession = false;
+    cancelMapBackfill();
     try {
       status.value = await stop5eCdpCollector();
     } catch (err) {
@@ -678,6 +807,7 @@ export function useP5eCdp(
 
   onUnmounted(() => {
     clearDisconnectTimer();
+    cancelMapBackfill();
     unlistenEvent?.();
     unlistenStatus?.();
   });

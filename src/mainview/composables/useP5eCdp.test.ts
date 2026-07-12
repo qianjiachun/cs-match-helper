@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   getP5eLaunchCollectError,
+  nextMapBackfillDelayMs,
   P5E_AUTO_RECOVER_MAX,
+  P5E_MAP_BACKFILL_INITIAL_DELAY_MS,
+  P5E_MAP_BACKFILL_MAX_DELAY_MS,
   shouldPromptManualP5eRelaunch,
   shouldTriggerP5eAutoRecover,
 } from './useP5eCdp';
@@ -101,5 +104,13 @@ describe('5E auto recover helpers', () => {
         alreadyPrompted: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe('map backfill delay', () => {
+  it('doubles until max delay', () => {
+    expect(nextMapBackfillDelayMs(P5E_MAP_BACKFILL_INITIAL_DELAY_MS)).toBe(2_000);
+    expect(nextMapBackfillDelayMs(8_000)).toBe(16_000);
+    expect(nextMapBackfillDelayMs(P5E_MAP_BACKFILL_MAX_DELAY_MS)).toBe(P5E_MAP_BACKFILL_MAX_DELAY_MS);
   });
 });

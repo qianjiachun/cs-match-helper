@@ -129,19 +129,26 @@ sequenceDiagram
 | 主键 | `gameId`（`game_ctx.id`） |
 | HTTP 缓冲 | 最近约 **15s**，定锚后回放 |
 | 合并 | 按 `responseBody.data[uuid]` 逐人合并；过滤局外 UUID |
-| 进度 | user / elo / map 各类 **已覆盖人数**（如 10/10） |
+| 进度 | user / elo / mapExt 各类 **已覆盖人数**（如 10/10） |
 | 完成 | 三类均 10/10 → 产出；超时 **30s** → `incomplete: true` |
-| 去重 | 同一 `gameId` 只 emit 一次 `MatchRecord` |
+| 去重 | 同一 `gameId` **首次**只 emit 一次；若首次无图，地图补全后可再 emit **一次**同 ID 更新 |
+| 进度文案 | `mapExt 10/10` 表示玩家地图统计接口覆盖率，**不是**本局地图已确认 |
 
 #### 1.0.6 地图与分队（与 HTTP 的关系）
 
 | 优先级 | 地图 `mapName` | 分队 `teamSide` |
 |--------|----------------|-----------------|
 | 1 | 校验通过的 match detail `main.map`（`GET match/{gameId}`，10 人集合一致） | WS `gmi.t1` → 1，`t2` → 2 |
-| 2 | 接受后实机确认的 WS `selected_map` / `gmi.map` → `P5E_WS_MAP_ID_TO_NAME`（**表待填**） | match detail `group_1/2`（校验用） |
-| 3 | 未知 / 「地图待定」 | 无锚点时按数组前五后五（仅 fixture 回退） |
+| 2 | CDP `POST …/match/matching/batch` 请求体 `game_map`（与当前局 10 UUID 集合一致） | match detail `group_1/2`（校验用） |
+| 3 | 接受后实机确认的 WS `selected_map` / `gmi.map` → `P5E_WS_MAP_ID_TO_NAME`（**表待填**；本模式样本常为 `0`） | |
+| 4 | 未知 / 「地图待定」 | 无锚点时按数组前五后五（仅 fixture 回退） |
 
 **已移除**：map-ext 多数票作为**本局地图**依据（map-ext 仍用于每位玩家该地图的生涯统计）。
+
+**emit 后双通道补全**（保留接受阶段尽早出面板）：
+
+1. **matching/batch 旁路**：正式白名单采集（不依赖 Gate 调试）；只保留请求体 `game_map` + `t1_uuids`/`t2_uuids`；UUID 集合与当前局精确匹配后写入 bundle 并触发同 ID 全量重建。
+2. **Gate match 轮询**：首次无图时退避轮询 `enrichP5eBundleWithLiveMap`（约 1s→2s→4s…，上限约 60s）；`map_not_ready` 不缓存。任一路成功即取消另一路；停止采集 / 客户端退出 / 卸载时取消。
 
 match detail 接受前校验：响应内玩家 UUID 须与 WS 10 人集合一致；`match_code` 与 `gameId` 须可对应；无地图时不缓存、按退避重试。Gate 与 WS 地图冲突时优先 Gate 并写入 `parseWarnings`。
 
@@ -1043,9 +1050,12 @@ sequenceDiagram
 
 | 优先级 | 来源 | 说明 |
 |--------|------|------|
-| 1 | 接口 4 `main.map` | 须通过对 `gameId` 的请求且 10 人 UUID 校验 |
-| 2 | WS `selected_map` / `gmi.map` | 非零 ID → 名称映射表（**待接受后样本校准**） |
-| 3 | 无 | 显示待定；**不用 map-ext 投票** |
+| 1 | 接口 4 `main.map` | 须通过对 `gameId` 的请求且 10 人 UUID 校验；emit 后可退避轮询至约 60s |
+| 2 | `matching/batch` 请求体 `game_map` | 全员接受后客户端请求；与当前局 10 UUID 校验后补全 |
+| 3 | WS `selected_map` / `gmi.map` | 非零 ID → 名称映射表（**待接受后样本校准**；部分模式全程为 0） |
+| 4 | 无 | 显示待定；**不用 map-ext 投票** |
+
+地图补全后须 **全量重建** `MatchRecord`（同 `gameId`），以便按真实地图重算玩家地图统计字段，并 upsert 历史。
 
 ### 9.3 分队（`teamSide`）
 
@@ -1087,14 +1097,15 @@ sequenceDiagram
 |---|------|------|
 | 1 | `user.csgo_elo_9` 与 `elo.modes.9.elo` 偶尔不一致 | **以 elo 接口为准** |
 | 2 | ~~`csgo_rating` / map-ext 作赛季 Rating~~ | **已修正**：以 `player/home season_data` 为准；map-ext 仅地图回退 |
-| 3 | ~~地图/分队靠推测~~ | **已接入 WS 定锚 + match detail 校验**；WS 地图 ID 表待填 |
+| 3 | ~~地图/分队靠推测~~ | **已接入 WS 定锚 + match detail 校验 + matching/batch / Gate 轮询补全**；WS 地图 ID 表仍待填 |
 | 4 | `matchStatus` / `round_sfui_type` 枚举未完全确认 | 对照 5E 客户端 |
 | 5 | `isVip` 用 `vip_grade` 可能不准 | `vip_level > 0` 或 `is_plus === 1` |
 | 6 | `cranenew` vs `crane` 路径前缀不同 | 白名单按路径片段匹配 |
 | 7 | 数值类型混用 string / number | 解析层统一 `numOrUndef()` |
 | 8 | 接口 4 头像字段为 `profile.avatarUrl`（驼峰） | 与接口 3 `avatar_url` 区分 |
-| 9 | WS `gmi.map` / `selected_map` 数字 ID → 地图名 | 需「接受后至进服」实机样本填入 `P5E_WS_MAP_ID_TO_NAME` |
+| 9 | WS `gmi.map` / `selected_map` 数字 ID → 地图名 | 需「接受后至进服」实机样本；**本日志样本全程为 0，已改用 matching/batch.game_map 补全** |
 | 10 | `game_ctx.id` 与 Gate `match_code` 对应关系 | 以 match detail 校验为准，勿字符串截取 |
+| 11 | 接受阶段过早 emit 导致「未知地图」 | **已修复**：emit 后双通道补全（matching/batch + Gate 轮询） |
 
 ---
 
@@ -1123,6 +1134,7 @@ sequenceDiagram
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-12 | emit 后双通道补全地图：`matching/batch.game_map` + Gate match 有界轮询；同 ID 全量重建；进度文案改为 mapExt |
 | 2026-06-16 | 初版：接口 1–3 全字段整理 |
 | 2026-06-16 | 增补接口 4 对局详情（match/{match_code}）全字段与 uid 对照 |
 | 2026-07-05 | 接口 7 player/home 替换接口 5；HMAC 签名拉取，无需 Cookie |

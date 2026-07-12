@@ -24,6 +24,23 @@ describe('api-merge', () => {
     expect(data[OUT]).toBeUndefined();
   });
 
+  it('preserves top-level response metadata such as timestamp', () => {
+    const existing: P5eApiPayload = {
+      url: 'u',
+      requestBody: { uuids: [U1] },
+      responseBody: { data: { [U1]: { username: 'a' } }, timestamp: 1781594800 },
+    };
+    const incoming: P5eApiPayload = {
+      url: 'u',
+      requestBody: { uuids: [U2] },
+      responseBody: { data: { [U2]: { username: 'b' } }, timestamp: 1781594817 },
+    };
+    const merged = mergeApiPayload(existing, incoming, [U1, U2]);
+    const body = merged.responseBody as { timestamp?: number; data: Record<string, unknown> };
+    expect(body.timestamp).toBe(1781594817);
+    expect(Object.keys(body.data)).toEqual([U1, U2]);
+  });
+
   it('counts coverage for canonical uuids only', () => {
     const payload: P5eApiPayload = {
       url: 'u',
