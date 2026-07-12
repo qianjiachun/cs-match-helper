@@ -9,6 +9,7 @@ import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
 import { useComments } from './composables/useComments';
 import { useLogWatcher } from './composables/useLogWatcher';
+import { useMatchHistory } from './composables/useMatchHistory';
 import { useP5eCdp } from './composables/useP5eCdp';
 import { useCloseConfirm } from './composables/useCloseConfirm';
 import { useUpdateCheck } from './composables/useUpdateCheck';
@@ -34,6 +35,8 @@ const logWatcher = useLogWatcher({ autoInit: false });
 const { matches, logEntries, clearLogEntries, watcher, injectMatch, ensureListeners, startWatching, stopWatching } =
   logWatcher;
 
+const matchHistory = useMatchHistory();
+
 const p5e = useP5eCdp(
   (record) => {
     matches.value = [record];
@@ -47,7 +50,42 @@ const p5e = useP5eCdp(
     },
   },
 );
-const ai = useAiAnalysis({ autoInit: false });
+const ai = useAiAnalysis({
+  autoInit: false,
+  onAnalysisSettled: (payload) => {
+    const current = matches.value[0];
+    const fromIndex = matchHistory.index.value?.entries.find((e) => e.id === payload.matchId);
+    const platformId =
+      current && current.id === payload.matchId
+        ? matchHistory.platformOf(current)
+        : fromIndex?.platformId ?? current?.platformId ?? 'unknown';
+    void matchHistory
+      .patchMatchAi(payload.matchId, platformId, {
+        status: payload.status,
+        result: payload.result,
+        usage: payload.usage,
+        elapsedMs: payload.elapsedMs,
+        error: payload.error,
+        model: payload.model,
+        providerMode: payload.providerMode,
+        analyzedAt: payload.analyzedAt,
+        fallbackRecord: current && current.id === payload.matchId ? current : null,
+      })
+      .catch(() => {
+        // 历史写入失败不阻断 AI 展示
+      });
+  },
+});
+
+watch(
+  () => matches.value[0] ?? null,
+  (record) => {
+    if (!record) return;
+    void matchHistory.saveMatchSnapshot(record).catch(() => {
+      // 历史写入失败不阻断主流程
+    });
+  },
+);
 const comments = useComments({ autoInit: false });
 const {
   formattedVersion,
@@ -122,9 +160,11 @@ async function injectAiResult(raw: string): Promise<string | null> {
 type AppView = 'main' | 'settings' | 'counter-strafing';
 
 const currentView = ref<AppView>('main');
-const settingsTab = ref<SettingsTab>('ai');
+const settingsTab = ref<SettingsTab>('history');
 
-function openSettings(tab: SettingsTab = 'ai') {
+const settingsViewRef = ref<{ goBack: () => boolean } | null>(null);
+
+function openSettings(tab: SettingsTab = 'history') {
   settingsTab.value = tab;
   currentView.value = 'settings';
 }
@@ -134,6 +174,9 @@ function openCounterStrafing() {
 }
 
 function goMain() {
+  if (currentView.value === 'settings' && settingsViewRef.value?.goBack?.()) {
+    return;
+  }
   currentView.value = 'main';
   const match = matches.value[0];
   if (match) {
@@ -189,6 +232,7 @@ function onBackFromP5e() {
       :version="formattedVersion"
       :has-update="updateState.hasUpdate"
       :comments="comments"
+      :match-history="matchHistory"
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
       @open-counter-strafing="openCounterStrafing()"
@@ -227,7 +271,7 @@ function onBackFromP5e() {
             :watcher="watcher"
             :platform="selectedPlatform ?? 'perfect'"
             :p5e="p5e"
-            @open-settings="openSettings"
+            @open-settings="openSettings('ai')"
             @back="onBackToPlatformSelect"
           />
         </Transition>
@@ -239,9 +283,11 @@ function onBackFromP5e() {
       >
         <SettingsView
           v-if="currentView === 'settings'"
+          ref="settingsViewRef"
           class="h-full"
           :ai="ai"
           :comments="comments"
+          :history="matchHistory"
           :initial-tab="settingsTab"
           :visible="true"
         />

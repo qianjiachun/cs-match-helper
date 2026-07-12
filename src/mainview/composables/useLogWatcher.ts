@@ -6,8 +6,7 @@ import { findLastMatchEventInLogLines, isLogLineWithinMaxAge, BOOTSTRAP_MATCH_MA
 import { homeDir } from '@tauri-apps/api/path';
 import { onUnmounted, ref, shallowRef } from 'vue';
 import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
-
-const MAX_DEBUG_LOG_ENTRIES = 500;
+import { debugEnabled } from './useDebugUnlock';
 
 export function useLogWatcher(options?: { autoInit?: boolean }) {
   const autoInit = options?.autoInit ?? true;
@@ -26,17 +25,14 @@ export function useLogWatcher(options?: { autoInit?: boolean }) {
   let watching = false;
 
   function pushLogEntry(parsed: LogLine, isMatchEvent: boolean) {
+    if (!debugEnabled.value) return;
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
       parsed,
       isMatchEvent,
     };
-    const next = [...logEntries.value, entry];
-    logEntries.value =
-      next.length > MAX_DEBUG_LOG_ENTRIES
-        ? next.slice(next.length - MAX_DEBUG_LOG_ENTRIES)
-        : next;
+    logEntries.value = [...logEntries.value, entry];
   }
 
   function clearLogEntries() {

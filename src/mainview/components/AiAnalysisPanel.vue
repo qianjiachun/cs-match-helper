@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   KeyRound,
+  RefreshCw,
   Shield,
   Swords,
   Target,
@@ -34,12 +35,15 @@ const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
   highlightedSide?: 'A' | 'B' | null;
   highlightedSteamId?: string | null;
+  historyMode?: boolean;
 }>();
 
 const emit = defineEmits<{
   highlightSide: [side: 'A' | 'B' | null];
   highlightPlayer: [steamId: string | null];
   openSettings: [];
+  analyze: [];
+  stop: [];
 }>();
 
 const tick = ref(0);
@@ -83,6 +87,29 @@ const isError = computed(() => props.ai.status.value === 'error');
 const isNoKey = computed(() => props.ai.status.value === 'no-key');
 const result = computed(() => props.ai.result.value);
 const localInsights = computed(() => props.match.detail.insights);
+
+const canRunHistoryAnalysis = computed(
+  () => Boolean(props.historyMode) && setupState.value === 'active' && !isLoading.value,
+);
+
+const showHistoryAnalyzeCta = computed(
+  () => canRunHistoryAnalysis.value && (!result.value || isError.value),
+);
+
+const showHistoryRerunCta = computed(
+  () => canRunHistoryAnalysis.value && Boolean(result.value) && !isError.value,
+);
+
+const showHistoryEmptyState = computed(
+  () => Boolean(props.historyMode) && showHistoryAnalyzeCta.value,
+);
+
+const showHistoryLoadingState = computed(
+  () =>
+    Boolean(props.historyMode) &&
+    isLoading.value &&
+    !result.value?.headline,
+);
 
 const winA = computed(() => result.value?.winProbability.A ?? 50);
 const winB = computed(() => result.value?.winProbability.B ?? 50);
@@ -304,8 +331,67 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
       </div>
     </div>
 
-    <!-- 加载状态：首包未到时显示动画 -->
-    <div v-else-if="isLoading && !result?.headline" class="flex h-full flex-col items-center justify-center">
+    <!-- 历史模式：尚无分析结果 -->
+    <div
+      v-else-if="showHistoryEmptyState"
+      class="flex h-full min-h-[280px] flex-col items-center justify-center px-6 py-12"
+    >
+      <div class="flex w-full max-w-sm flex-col items-center text-center">
+        <div class="mb-4 flex items-center justify-center">
+          <div class="origin-center scale-[1.75]">
+            <AiSparklesIcon size="md" static />
+          </div>
+        </div>
+
+        <h2 class="text-[1rem] leading-6 font-semibold text-slate-900">
+          {{ isError ? '分析未完成' : '本局暂无赛前分析' }}
+        </h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-slate-500">
+          {{
+            isError
+              ? '可重新生成，结果会写回本局历史'
+              : '可按当时对局数据补跑，并保存至历史记录'
+          }}
+        </p>
+
+        <p
+          v-if="isError && ai.error.value"
+          class="mt-4 flex w-full items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-left text-[12px] leading-relaxed text-rose-700"
+        >
+          <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {{ ai.error.value }}
+        </p>
+
+        <button
+          type="button"
+          class="mt-6 w-full cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-accent-hover active:scale-[0.98]"
+          @click="emit('analyze')"
+        >
+          {{ isError ? '重试' : '生成分析' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 历史模式：分析进行中（首包未到） -->
+    <div
+      v-else-if="showHistoryLoadingState"
+      class="flex h-full min-h-[280px] flex-col items-center justify-center gap-5 px-6 py-10"
+    >
+      <AiLoadingAnimation />
+      <button
+        type="button"
+        class="cursor-pointer rounded-lg px-4 py-2 text-[12px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-100 hover:text-slate-700"
+        @click="emit('stop')"
+      >
+        停止分析
+      </button>
+    </div>
+
+    <!-- 加载状态：首包未到时显示动画（非历史模式） -->
+    <div
+      v-else-if="isLoading && !result?.headline"
+      class="flex h-full flex-col items-center justify-center"
+    >
       <AiLoadingAnimation />
     </div>
 
@@ -395,6 +481,23 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
             >
               {{ costLabel }}
             </span>
+            <button
+              v-if="showHistoryRerunCta"
+              type="button"
+              class="ml-1 inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-200/60 hover:text-slate-700"
+              @click="emit('analyze')"
+            >
+              <RefreshCw class="h-2.5 w-2.5" aria-hidden="true" />
+              重新分析
+            </button>
+            <button
+              v-if="historyMode && isLoading"
+              type="button"
+              class="ml-1 cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-200/60 hover:text-slate-700"
+              @click="emit('stop')"
+            >
+              停止
+            </button>
           </span>
         </div>
       </section>

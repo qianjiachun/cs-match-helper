@@ -7,6 +7,7 @@ import type { WatcherStatus } from '@core/types';
 import appIcon from '@app-icon';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
+import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import UpdateBadge from './UpdateBadge.vue';
 
 const MatchDebugPanel = defineAsyncComponent(() => import('./MatchDebugPanel.vue'));
@@ -32,6 +33,7 @@ const props = defineProps<{
   version: string;
   hasUpdate: boolean;
   comments: ReturnType<typeof useComments>;
+  matchHistory: MatchHistoryApi;
 }>();
 
 const emit = defineEmits<{
@@ -96,6 +98,7 @@ function counterStrafingAriaLabel(): string {
         :inject-ai-result="injectAiResult"
         :p5e="p5e"
         :comments="comments"
+        :match-history="matchHistory"
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />

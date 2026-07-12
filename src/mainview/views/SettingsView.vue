@@ -1,24 +1,27 @@
 <script setup lang="ts">
-import { Info, MessageCircle, ScrollText, Settings, Sparkles } from 'lucide-vue-next';
+import { History, Info, MessageCircle, ScrollText, Settings, Sparkles } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import type { useComments } from '../composables/useComments';
+import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import AboutSettingsSection from '../components/settings/AboutSettingsSection.vue';
 import AiSettingsSection from '../components/settings/AiSettingsSection.vue';
 import ChangelogSettingsSection from '../components/settings/ChangelogSettingsSection.vue';
 import CommentHistorySection from '../components/settings/CommentHistorySection.vue';
+import MatchHistoryView from './MatchHistoryView.vue';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 
-export type SettingsTab = 'ai' | 'comments' | 'changelog' | 'about';
+export type SettingsTab = 'history' | 'ai' | 'comments' | 'changelog' | 'about';
 
 const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
   comments: ReturnType<typeof useComments>;
+  history: MatchHistoryApi;
   initialTab?: SettingsTab;
   visible?: boolean;
 }>();
 
-const activeTab = ref<SettingsTab>(props.initialTab ?? 'ai');
+const activeTab = ref<SettingsTab>(props.initialTab ?? 'history');
 
 watch(
   () => props.initialTab,
@@ -28,6 +31,7 @@ watch(
 );
 
 const navItems = [
+  { id: 'history' as const, label: '历史对局', icon: History },
   { id: 'ai' as const, label: 'AI 设置', icon: Sparkles },
   { id: 'comments' as const, label: '我的评论', icon: MessageCircle },
   { id: 'changelog' as const, label: '更新日志', icon: ScrollText },
@@ -35,6 +39,7 @@ const navItems = [
 ];
 
 const contentDesc: Record<SettingsTab, string> = {
+  history: '查看本地保存的对局与 AI 分析',
   ai: 'API 与模型配置',
   comments: '查看和管理你发表过的评论',
   changelog: '版本更新记录与功能说明',
@@ -42,6 +47,8 @@ const contentDesc: Record<SettingsTab, string> = {
 };
 
 const activeMeta = computed(() => navItems.find((item) => item.id === activeTab.value)!);
+
+const matchHistoryViewRef = ref<InstanceType<typeof MatchHistoryView> | null>(null);
 
 const { registerAboutClick } = useDebugUnlock();
 
@@ -51,6 +58,15 @@ function selectTab(tab: SettingsTab) {
   }
   activeTab.value = tab;
 }
+
+function goBack(): boolean {
+  if (activeTab.value === 'history' && matchHistoryViewRef.value?.goBack?.()) {
+    return true;
+  }
+  return false;
+}
+
+defineExpose({ goBack });
 </script>
 
 <template>
@@ -95,30 +111,49 @@ function selectTab(tab: SettingsTab) {
       </nav>
     </aside>
 
-    <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-      <header class="sticky top-0 z-10 border-b border-border bg-base/90 px-6 py-5 backdrop-blur-sm">
-        <h2 class="text-[18px] font-bold tracking-tight text-fg">{{ activeMeta.label }}</h2>
-        <p class="mt-1 text-[13px] text-fg-muted">{{ contentDesc[activeTab] }}</p>
-      </header>
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        v-show="activeTab !== 'history'"
+        class="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      >
+        <header class="sticky top-0 z-10 shrink-0 border-b border-border bg-base/90 px-6 py-5 backdrop-blur-sm">
+          <h2 class="text-[18px] font-bold tracking-tight text-fg">{{ activeMeta.label }}</h2>
+          <p class="mt-1 text-[13px] text-fg-muted">{{ contentDesc[activeTab] }}</p>
+        </header>
 
-      <div class="relative mx-auto max-w-2xl px-6 py-6">
-        <Transition name="settings-tab" mode="out-in">
-          <div v-if="activeTab === 'ai'" key="ai">
-            <AiSettingsSection :ai="ai" :settings-visible="visible ?? true" />
-          </div>
-          <div v-else-if="activeTab === 'comments'" key="comments">
-            <CommentHistorySection
-              :comments="comments"
-              :visible="(visible ?? true) && activeTab === 'comments'"
-            />
-          </div>
-          <div v-else-if="activeTab === 'changelog'" key="changelog">
-            <ChangelogSettingsSection />
-          </div>
-          <div v-else key="about">
-            <AboutSettingsSection />
-          </div>
-        </Transition>
+        <div class="relative mx-auto w-full max-w-2xl flex-1 px-6 py-6">
+          <Transition name="settings-tab" mode="out-in">
+            <div v-if="activeTab === 'ai'" key="ai">
+              <AiSettingsSection :ai="ai" :settings-visible="visible ?? true" />
+            </div>
+            <div v-else-if="activeTab === 'comments'" key="comments">
+              <CommentHistorySection
+                :comments="comments"
+                :visible="(visible ?? true) && activeTab === 'comments'"
+              />
+            </div>
+            <div v-else-if="activeTab === 'changelog'" key="changelog">
+              <ChangelogSettingsSection />
+            </div>
+            <div v-else-if="activeTab === 'about'" key="about">
+              <AboutSettingsSection />
+            </div>
+          </Transition>
+        </div>
+      </div>
+
+      <div
+        v-show="activeTab === 'history'"
+        class="min-h-0 flex-1"
+      >
+        <MatchHistoryView
+          ref="matchHistoryViewRef"
+          class="h-full"
+          :history="history"
+          :comments="comments"
+          :visible="activeTab === 'history'"
+          @open-settings="selectTab('ai')"
+        />
       </div>
     </div>
   </div>

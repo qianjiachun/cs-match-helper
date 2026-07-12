@@ -4,6 +4,7 @@ mod counter_strafing;
 mod gamebar_shortcut;
 mod gamebar_widget;
 mod log_watcher;
+mod match_history;
 mod platform;
 mod shutdown;
 mod update;
@@ -250,6 +251,13 @@ pub fn run() {
             update::download_update,
             update::apply_update_and_restart,
             comments::get_comment_client_key,
+            match_history::list_match_history,
+            match_history::list_match_history_documents,
+            match_history::get_match_history_entry,
+            match_history::upsert_match_history_entry,
+            match_history::patch_match_history_section,
+            match_history::delete_match_history_entry,
+            match_history::clear_match_history,
             counter_strafing::runtime::load_counter_strafing_settings_cmd,
             counter_strafing::runtime::save_counter_strafing_settings_cmd,
             counter_strafing::runtime::reset_counter_strafing_settings_cmd,

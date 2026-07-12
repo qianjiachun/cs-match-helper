@@ -10,6 +10,7 @@ import {
   type AiTokenUsage,
   type SaveAiSettingsInput,
 } from '@core/ai/types';
+import type { AiHistoryStatus, MatchHistoryViewModel } from '@core/match/history';
 import { onUnmounted, ref, shallowRef } from 'vue';
 import {
   cancelAiAnalysis,
@@ -22,8 +23,24 @@ import {
   startAiAnalysis,
 } from '../native';
 
-export function useAiAnalysis(options?: { autoInit?: boolean }) {
+export interface AiAnalysisSettledPayload {
+  matchId: string;
+  status: AiHistoryStatus;
+  result: AiAnalysisResult | null;
+  usage: AiTokenUsage | null;
+  elapsedMs: number | null;
+  error: string | null;
+  model?: string;
+  providerMode?: string;
+  analyzedAt: number;
+}
+
+export function useAiAnalysis(options?: {
+  autoInit?: boolean;
+  onAnalysisSettled?: (payload: AiAnalysisSettledPayload) => void;
+}) {
   const autoInit = options?.autoInit ?? true;
+  const onAnalysisSettled = options?.onAnalysisSettled;
   const settings = ref<AiSettingsPublic | null>(null);
   const status = ref<AiAnalysisStatus>('idle');
   const activeMatchId = ref<string | null>(null);
@@ -73,6 +90,20 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
     startedAt.value = null;
   }
 
+  function emitSettled(matchId: string, settledStatus: AiHistoryStatus, settledError?: string) {
+    onAnalysisSettled?.({
+      matchId,
+      status: settledStatus,
+      result: settledStatus === 'done' ? result.value : null,
+      usage: usage.value,
+      elapsedMs: elapsedMs.value,
+      error: settledError ?? error.value,
+      model: settings.value?.model,
+      providerMode: settings.value?.providerMode,
+      analyzedAt: Date.now(),
+    });
+  }
+
   async function ensureAnalysisListeners() {
     if (listenersReady) return;
     if (!listenersPromise) {
@@ -109,12 +140,16 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
             if (!result.value) {
               status.value = 'error';
               error.value = 'AI 返回格式无法解析，请重试';
+              emitSettled(evt.matchId, 'error', 'AI 返回格式无法解析，请重试');
+              return;
             }
+            emitSettled(evt.matchId, 'done');
           }),
           onAiAnalysisError((evt) => {
             if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
             status.value = 'error';
             error.value = evt.error;
+            emitSettled(evt.matchId, 'error', evt.error);
           }),
         ]);
         unlisteners.push(onStart, onDelta, onDone, onError);
@@ -167,6 +202,9 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
     await cancelAiAnalysis();
     if (status.value === 'loading' || status.value === 'streaming') {
       status.value = 'cancelled';
+      if (activeMatchId.value) {
+        emitSettled(activeMatchId.value, 'cancelled');
+      }
     }
   }
 
@@ -183,7 +221,29 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
     elapsedMs.value = 0;
     error.value = null;
     startedAt.value = Date.now();
+    emitSettled(matchId, 'done');
     return null;
+  }
+
+  /** 从历史文档 AI section 回填展示态（不触发请求） */
+  function hydrateFromHistory(
+    matchId: string,
+    historyAi: MatchHistoryViewModel['ai'],
+  ) {
+    const statusMap: Record<AiHistoryStatus, AiAnalysisStatus> = {
+      none: 'idle',
+      done: 'done',
+      error: 'error',
+      cancelled: 'cancelled',
+    };
+    activeMatchId.value = matchId;
+    status.value = statusMap[historyAi.status] ?? 'idle';
+    streamingText.value = '';
+    result.value = historyAi.result;
+    usage.value = historyAi.usage;
+    elapsedMs.value = historyAi.elapsedMs;
+    error.value = historyAi.error;
+    startedAt.value = historyAi.analyzedAt ?? null;
   }
 
   async function ensureReady() {
@@ -197,7 +257,10 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
 
   onUnmounted(() => {
     unlisteners.forEach((fn) => fn());
-    void cancelAiAnalysis();
+    // 仅取消本实例进行中的请求，避免历史页卸载打断主界面分析
+    if (status.value === 'loading' || status.value === 'streaming') {
+      void cancelAiAnalysis();
+    }
   });
 
   return {
@@ -219,5 +282,6 @@ export function useAiAnalysis(options?: { autoInit?: boolean }) {
     retry,
     stop,
     injectResult,
+    hydrateFromHistory,
   };
 }

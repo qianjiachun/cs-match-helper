@@ -381,6 +381,12 @@
           "markdownDescription": "允许清空急停记录"
         },
         {
+          "description": "允许清空对局历史",
+          "type": "string",
+          "const": "allow-clear-match-history",
+          "markdownDescription": "允许清空对局历史"
+        },
+        {
           "description": "允许确认后退出应用",
           "type": "string",
           "const": "allow-close-app",
@@ -391,6 +397,12 @@
           "type": "string",
           "const": "allow-close-app-devtools",
           "markdownDescription": "允许关闭应用内 WebView 开发者工具"
+        },
+        {
+          "description": "允许删除单条对局历史",
+          "type": "string",
+          "const": "allow-delete-match-history-entry",
+          "markdownDescription": "允许删除单条对局历史"
         },
         {
           "description": "允许通过 match_code 拉取 5E 对局详情（地图等）",
@@ -465,6 +477,12 @@
           "markdownDescription": "允许查询日志监听状态"
         },
         {
+          "description": "允许读取单条对局历史",
+          "type": "string",
+          "const": "allow-get-match-history-entry",
+          "markdownDescription": "允许读取单条对局历史"
+        },
+        {
           "description": "允许隐藏急停评估 HUD",
           "type": "string",
           "const": "allow-hide-counter-strafing-assessment-hud",
@@ -495,6 +513,18 @@
           "markdownDescription": "允许带 CDP 端口启动 5E 客户端"
         },
         {
+          "description": "允许读取对局历史索引",
+          "type": "string",
+          "const": "allow-list-match-history",
+          "markdownDescription": "允许读取对局历史索引"
+        },
+        {
+          "description": "允许批量读取对局历史文档",
+          "type": "string",
+          "const": "allow-list-match-history-documents",
+          "markdownDescription": "允许批量读取对局历史文档"
+        },
+        {
           "description": "允许读取 AI 设置",
           "type": "string",
           "const": "allow-load-ai-settings",
@@ -517,6 +547,12 @@
           "type": "string",
           "const": "allow-open-app-devtools",
           "markdownDescription": "允许打开应用内 WebView 开发者工具"
+        },
+        {
+          "description": "允许更新对局历史某一 section",
+          "type": "string",
+          "const": "allow-patch-match-history-section",
+          "markdownDescription": "允许更新对局历史某一 section"
         },
         {
           "description": "允许检测 5E 是否已在外部运行",
@@ -655,6 +691,12 @@
           "type": "string",
           "const": "allow-uninstall-gamebar-widget",
           "markdownDescription": "允许卸载 Game Bar Widget"
+        },
+        {
+          "description": "允许写入/合并对局历史",
+          "type": "string",
+          "const": "allow-upsert-match-history-entry",
+          "markdownDescription": "允许写入/合并对局历史"
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

@@ -348,7 +348,7 @@ export function buildMatchDetail(
   const detail: MatchDetail = {
     platformId: 'perfect',
     platformGameId: pickString(data, ['platform_game_id', 'platformGameId']),
-    mapName: pickString(data, ['map_name', 'mapName', 'map']),
+    mapName: pickString(data, ['map_name', 'mapName', 'map', 'map_id']),
     readyDeadlineAt,
     readyLeftTimeMs: readyDeadlineAt != null
       ? Math.max(0, readyDeadlineAt - Date.now())

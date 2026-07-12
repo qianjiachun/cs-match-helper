@@ -1,0 +1,34 @@
+[[permission]]
+identifier = "allow-list-match-history"
+description = "允许读取对局历史索引"
+commands.allow = ["list_match_history"]
+
+[[permission]]
+identifier = "allow-list-match-history-documents"
+description = "允许批量读取对局历史文档"
+commands.allow = ["list_match_history_documents"]
+
+[[permission]]
+identifier = "allow-get-match-history-entry"
+description = "允许读取单条对局历史"
+commands.allow = ["get_match_history_entry"]
+
+[[permission]]
+identifier = "allow-upsert-match-history-entry"
+description = "允许写入/合并对局历史"
+commands.allow = ["upsert_match_history_entry"]
+
+[[permission]]
+identifier = "allow-patch-match-history-section"
+description = "允许更新对局历史某一 section"
+commands.allow = ["patch_match_history_section"]
+
+[[permission]]
+identifier = "allow-delete-match-history-entry"
+description = "允许删除单条对局历史"
+commands.allow = ["delete_match_history_entry"]
+
+[[permission]]
+identifier = "allow-clear-match-history"
+description = "允许清空对局历史"
+commands.allow = ["clear_match_history"]

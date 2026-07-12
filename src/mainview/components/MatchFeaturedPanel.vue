@@ -20,11 +20,15 @@ const props = defineProps<{
   match: MatchRecord;
   ai: ReturnType<typeof useAiAnalysis>;
   comments: ReturnType<typeof useComments>;
+  /** 历史回看：不触发 AI、不显示准备倒计时 */
+  historyMode?: boolean;
 }>();
 
 const emit = defineEmits<{
   openSettings: [];
 }>();
+
+const isHistory = computed(() => Boolean(props.historyMode));
 
 const panelRoot = ref<HTMLElement | null>(null);
 const { playReveal } = useMatchRevealAnimation(panelRoot);
@@ -116,6 +120,20 @@ const isAiLoading = computed(() => {
 });
 
 const aiStatusCapsule = computed(() => {
+  if (isHistory.value) {
+    const s = props.ai.status.value;
+    const r = props.ai.result.value;
+    if (isAiLoading.value) return { text: 'AI 分析中', tone: 'loading' as const };
+    if (s === 'done' && r) {
+      return {
+        text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability),
+        tone: 'done' as const,
+      };
+    }
+    if (s === 'error') return { text: 'AI 失败', tone: 'warn' as const };
+    if (s === 'no-key') return { text: '缺少 Key', tone: 'warn' as const };
+    return null;
+  }
   if (!isAiAnalysisActive(props.ai.settings.value)) return null;
   const s = props.ai.status.value;
   const r = props.ai.result.value;
@@ -131,13 +149,24 @@ const aiStatusCapsule = computed(() => {
   return null;
 });
 
+function runHistoryAnalysis() {
+  if (!isHistory.value) return;
+  void props.ai.analyzeMatch(props.match, true);
+}
+
+function stopHistoryAnalysis() {
+  if (!isHistory.value) return;
+  void props.ai.stop();
+}
 watch(
   () => props.match.id,
   async (nextId, prevId) => {
     activeTab.value = 'team-data';
     highlightedSide.value = null;
     highlightedSteamId.value = null;
-    void props.ai.analyzeMatch(props.match);
+    if (!isHistory.value) {
+      void props.ai.analyzeMatch(props.match);
+    }
     const players = teams.value.flatMap((t) => t.players);
     void props.comments.loadCounts(players, platformId.value);
     if (prevId !== undefined && nextId !== prevId) {
@@ -214,36 +243,38 @@ function eloCompareTitle(
           <span class="font-medium text-slate-800">{{ mapName }}</span>
         </div>
 
-        <span class="text-slate-200">|</span>
+        <template v-if="!isHistory">
+          <span class="text-slate-200">|</span>
 
-        <div
-          data-match-reveal="meta"
-          class="flex items-center gap-1.5 transition-all duration-300"
-          :class="
-            isCountdownUrgent
-              ? 'countdown-urgent rounded-md bg-rose-50 px-2 py-1 ring-1 ring-rose-300/80'
-              : 'text-slate-600'
-          "
-          :aria-live="isCountdownUrgent ? 'assertive' : 'off'"
-        >
-          <Clock
-            class="shrink-0 transition-all duration-300"
-            :class="isCountdownUrgent ? 'h-4 w-4 text-rose-500' : 'h-3.5 w-3.5 text-blue-500'"
-          />
-          <span
-            class="tabular-nums transition-all duration-300"
+          <div
+            data-match-reveal="meta"
+            class="flex items-center gap-1.5 transition-all duration-300"
             :class="
               isCountdownUrgent
-                ? 'text-[15px] font-bold tracking-wide text-rose-600'
-                : 'font-semibold text-blue-600'
+                ? 'countdown-urgent rounded-md bg-rose-50 px-2 py-1 ring-1 ring-rose-300/80'
+                : 'text-slate-600'
             "
+            :aria-live="isCountdownUrgent ? 'assertive' : 'off'"
           >
-            {{ formatTime(timeLeft) }}
-          </span>
-          <span v-if="isCountdownUrgent" class="text-[11px] font-semibold text-rose-500">
-            即将截止
-          </span>
-        </div>
+            <Clock
+              class="shrink-0 transition-all duration-300"
+              :class="isCountdownUrgent ? 'h-4 w-4 text-rose-500' : 'h-3.5 w-3.5 text-blue-500'"
+            />
+            <span
+              class="tabular-nums transition-all duration-300"
+              :class="
+                isCountdownUrgent
+                  ? 'text-[15px] font-bold tracking-wide text-rose-600'
+                  : 'font-semibold text-blue-600'
+              "
+            >
+              {{ formatTime(timeLeft) }}
+            </span>
+            <span v-if="isCountdownUrgent" class="text-[11px] font-semibold text-rose-500">
+              即将截止
+            </span>
+          </div>
+        </template>
 
         <template v-if="teamEloCompare">
           <span class="text-slate-200">|</span>
@@ -425,11 +456,14 @@ function eloCompareTitle(
           key="ai"
           :match="match"
           :ai="ai"
+          :history-mode="isHistory"
           :highlighted-side="highlightedSide"
           :highlighted-steam-id="highlightedSteamId"
           @highlight-side="onHighlightSide"
           @highlight-player="onHighlightPlayer"
           @open-settings="emit('openSettings')"
+          @analyze="runHistoryAnalysis"
+          @stop="stopHistoryAnalysis"
         />
       </Transition>
     </div>

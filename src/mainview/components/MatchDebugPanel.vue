@@ -17,6 +17,7 @@ import {
 } from '@platforms/5e/p5e-dev-overrides';
 import type { useP5eCdp } from '../composables/useP5eCdp';
 import type { useComments } from '../composables/useComments';
+import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
 import { closeAppDevtools, openAppDevtools } from '../utils/devtools';
 import { showToast, useCopyFeedback } from '../composables/useCopyFeedback';
@@ -24,6 +25,10 @@ import {
   collectRuntimeDiagnostics,
   formatRuntimeDiagnostics,
 } from '../utils/runtime-diagnostics';
+import {
+  seedMockMatchHistory,
+  type MockHistoryPlatformMix,
+} from '../utils/matchHistoryMock';
 
 const { copyText } = useCopyFeedback();
 const MatchDebugWidgetPanel = defineAsyncComponent(
@@ -38,6 +43,7 @@ const props = withDefaults(
     injectAiResult?: (raw: string) => Promise<string | null>;
     p5e?: ReturnType<typeof useP5eCdp>;
     comments?: ReturnType<typeof useComments>;
+    matchHistory?: MatchHistoryApi;
   }>(),
   {
     placement: 'inline',
@@ -61,7 +67,7 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'p5e' | 'ai' | 'update' | 'comments' | 'widget' | 'runtime';
+type InjectSubTab = 'match' | 'p5e' | 'ai' | 'comments' | 'history' | 'update' | 'widget' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
 const isDev = import.meta.env.DEV;
@@ -94,6 +100,11 @@ const devtoolsError = ref('');
 const mockReleaseNotes = ref(MOCK_RELEASE_NOTES);
 const p5eLogFilter = ref<P5eLogFilterKey>('all');
 const p5eLogSearch = ref('');
+const historySeedCount = ref(25);
+const historyPlatformMix = ref<MockHistoryPlatformMix>('both');
+const historyWithAi = ref(true);
+const historyBusy = ref(false);
+const historyError = ref('');
 
 const p5eLogEntries = computed(() => props.p5e?.logEntries.value ?? []);
 const filteredP5eLogEntries = computed(() =>
@@ -240,10 +251,52 @@ function fillMockHistory() {
   props.comments?.fillMockHistory();
 }
 
+async function seedMatchHistory() {
+  historyError.value = '';
+  if (!props.matchHistory) {
+    historyError.value = '对局历史模块未就绪';
+    return;
+  }
+  historyBusy.value = true;
+  try {
+    const { saved } = await seedMockMatchHistory(props.matchHistory, {
+      count: historySeedCount.value,
+      platformMix: historyPlatformMix.value,
+      withAi: historyWithAi.value,
+    });
+    showToast(`已填充 ${saved} 条模拟对局`);
+    if (props.placement === 'header') open.value = false;
+  } catch (err) {
+    historyError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    historyBusy.value = false;
+  }
+}
+
+async function clearMatchHistory() {
+  historyError.value = '';
+  if (!props.matchHistory) {
+    historyError.value = '对局历史模块未就绪';
+    return;
+  }
+  historyBusy.value = true;
+  try {
+    await props.matchHistory.clearAll();
+    showToast('已清空对局历史');
+  } catch (err) {
+    historyError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    historyBusy.value = false;
+  }
+}
+
+const historyListCount = computed(() => props.matchHistory?.listItems.value.length ?? 0);
+
 function switchInjectSubTab(tab: InjectSubTab) {
   injectSubTab.value = tab;
   error.value = '';
   aiError.value = '';
+  historyError.value = '';
 }
 
 function close() {
@@ -426,92 +479,106 @@ watch(
 
       <!-- 注入 -->
       <div v-if="activeTab === 'inject'" class="p-4">
-        <div class="mb-3 flex gap-1 rounded-lg bg-elevated p-0.5">
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'match'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('match')"
-          >
-            匹配数据
-          </button>
-          <button
-            v-if="isDev"
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'p5e'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('p5e')"
-          >
-            5E 模拟
-          </button>
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'ai'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('ai')"
-          >
-            AI 结果
-          </button>
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'comments'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('comments')"
-          >
-            评论 Mock
-          </button>
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'update'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('update')"
-          >
-            更新模拟
-          </button>
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'widget'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('widget')"
-          >
-            Widget
-          </button>
-          <button
-            type="button"
-            class="flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors"
-            :class="
-              injectSubTab === 'runtime'
-                ? 'bg-surface text-fg shadow-sm'
-                : 'text-fg-muted hover:text-fg-secondary'
-            "
-            @click="switchInjectSubTab('runtime')"
-          >
-            运行时
-          </button>
+        <div class="debug-inject-tabs mb-3 -mx-1 overflow-x-auto px-1">
+          <div class="inline-flex min-w-full gap-0.5 rounded-lg bg-elevated p-0.5">
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'match'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('match')"
+            >
+              匹配
+            </button>
+            <button
+              v-if="isDev"
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'p5e'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('p5e')"
+            >
+              5E
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'ai'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('ai')"
+            >
+              AI
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'comments'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('comments')"
+            >
+              评论
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'history'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('history')"
+            >
+              历史
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'update'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('update')"
+            >
+              更新
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'widget'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('widget')"
+            >
+              Widget
+            </button>
+            <button
+              type="button"
+              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+              :class="
+                injectSubTab === 'runtime'
+                  ? 'bg-surface text-fg shadow-sm'
+                  : 'text-fg-muted hover:text-fg-secondary'
+              "
+              @click="switchInjectSubTab('runtime')"
+            >
+              运行时
+            </button>
+          </div>
         </div>
 
         <div v-if="injectSubTab === 'match'" class="space-y-3">
@@ -659,6 +726,66 @@ watch(
               @click="openMockComments('error')"
             >
               错误态
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="injectSubTab === 'history'" class="space-y-3">
+          <p class="text-[11px] leading-relaxed text-fg-muted">
+            批量写入本地对局历史，覆盖多地图、完美/5E 平台与部分 AI 分析，便于测试列表分页与详情补分析。
+          </p>
+          <div class="rounded-md border border-border bg-base px-3 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
+            <p>当前历史：{{ historyListCount }} 条</p>
+            <p class="mt-1">5E 记录含 p5eBundle，可测试「补 AI 分析」数据保真</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="space-y-1">
+              <span class="text-[11px] font-medium text-fg-secondary">条数</span>
+              <input
+                v-model.number="historySeedCount"
+                type="number"
+                min="1"
+                max="200"
+                class="w-full rounded-md border border-border bg-base px-2.5 py-1.5 text-[12px] text-fg outline-none transition-colors focus:border-accent"
+              />
+            </label>
+            <label class="space-y-1">
+              <span class="text-[11px] font-medium text-fg-secondary">平台</span>
+              <select
+                v-model="historyPlatformMix"
+                class="w-full cursor-pointer rounded-md border border-border bg-base px-2.5 py-1.5 text-[12px] text-fg outline-none transition-colors focus:border-accent"
+              >
+                <option value="both">完美 + 5E 交替</option>
+                <option value="perfect">仅完美</option>
+                <option value="5e">仅 5E</option>
+              </select>
+            </label>
+          </div>
+          <label class="flex cursor-pointer items-center gap-2 text-[11px] text-fg-secondary">
+            <input
+              v-model="historyWithAi"
+              type="checkbox"
+              class="h-3.5 w-3.5 cursor-pointer rounded border-border accent-accent"
+            />
+            约每 3 条写入 1 条 AI 分析
+          </label>
+          <div class="flex flex-wrap justify-end gap-2">
+            <p v-if="historyError" class="mr-auto text-[11px] text-danger">{{ historyError }}</p>
+            <button
+              type="button"
+              class="cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="historyBusy || !matchHistory"
+              @click="clearMatchHistory"
+            >
+              清空历史
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="historyBusy || !matchHistory"
+              @click="seedMatchHistory"
+            >
+              {{ historyBusy ? '写入中…' : '填充模拟历史' }}
             </button>
           </div>
         </div>
@@ -888,7 +1015,7 @@ watch(
             v-model="p5eLogSearch"
             type="search"
             placeholder="搜索内容…"
-            class="ml-auto min-w-[8rem] flex-1 rounded border border-border bg-surface px-2 py-1 text-[10px] text-fg outline-none focus:border-accent/50 sm:max-w-[12rem] sm:flex-none"
+            class="ml-auto min-w-32 flex-1 rounded border border-border bg-surface px-2 py-1 text-[10px] text-fg outline-none focus:border-accent/50 sm:max-w-48 sm:flex-none"
           />
         </div>
 
@@ -1048,3 +1175,12 @@ watch(
     </div>
   </section>
 </template>
+
+<style scoped>
+.debug-inject-tabs {
+  scrollbar-width: none;
+}
+.debug-inject-tabs::-webkit-scrollbar {
+  display: none;
+}
+</style>
