@@ -170,13 +170,20 @@ export function getP5eHomeData(bundle: P5eMatchBundle, uuid: string): P5eHomeDat
   return parseP5eHomePayload(payload);
 }
 
-/** match_list: 1=胜, 0=负（与 specialData 近几场顺序一致） */
+/** match_list: 1=胜, 0=负, 2=平（与 specialData 近几场顺序一致） */
 export function recentResultsFromMatchList(
   matchList: number[] | undefined,
   count = 5,
-): Array<'win' | 'lose'> {
+): Array<'win' | 'lose' | 'draw'> {
   if (!matchList?.length) return [];
-  return matchList.slice(0, count).map((code) => (code === 1 ? 'win' : 'lose'));
+  const out: Array<'win' | 'lose' | 'draw'> = [];
+  for (const code of matchList) {
+    if (out.length >= count) break;
+    if (code === 1) out.push('win');
+    else if (code === 0) out.push('lose');
+    else if (code === 2) out.push('draw');
+  }
+  return out;
 }
 
 /** 批量拉取 player/home 并写入 bundle（HMAC 签名，无需登录 Cookie） */

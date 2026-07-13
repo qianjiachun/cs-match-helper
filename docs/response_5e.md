@@ -988,7 +988,7 @@ authorization:
 | `uinfo` | 昵称 / 头像 / 信用分 |
 | `career` | 生涯 ELO / 总场次 |
 | `plusinfo` | VIP |
-| `match_list` | 近期胜负编码（`1`=胜，`0`=负） |
+| `match_list` | 近期胜负编码（`1`=胜，`0`=负，`2`=平） |
 
 ### 7.2 应用映射（`field-mapper.ts` + `home-api.ts`）
 
@@ -1000,7 +1000,7 @@ authorization:
 | `seasonTotalNum` / `seasonWinRate` / `seasonWinNum` | `match_total` / `per_win_match` / `win_match_total` |
 | `rating`（近期列） | `season_data.avg_rating`（赛季场均） |
 | `mapWinRate` / `mapTotalNum` | **map-ext**（home 无 per-map 赛季） |
-| `recentResults` | `match_list` 或 elo `specialData` |
+| `recentResults` | `match_list`（`1`胜 / `0`负 / `2`平）或 elo `specialData` |
 | `recentRatings` | elo `specialData` change_elo 序列 |
 
 拉取时机：匹配 enrich 阶段对 10 个 UUID 并发 GET（`enrichP5eBundleWithPlayerHome`），纯 HTTP + HMAC，不依赖 CDP 登录态。

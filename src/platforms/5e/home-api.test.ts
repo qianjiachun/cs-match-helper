@@ -59,8 +59,10 @@ describe('P5e home-api', () => {
     expect(parsed?.eloMode?.elo).toBeCloseTo(1795.46, 1);
   });
 
-  it('recentResultsFromMatchList maps win/lose codes', () => {
+  it('recentResultsFromMatchList maps win/lose/draw codes', () => {
     expect(recentResultsFromMatchList([0, 1])).toEqual(['lose', 'win']);
+    expect(recentResultsFromMatchList([2, 1, 0])).toEqual(['draw', 'win', 'lose']);
+    expect(recentResultsFromMatchList([9, 1], 5)).toEqual(['win']);
   });
 
   it('formatP5eHomeEnrichError detects signature failures', () => {
