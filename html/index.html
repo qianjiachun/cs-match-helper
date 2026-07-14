@@ -6,14 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>CS 匹配助手 — 完美/5E 赛前读局 · AI 胜率预测 · 急停助手</title>
+    <title>CS 匹配助手 — 完美/5E 赛前数据分析 · 留言板 · AI 胜率预测 · 急停助手</title>
     <meta
       name="description"
-      content="CS 匹配助手：完美对战与 5E 准备阶段自动读取双方数据，支持队伍对比、AI 胜率预测与急停助手。约 6MB、免安装，不读游戏内存、不注入进程。"
+      content="CS 匹配助手：完美对战与 5E 准备阶段自动读取双方数据，支持对局留言板互动、队伍对比、AI 胜率预测与急停助手。约 6MB、免安装，不读游戏内存、不注入进程。"
     />
     <meta
       name="keywords"
-      content="CS匹配助手,CS2,完美对战,5E,赛前分析,胜率预测,急停助手,counter-strafing,对局数据,小淳"
+      content="CS匹配助手,CS2,完美对战,5E,赛前分析,留言板,对局评论,完美评论,5E评论,胜率预测,急停助手,counter-strafing,对局数据,小淳"
     />
     <meta name="author" content="小淳" />
     <meta name="creator" content="小淳" />
@@ -38,10 +38,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="CS 匹配助手" />
-    <meta property="og:title" content="CS 匹配助手 — 完美/5E 赛前读局与急停助手" />
+    <meta property="og:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与急停助手" />
     <meta
       property="og:description"
-      content="准备阶段自动读取双方数据，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装，支持完美对战与 5E。"
+      content="准备阶段自动读取双方数据，对局留言板互动，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装，支持完美对战与 5E。"
     />
     <meta property="og:url" content="https://github.com/qianjiachun/cs-match-helper" />
     <meta
@@ -52,10 +52,10 @@
     <meta property="og:image:alt" content="CS 匹配助手对局数据面板预览" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="CS 匹配助手 — 完美/5E 赛前读局与急停助手" />
+    <meta name="twitter:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与急停助手" />
     <meta
       name="twitter:description"
-      content="准备阶段自动读取双方数据，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装。"
+      content="准备阶段自动读取双方数据，对局留言板互动，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装。"
     />
     <meta
       name="twitter:image"
@@ -88,7 +88,7 @@
       rel="stylesheet"
       href="https://registry.npmmirror.com/misans/4.1.0/files/lib/Normal/MiSans-Bold.min.css"
     />
-    <link rel="stylesheet" href="./css/styles.css?v=20260714" />
+    <link rel="stylesheet" href="./css/styles.css?v=20260715x" />
 
     <script type="application/ld+json">
       {
@@ -99,7 +99,7 @@
             "@id": "https://github.com/qianjiachun/cs-match-helper#software",
             "name": "CS 匹配助手",
             "alternateName": ["CS Match Helper", "CS匹配助手"],
-            "description": "在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析；内置急停助手，量化开枪稳定与急停质量。",
+            "description": "在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析；支持对局留言板互动；内置急停助手，量化开枪稳定与急停质量。",
             "applicationCategory": "GameApplication",
             "applicationSubCategory": "Utility",
             "operatingSystem": "Windows 10+",
@@ -115,7 +115,8 @@
             "installUrl": "https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download",
             "softwareRequirements": "Microsoft Edge WebView2 Runtime",
             "featureList": [
-              "完美对战 / 5E 准备阶段自动读局",
+              "完美对战 / 5E 准备阶段自动分析数据",
+              "对局留言板与互动",
               "双方选手数据与队伍对比",
               "AI 胜率预测与赛前分析",
               "急停助手与游戏内 HUD"
@@ -148,7 +149,7 @@
             "@id": "https://github.com/qianjiachun/cs-match-helper#website",
             "name": "CS 匹配助手",
             "url": "https://github.com/qianjiachun/cs-match-helper",
-            "description": "CS 匹配助手官网介绍：完美/5E 赛前读局、AI 胜率预测与急停助手。",
+            "description": "CS 匹配助手官网介绍：完美/5E 赛前数据分析、对局留言板、AI 胜率预测与急停助手。",
             "inLanguage": "zh-CN",
             "publisher": {
               "@type": "Person",
@@ -177,6 +178,14 @@
               },
               {
                 "@type": "Question",
+                "name": "支持对局留言板吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "支持。兼容完美对战与 5E 评论，可在赛前夸赞、吐槽与互动，让等待不再干等。"
+                }
+              },
+              {
+                "@type": "Question",
                 "name": "支持哪些平台？体积多大？",
                 "acceptedAnswer": {
                   "@type": "Answer",
@@ -193,28 +202,44 @@
     <div class="page-progress" aria-hidden="true"><i data-progress></i></div>
 
     <header class="nav" data-nav>
-      <a class="nav__logo" href="#hero" title="CS 匹配助手首页">
-        <img
-          src="./assets/brand/logo.png?v=20260714"
-          alt="CS 匹配助手 Logo"
-          width="28"
-          height="28"
-          onerror="this.src='https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba'"
-        />
-        <span>CS 匹配助手</span>
-      </a>
+      <div class="nav__brand">
+        <a class="nav__logo" href="#hero" title="CS 匹配助手首页">
+          <img
+            src="./assets/brand/logo.png?v=20260714"
+            alt="CS 匹配助手 Logo"
+            width="28"
+            height="28"
+            onerror="this.src='https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba'"
+          />
+          <span>CS 匹配助手</span>
+        </a>
+      </div>
       <nav class="nav__links" aria-label="页面导航">
         <a href="#aim">急停助手</a>
         <a href="#insight">功能预览</a>
       </nav>
-      <a
-        class="btn btn--sm"
-        href="https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download"
-        rel="noopener"
-        title="下载 CS 匹配助手"
-      >
-        下载
-      </a>
+      <div class="nav__actions">
+        <a
+          class="btn btn--sm nav__source"
+          href="https://github.com/qianjiachun/cs-match-helper"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="在 GitHub 查看开源项目"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z" />
+          </svg>
+          GitHub
+        </a>
+        <a
+          class="btn btn--sm"
+          href="https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download"
+          rel="noopener"
+          title="下载 CS 匹配助手"
+        >
+          下载
+        </a>
+      </div>
     </header>
 
     <main>
@@ -236,9 +261,9 @@
             <a class="btn btn--text" href="#insight">功能预览</a>
           </div>
           <div class="hero__stats" data-a="fade-up" data-d="260">
+            <div><strong>完美 / 5E</strong><span>⚔️ 支持平台</span></div>
             <div><strong>6 MB</strong><span>🚀 极致轻量</span></div>
             <div><strong>免安装</strong><span>📦 开箱即用</span></div>
-            <div><strong>完美 / 5E</strong><span>⚔️ 支持平台</span></div>
           </div>
         </div>
         <a
@@ -277,6 +302,31 @@
                 onerror="this.src='https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e'"
               />
             </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene--board" id="comments" data-scene aria-labelledby="comments-title">
+        <div class="board">
+          <div class="board__visual" data-a="zoom-soft">
+            <figure class="board__shot">
+              <img
+                src="./assets/screenshots/comment.png?v=20260715"
+                alt="CS 匹配助手留言板：最新评论、回复与表情互动"
+                width="1924"
+                height="1234"
+                loading="lazy"
+                decoding="async"
+              />
+            </figure>
+          </div>
+          <div class="board__copy">
+            <p class="kicker" data-a="fade-up" data-d="120">互动</p>
+            <h2 id="comments-title" data-a="fade-up" data-d="200">留言板</h2>
+            <p data-a="fade-up" data-d="280">
+              <span class="board__desc--wide">兼容 完美 / 5E 评论，夸赞、吐槽、标记一站式解决</span>
+              <span class="board__desc--mobile">兼容 完美 / 5E 评论，夸赞吐槽一站式解决</span>
+            </p>
           </div>
         </div>
       </section>
@@ -326,7 +376,7 @@
           <div class="stack__copy">
             <p class="kicker" data-a="fade-up">工具</p>
             <h2 id="aim-title" data-a="fade-up" data-d="80">急停助手</h2>
-            <p data-a="fade-up" data-d="140">急停评估、射击误差，安全绿色的游戏内 HUD</p>
+            <p data-a="fade-up" data-d="140">急停评估、射击误差，安全低占用的游戏内 HUD</p>
             <button type="button" class="info-link" data-info="safety" data-a="fade-up" data-d="180">
               为何安全
             </button>
@@ -365,6 +415,9 @@
               rel="noopener noreferrer"
               title="在 GitHub 查看最新 Release"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z" />
+              </svg>
               GitHub
             </a>
           </div>
@@ -405,6 +458,6 @@
 
     <script src="https://registry.npmmirror.com/gsap/3.15.0/files/dist/gsap.min.js" defer></script>
     <script src="https://registry.npmmirror.com/gsap/3.15.0/files/dist/ScrollTrigger.min.js" defer></script>
-    <script src="./js/main.js?v=20260714" defer></script>
+    <script src="./js/main.js?v=20260715b" defer></script>
   </body>
 </html>

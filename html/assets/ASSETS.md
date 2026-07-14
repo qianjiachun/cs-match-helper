@@ -14,6 +14,7 @@ html/
     │   └── logo.png          ← 品牌 Logo（必须）
     └── screenshots/
         ├── match-panel.png       ← Hero + 预览 01：对局数据面板
+        ├── comment.png           ← 预览：留言板
         ├── team-compare.png      ← 预览 02：队伍对比
         ├── ai-analysis.png       ← 预览 03：AI 赛前分析
         └── counter-strafing.png  ← 急停助手 / Game Bar 小组件
@@ -25,6 +26,7 @@ html/
 |------|----------|------|------|
 | `brand/logo.png` | 256×256 或 512×512 | PNG（透明底） | 圆角由 CSS 处理，原图尽量方形 |
 | `match-panel.png` | 宽 ≥ 1600px，约 16:10 | PNG / WebP | 主 Hero 与预览首图，最重要 |
+| `comment.png` | 宽 ≥ 1400px | PNG / WebP | 留言板侧栏截图 |
 | `team-compare.png` | 宽 ≥ 1400px | PNG / WebP | 队伍对比界面 |
 | `ai-analysis.png` | 宽 ≥ 1400px | PNG / WebP | AI 分析界面 |
 | `counter-strafing.png` | 宽 ≥ 900px，竖图更佳 | PNG / WebP | Game Bar / HUD 截图 |
