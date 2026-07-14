@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>CS 匹配助手 — 完美/5E 赛前读局 · AI 胜率预测 · 急停助手</title>
+    <meta
+      name="description"
+      content="CS 匹配助手：完美对战与 5E 准备阶段自动读取双方数据，支持队伍对比、AI 胜率预测与急停助手。约 6MB、免安装，不读游戏内存、不注入进程。"
+    />
+    <meta
+      name="keywords"
+      content="CS匹配助手,CS2,完美对战,5E,赛前分析,胜率预测,急停助手,counter-strafing,对局数据,小淳"
+    />
+    <meta name="author" content="小淳" />
+    <meta name="creator" content="小淳" />
+    <meta name="publisher" content="小淳" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="baiduspider" content="index, follow" />
+    <meta name="revisit-after" content="7 days" />
+    <meta name="theme-color" content="#F5F7FA" />
+    <meta name="color-scheme" content="light" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="application-name" content="CS 匹配助手" />
+    <meta name="apple-mobile-web-app-title" content="CS 匹配助手" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- 正式站点域名配置后，请同步更新 canonical / og:url / JSON-LD 中的 url -->
+    <link rel="canonical" href="https://github.com/qianjiachun/cs-match-helper" />
+    <link rel="alternate" hreflang="zh-CN" href="https://github.com/qianjiachun/cs-match-helper" />
+    <link rel="alternate" hreflang="x-default" href="https://github.com/qianjiachun/cs-match-helper" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="CS 匹配助手" />
+    <meta property="og:title" content="CS 匹配助手 — 完美/5E 赛前读局与急停助手" />
+    <meta
+      property="og:description"
+      content="准备阶段自动读取双方数据，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装，支持完美对战与 5E。"
+    />
+    <meta property="og:url" content="https://github.com/qianjiachun/cs-match-helper" />
+    <meta
+      property="og:image"
+      content="https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="CS 匹配助手对局数据面板预览" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CS 匹配助手 — 完美/5E 赛前读局与急停助手" />
+    <meta
+      name="twitter:description"
+      content="准备阶段自动读取双方数据，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e"
+    />
+    <meta name="twitter:image:alt" content="CS 匹配助手对局数据面板预览" />
+
+    <!-- 发版缓存：改了 css/js/图片请递增下方版本号 -->
+    <link rel="icon" href="./assets/brand/logo.png?v=20260714" type="image/png" sizes="any" />
+    <link rel="apple-touch-icon" href="./assets/brand/logo.png?v=20260714" />
+    <link rel="mask-icon" href="./assets/brand/logo.png?v=20260714" color="#4A90E2" />
+
+    <link rel="preconnect" href="https://registry.npmmirror.com" crossorigin />
+    <link rel="dns-prefetch" href="https://registry.npmmirror.com" />
+    <link rel="dns-prefetch" href="https://cdn.lunaris.win" />
+    <link rel="dns-prefetch" href="https://github.com" />
+    <link
+      rel="stylesheet"
+      href="https://registry.npmmirror.com/misans/4.1.0/files/lib/Normal/MiSans-Regular.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://registry.npmmirror.com/misans/4.1.0/files/lib/Normal/MiSans-Medium.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://registry.npmmirror.com/misans/4.1.0/files/lib/Normal/MiSans-Semibold.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://registry.npmmirror.com/misans/4.1.0/files/lib/Normal/MiSans-Bold.min.css"
+    />
+    <link rel="stylesheet" href="./css/styles.css?v=20260714" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://github.com/qianjiachun/cs-match-helper#software",
+            "name": "CS 匹配助手",
+            "alternateName": ["CS Match Helper", "CS匹配助手"],
+            "description": "在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析；内置急停助手，量化开枪稳定与急停质量。",
+            "applicationCategory": "GameApplication",
+            "applicationSubCategory": "Utility",
+            "operatingSystem": "Windows 10+",
+            "softwareVersion": "3.1.0",
+            "inLanguage": "zh-CN",
+            "isAccessibleForFree": true,
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "CNY"
+            },
+            "downloadUrl": "https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download",
+            "installUrl": "https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download",
+            "softwareRequirements": "Microsoft Edge WebView2 Runtime",
+            "featureList": [
+              "完美对战 / 5E 准备阶段自动读局",
+              "双方选手数据与队伍对比",
+              "AI 胜率预测与赛前分析",
+              "急停助手与游戏内 HUD"
+            ],
+            "screenshot": [
+              "https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e",
+              "https://github.com/user-attachments/assets/dc70a30e-2c2b-447d-b633-27368f483431",
+              "https://github.com/user-attachments/assets/fd436175-01e8-410e-865c-e1b5489b77eb"
+            ],
+            "image": "https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba",
+            "author": {
+              "@type": "Person",
+              "name": "小淳",
+              "url": "https://space.bilibili.com/193482"
+            },
+            "publisher": {
+              "@type": "Person",
+              "name": "小淳",
+              "url": "https://github.com/qianjiachun"
+            },
+            "license": "https://opensource.org/licenses/MIT",
+            "sameAs": [
+              "https://github.com/qianjiachun/cs-match-helper",
+              "https://space.bilibili.com/193482"
+            ],
+            "url": "https://github.com/qianjiachun/cs-match-helper"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://github.com/qianjiachun/cs-match-helper#website",
+            "name": "CS 匹配助手",
+            "url": "https://github.com/qianjiachun/cs-match-helper",
+            "description": "CS 匹配助手官网介绍：完美/5E 赛前读局、AI 胜率预测与急停助手。",
+            "inLanguage": "zh-CN",
+            "publisher": {
+              "@type": "Person",
+              "name": "小淳"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://github.com/qianjiachun/cs-match-helper#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "CS 匹配助手如何读取对局数据？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "进入准备界面后自动读取对局信息。完美对战平台通过监听客户端本地日志解析建房与选手数据；5E 需从本应用内启动客户端，读取客户端内的对局与选手数据。两种方式都不会读取游戏内存，也不会注入 CS2 进程。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "急停助手安全吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "急停助手只监听本机键盘输入，结合移速模型评估停稳与急停时机。不读取 CS2 内存，不向游戏注入代码，不修改游戏文件。若提示需要管理员权限，是因为 Windows 要求这样才能监听全局键盘，与作弊无关。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "支持哪些平台？体积多大？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "支持完美对战平台与 5E 对战平台。软件约 6MB，免安装，下载后即可运行。需要 Windows 10 及以上，并安装 Microsoft Edge WebView2 Runtime。"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page-progress" aria-hidden="true"><i data-progress></i></div>
+
+    <header class="nav" data-nav>
+      <a class="nav__logo" href="#hero" title="CS 匹配助手首页">
+        <img
+          src="./assets/brand/logo.png?v=20260714"
+          alt="CS 匹配助手 Logo"
+          width="28"
+          height="28"
+          onerror="this.src='https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba'"
+        />
+        <span>CS 匹配助手</span>
+      </a>
+      <nav class="nav__links" aria-label="页面导航">
+        <a href="#aim">急停助手</a>
+        <a href="#insight">功能预览</a>
+      </nav>
+      <a
+        class="btn btn--sm"
+        href="https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download"
+        rel="noopener"
+        title="下载 CS 匹配助手"
+      >
+        下载
+      </a>
+    </header>
+
+    <main>
+      <section class="scene scene--hero" id="hero" data-scene aria-labelledby="hero-title">
+        <div class="hero">
+          <h1 class="hero__title" id="hero-title" data-a="fade-up">CS 匹配助手</h1>
+          <p class="hero__desc" data-a="fade-up" data-d="100">
+            赛前分析双方数据，AI 预测对局胜负
+          </p>
+          <div class="hero__cta" data-a="fade-up" data-d="180">
+            <a
+              class="btn btn--hero"
+              href="https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download"
+              rel="noopener"
+              title="下载 CS 匹配助手 Windows 版"
+            >
+              下载
+            </a>
+            <a class="btn btn--text" href="#insight">功能预览</a>
+          </div>
+          <div class="hero__stats" data-a="fade-up" data-d="260">
+            <div><strong>6 MB</strong><span>🚀 极致轻量</span></div>
+            <div><strong>免安装</strong><span>📦 开箱即用</span></div>
+            <div><strong>完美 / 5E</strong><span>⚔️ 支持平台</span></div>
+          </div>
+        </div>
+        <a
+          class="scroll-hint"
+          href="#insight"
+          data-scroll-hint
+          aria-label="向下查看功能"
+        >
+          <svg class="scroll-hint__icon" viewBox="0 0 24 28" width="20" height="24" aria-hidden="true">
+            <path d="M6 5.5 12 11.5 18 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M6 13.5 12 19.5 18 13.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </a>
+      </section>
+
+      <section class="scene scene--split" id="insight" data-scene aria-labelledby="insight-title">
+        <div class="split">
+          <div class="split__copy">
+            <p class="kicker" data-a="fade-right">对局</p>
+            <h2 id="insight-title" data-a="fade-right" data-d="80">自动读取</h2>
+            <p data-a="fade-right" data-d="140">接受匹配前即可查看，高手菜鸟一眼便知</p>
+            <button type="button" class="info-link" data-info="principle" data-a="fade-right" data-d="180">
+              原理说明
+            </button>
+          </div>
+          <div class="split__visual" data-a="fade-left" data-d="100">
+            <figure class="split__media">
+              <img
+                src="./assets/screenshots/match-panel.png?v=20260714"
+                alt="CS 匹配助手对局数据面板：展示地图、双方选手 ELO、Rating 与近期战绩"
+                width="1900"
+                height="1217"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+                onerror="this.src='https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e'"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene--center" id="compare" data-scene aria-labelledby="compare-title">
+        <div class="center-block">
+          <p class="kicker" data-a="zoom-in">对比</p>
+          <h2 id="compare-title" data-a="zoom-in" data-d="70">数据对比</h2>
+          <p data-a="zoom-in" data-d="130">清晰展示双方数据差异，知己知彼，百战不殆</p>
+          <div class="center-block__visual" data-a="zoom-soft" data-d="180">
+            <figure class="center-block__shot">
+              <img
+                src="./assets/screenshots/team-compare.png?v=20260714"
+                alt="CS 匹配助手队伍对比：雷达图与组排实力差异一览"
+                loading="lazy"
+                decoding="async"
+                onerror="this.src='https://github.com/user-attachments/assets/dc70a30e-2c2b-447d-b633-27368f483431'"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene--rail" id="ai" data-scene aria-labelledby="ai-title">
+        <div class="rail">
+          <div class="rail__copy">
+            <p class="kicker" data-a="fade-left" data-d="80">AI</p>
+            <h2 id="ai-title" data-a="fade-left" data-d="140">预测胜率</h2>
+            <p data-a="fade-left" data-d="200">AI 分析局势，兼容所有模型</p>
+          </div>
+          <div class="rail__visual" data-a="wipe-in">
+            <figure class="rail__shot">
+              <img
+                src="./assets/screenshots/ai-analysis.png?v=20260714"
+                alt="CS 匹配助手 AI 赛前分析：胜率预测、看点与风险提示"
+                loading="lazy"
+                decoding="async"
+                onerror="this.src='https://github.com/user-attachments/assets/fd436175-01e8-410e-865c-e1b5489b77eb'"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene--stack" id="aim" data-scene aria-labelledby="aim-title">
+        <div class="stack">
+          <div class="stack__copy">
+            <p class="kicker" data-a="fade-up">工具</p>
+            <h2 id="aim-title" data-a="fade-up" data-d="80">急停助手</h2>
+            <p data-a="fade-up" data-d="140">急停评估、射击误差，安全绿色的游戏内 HUD</p>
+            <button type="button" class="info-link" data-info="safety" data-a="fade-up" data-d="180">
+              为何安全
+            </button>
+          </div>
+          <div class="stack__visual" data-a="rise-pop" data-d="160">
+            <figure class="stack__photo">
+              <img
+                src="./assets/screenshots/counter-strafing.png?v=20260714"
+                alt="CS 匹配助手急停助手：开枪稳定与急停评估 HUD 预览"
+                loading="lazy"
+                decoding="async"
+                onerror="this.src='https://github.com/user-attachments/assets/41a1fc5c-44fc-412a-bd38-3e55aca16e8b'"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene scene--download" id="download" data-scene aria-labelledby="download-title">
+        <div class="download">
+          <p class="kicker" data-a="fade-up">下载</p>
+          <h2 id="download-title" data-a="fade-up" data-d="80">开始使用</h2>
+          <div class="download__actions" data-a="fade-up" data-d="200">
+            <a
+              class="btn btn--lg"
+              href="https://cdn.lunaris.win/qianjiachun/cs-match-helper/cs-match-helper.exe?download"
+              rel="noopener"
+              title="下载 CS 匹配助手 exe"
+            >
+              下载
+            </a>
+            <a
+              class="btn btn--ghost btn--lg"
+              href="https://github.com/qianjiachun/cs-match-helper/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="在 GitHub 查看最新 Release"
+            >
+              GitHub
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <span class="footer__brand">CS 匹配助手</span>
+        <nav class="footer__links" aria-label="页脚链接">
+          <a href="https://github.com/qianjiachun/cs-match-helper" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://space.bilibili.com/193482" target="_blank" rel="noopener noreferrer">Bilibili</a>
+        </nav>
+        <span class="footer__meta">小淳</span>
+      </div>
+    </footer>
+
+    <div class="info-modal" data-info-modal hidden>
+      <div class="info-modal__backdrop" data-info-close tabindex="-1"></div>
+      <div
+        class="info-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="info-modal-title"
+      >
+        <button type="button" class="info-modal__close" data-info-close aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+        <div class="info-modal__head">
+          <h3 class="info-modal__title" id="info-modal-title"></h3>
+        </div>
+        <div class="info-modal__body" data-info-body></div>
+      </div>
+    </div>
+
+    <script src="https://registry.npmmirror.com/gsap/3.15.0/files/dist/gsap.min.js" defer></script>
+    <script src="https://registry.npmmirror.com/gsap/3.15.0/files/dist/ScrollTrigger.min.js" defer></script>
+    <script src="./js/main.js?v=20260714" defer></script>
+  </body>
+</html>
