@@ -18,6 +18,7 @@
     "core:window:allow-inner-size",
     "core:window:allow-set-position",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-request-user-attention",
     "core:event:allow-listen",
     "core:event:allow-emit",
     "allow-get-log-status",

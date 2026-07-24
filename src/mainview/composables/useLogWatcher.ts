@@ -8,7 +8,7 @@ import { onUnmounted, ref, shallowRef } from 'vue';
 import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
 import { debugEnabled } from './useDebugUnlock';
 
-export function useLogWatcher(options?: { autoInit?: boolean }) {
+export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (record: MatchRecord) => void }) {
   const autoInit = options?.autoInit ?? true;
   const watcher = ref<WatcherStatus>({
     running: false,
@@ -57,6 +57,7 @@ export function useLogWatcher(options?: { autoInit?: boolean }) {
 
     const record = platform.createMatchRecord(recordId, line, data);
     matches.value = [record];
+    return record;
   }
 
   function handleLogLine(raw: string) {
@@ -65,7 +66,8 @@ export function useLogWatcher(options?: { autoInit?: boolean }) {
     const eventData = platform.extractMatchEvents(parsed.decoded);
     pushLogEntry(parsed, Boolean(eventData));
     if (!eventData) return;
-    pushMatchRecord(eventData, 'log', parsed);
+    const record = pushMatchRecord(eventData, 'log', parsed);
+    options?.onNewMatch?.(record);
   }
 
   function injectMatch(data: Record<string, unknown>) {

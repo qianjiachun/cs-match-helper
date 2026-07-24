@@ -140,7 +140,7 @@ function summarizeHttpEvent(event: P5eHttpEvent): string {
 
 export function useP5eCdp(
   onMatch: (record: MatchRecord) => void,
-  options?: { autoInit?: boolean; onClientExit?: () => void },
+  options?: { autoInit?: boolean; onClientExit?: () => void; onNewMatch?: (record: MatchRecord) => void },
 ) {
   const autoInit = options?.autoInit ?? true;
   const status = ref<P5eCdpStatus>({
@@ -407,6 +407,7 @@ export function useP5eCdp(
       logHomeEnrichGap(enriched);
       const record = createP5eMatchRecord(enriched);
       onMatch(record);
+      if (prevMap === undefined) options?.onNewMatch?.(record);
       lastPublishedMap.set(key, mapName);
       pushMatchLogEntry(record);
       captureProgress.value = null;

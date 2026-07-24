@@ -19,6 +19,7 @@ import PlatformSelectView from './views/PlatformSelectView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
 import { startupMark } from './utils/startup-metrics';
 import type { PlatformId } from '@platforms/types';
+import { requestMatchAttention } from './native';
 
 startupMark('app setup start');
 
@@ -32,7 +33,13 @@ const UpdateDialog = defineAsyncComponent(() => import('./components/UpdateDialo
 const { phase, selectedPlatform, selectPlatform, completeP5eSetup, resetToP5eLaunch, resetToPlatformSelect } =
   useAppSession();
 
-const logWatcher = useLogWatcher({ autoInit: false });
+function flashTaskbarForNewMatch() {
+  void requestMatchAttention().catch(() => {
+    // Attention is best-effort and must not interrupt match processing.
+  });
+}
+
+const logWatcher = useLogWatcher({ autoInit: false, onNewMatch: flashTaskbarForNewMatch });
 const { matches, logEntries, clearLogEntries, watcher, injectMatch, ensureListeners, startWatching, stopWatching } =
   logWatcher;
 
@@ -49,6 +56,7 @@ const p5e = useP5eCdp(
       currentView.value = 'main';
       resetToP5eLaunch();
     },
+    onNewMatch: flashTaskbarForNewMatch,
   },
 );
 const ai = useAiAnalysis({

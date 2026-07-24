@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { homeDir } from '@tauri-apps/api/path';
-import { getCurrentWindow, PhysicalSize } from '@tauri-apps/api/window';
+import { getCurrentWindow, PhysicalSize, UserAttentionType } from '@tauri-apps/api/window';
 import type {
   AiAnalysisDeltaEvent,
   AiAnalysisDoneEvent,
@@ -49,6 +49,11 @@ export async function openExternalUrl(url: string): Promise<void> {
 
 export async function minimizeWindow(): Promise<void> {
   await appWindow.minimize();
+}
+
+/** Flash the Windows taskbar button without showing or focusing the window. */
+export async function requestMatchAttention(): Promise<void> {
+  await appWindow.requestUserAttention(UserAttentionType.Informational);
 }
 
 export async function toggleMaximizeWindow(): Promise<void> {
