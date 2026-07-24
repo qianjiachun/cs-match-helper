@@ -5,6 +5,7 @@ import CopyToast from './components/CopyToast.vue';
 import CloseConfirmDialog from './components/CloseConfirmDialog.vue';
 import TitleBar from './components/TitleBar.vue';
 import { useCounterStrafingListening } from './composables/useCounterStrafingListening';
+import { useCounterStrafingSession } from './composables/useCounterStrafingSession';
 import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
 import { useComments } from './composables/useComments';
@@ -100,6 +101,8 @@ const {
 } = useUpdateCheck();
 const { closeConfirmOpen, cancelClose, confirmClose, onCloseDialogAfterLeave } = useCloseConfirm();
 const counterStrafingListening = useCounterStrafingListening();
+const { busy: counterStrafingBusy, toggleListening: toggleCounterStrafingListening } =
+  useCounterStrafingSession();
 
 const commentsDrawerMounted = ref(false);
 const updateDialogMounted = ref(false);
@@ -173,6 +176,10 @@ function openCounterStrafing() {
   currentView.value = 'counter-strafing';
 }
 
+async function toggleCounterStrafing() {
+  await toggleCounterStrafingListening();
+}
+
 function goMain() {
   if (currentView.value === 'settings' && settingsViewRef.value?.goBack?.()) {
     return;
@@ -224,6 +231,7 @@ function onBackFromP5e() {
     <TitleBar
       :view="currentView"
       :counter-strafing-listening="counterStrafingListening"
+      :counter-strafing-busy="counterStrafingBusy"
       :inject-match="injectMatch"
       :inject-ai-result="injectAiResult"
       :p5e="p5e"
@@ -236,6 +244,7 @@ function onBackFromP5e() {
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
       @open-counter-strafing="openCounterStrafing()"
+      @toggle-counter-strafing="toggleCounterStrafing()"
       @go-main="goMain"
       @open-update-dialog="openDialog()"
       @debug-open="onDebugOpen()"

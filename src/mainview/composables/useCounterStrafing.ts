@@ -1,6 +1,11 @@
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
-import { counterStrafingListening } from './useCounterStrafingListening';
+import {
+  counterStrafingListening,
+  counterStrafingSessionBusy,
+  onCounterStrafingSessionSnapshot,
+  toggleCounterStrafingListening,
+} from './useCounterStrafingSession';
 import {
   cancelBindingCapture,
   clearCounterStrafingAssessmentRecords,
@@ -22,8 +27,6 @@ import {
   showCounterStrafingAssessmentHud,
   showCounterStrafingHud,
   startBindingCapture,
-  startCounterStrafing,
-  stopCounterStrafing,
 } from '@core/counter-strafing/native';
 import {
   appendAssessmentRecord,
@@ -137,12 +140,14 @@ export function useCounterStrafing() {
   const settings = ref<CounterStrafingSettings>({ ...DEFAULT_COUNTER_STRAFING_SETTINGS });
   const lastShot = ref<ShootingErrorRecord | null>(null);
   const lastAssessmentRecord = ref<CounterStrafingAssessmentRecord | null>(null);
-  const busy = ref(false);
+  const opBusy = ref(false);
+  const busy = computed(() => opBusy.value || counterStrafingSessionBusy.value);
   const relaunchBusy = ref(false);
   const error = ref<string | null>(null);
   const inputListenNeedsAdmin = ref(false);
 
   let unlisteners: UnlistenFn[] = [];
+  let unsubscribeSessionSnapshot: (() => void) | null = null;
   let settingsPersistTimer: ReturnType<typeof setTimeout> | null = null;
   let flushSnapshotRaf: (() => void) | null = null;
   let flushAssessmentSnapshotRaf: (() => void) | null = null;
@@ -223,36 +228,32 @@ export function useCounterStrafing() {
     await applySettings({ ...MOVEMENT_MODEL_DEFAULTS });
   }
 
-  async function toggleListening() {
-    busy.value = true;
-    clearError();
-    try {
-      if (snapshot.value.listening) {
-        snapshot.value = await stopCounterStrafing();
-      } else {
-        const showHud = displayMode.value === 'hud';
-        snapshot.value = await startCounterStrafing(showHud);
-        if (!snapshot.value.listening) {
-          throw new Error('按键监听未成功启动，请重试');
-        }
-        if (showHud) {
-          if (settings.value.hudVisible !== snapshot.value.hudVisible) {
-            settings.value.hudVisible = snapshot.value.hudVisible;
-          }
-          if (settings.value.assessmentHudVisible !== snapshot.value.assessmentHudVisible) {
-            settings.value.assessmentHudVisible = snapshot.value.assessmentHudVisible;
-          }
-        }
-      }
-    } catch (e) {
-      setInputListenError(e);
-    } finally {
-      busy.value = false;
+  function applyListeningSnapshot(next: CounterStrafingSnapshot) {
+    snapshot.value = next;
+    if (displayMode.value !== 'hud') return;
+    if (settings.value.hudVisible !== next.hudVisible) {
+      settings.value.hudVisible = next.hudVisible;
+    }
+    if (
+      next.assessmentHudVisible !== undefined &&
+      settings.value.assessmentHudVisible !== next.assessmentHudVisible
+    ) {
+      settings.value.assessmentHudVisible = next.assessmentHudVisible;
     }
   }
 
+  async function toggleListening() {
+    clearError();
+    const result = await toggleCounterStrafingListening({ toastOnError: false });
+    if (!result.ok) {
+      setInputListenError(new Error(result.error));
+      return;
+    }
+    applyListeningSnapshot(result.snapshot);
+  }
+
   async function toggleAssessmentHud() {
-    busy.value = true;
+    opBusy.value = true;
     error.value = null;
     try {
       if (assessmentSnapshot.value.hudVisible) {
@@ -265,12 +266,12 @@ export function useCounterStrafing() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
   async function toggleHud() {
-    busy.value = true;
+    opBusy.value = true;
     error.value = null;
     try {
       if (snapshot.value.hudVisible) {
@@ -283,7 +284,7 @@ export function useCounterStrafing() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
@@ -298,7 +299,7 @@ export function useCounterStrafing() {
   }
 
   async function clearAllRecords() {
-    busy.value = true;
+    opBusy.value = true;
     error.value = null;
     try {
       assessmentSnapshot.value = await clearCounterStrafingAssessmentRecords();
@@ -308,12 +309,12 @@ export function useCounterStrafing() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
   async function beginCapture(role: BindingRole) {
-    busy.value = true;
+    opBusy.value = true;
     clearError();
     try {
       if (snapshot.value.capturingBinding) {
@@ -324,7 +325,7 @@ export function useCounterStrafing() {
     } catch (e) {
       setInputListenError(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
@@ -333,7 +334,7 @@ export function useCounterStrafing() {
   }
 
   async function restoreAllDefaults() {
-    busy.value = true;
+    opBusy.value = true;
     error.value = null;
     try {
       snapshot.value = await resetCounterStrafingSettings();
@@ -343,7 +344,7 @@ export function useCounterStrafing() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
@@ -358,7 +359,7 @@ export function useCounterStrafing() {
   }
 
   async function restoreDefaultKeyMap() {
-    busy.value = true;
+    opBusy.value = true;
     error.value = null;
     try {
       snapshot.value = await resetKeyMap();
@@ -366,7 +367,7 @@ export function useCounterStrafing() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
-      busy.value = false;
+      opBusy.value = false;
     }
   }
 
@@ -383,6 +384,10 @@ export function useCounterStrafing() {
       await loadSettings();
       await refresh();
       await refreshAssessment();
+
+      unsubscribeSessionSnapshot = onCounterStrafingSessionSnapshot((next) => {
+        applyListeningSnapshot(next);
+      });
 
       const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
         snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
@@ -443,6 +448,8 @@ export function useCounterStrafing() {
       clearTimeout(settingsPersistTimer);
       settingsPersistTimer = null;
     }
+    unsubscribeSessionSnapshot?.();
+    unsubscribeSessionSnapshot = null;
     flushSnapshotRaf?.();
     flushAssessmentSnapshotRaf?.();
     void Promise.all(unlisteners.map((fn) => fn()));

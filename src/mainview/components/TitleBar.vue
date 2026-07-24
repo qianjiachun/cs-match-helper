@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Bug, Gauge, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { ArrowLeft, Bug, Minus, Settings, Square, X } from 'lucide-vue-next';
 import { defineAsyncComponent, ref } from 'vue';
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from '../native';
 import type { DebugLogEntry } from '@core/log/types';
@@ -9,6 +9,7 @@ import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import UpdateBadge from './UpdateBadge.vue';
+import CounterStrafingHeaderControl from './counter-strafing/CounterStrafingHeaderControl.vue';
 
 const MatchDebugPanel = defineAsyncComponent(() => import('./MatchDebugPanel.vue'));
 
@@ -22,9 +23,10 @@ function openDebugPanel() {
   emit('debugOpen');
 }
 
-const props = defineProps<{
+defineProps<{
   view: 'main' | 'settings' | 'counter-strafing';
   counterStrafingListening: boolean;
+  counterStrafingBusy: boolean;
   injectMatch: (data: Record<string, unknown>) => void;
   injectAiResult: (raw: string) => Promise<string | null>;
   p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
@@ -40,18 +42,11 @@ const emit = defineEmits<{
   clearLogs: [];
   openSettings: [];
   openCounterStrafing: [];
+  toggleCounterStrafing: [];
   goMain: [];
   openUpdateDialog: [];
   debugOpen: [];
 }>();
-
-function counterStrafingAriaLabel(): string {
-  const onPage = props.view === 'counter-strafing';
-  if (props.counterStrafingListening) {
-    return onPage ? '急停助手（当前，记录中）' : '急停助手（记录中）';
-  }
-  return onPage ? '急停助手（当前）' : '打开急停助手';
-}
 </script>
 
 <template>
@@ -102,67 +97,15 @@ function counterStrafingAriaLabel(): string {
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />
-      <button
-        type="button"
-        tabindex="-1"
-        class="cs-header-strafing-btn relative flex h-full cursor-pointer items-center gap-1.5 px-3 text-[12px] outline-none transition-[background-color,color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-        :class="
-          view === 'counter-strafing'
-            ? counterStrafingListening
-              ? 'bg-emerald-500/8 text-fg'
-              : 'bg-elevated text-fg'
-            : counterStrafingListening
-              ? 'text-emerald-700 hover:bg-emerald-500/8'
-              : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
-        "
-        :aria-label="counterStrafingAriaLabel()"
-        :aria-current="view === 'counter-strafing' ? 'page' : undefined"
-        @mousedown.prevent
-        @click="view !== 'counter-strafing' && emit('openCounterStrafing')"
-      >
-        <span class="relative shrink-0">
-          <Gauge
-            class="h-4 w-4 transition-[color,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-            :class="counterStrafingListening ? 'scale-105 text-emerald-600' : 'scale-100'"
-            aria-hidden="true"
-          />
-          <Transition name="cs-header-status-dot">
-            <span
-              v-if="counterStrafingListening"
-              class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-surface motion-safe:animate-pulse sm:hidden"
-              aria-hidden="true"
-            />
-          </Transition>
-        </span>
-        <span
-          class="hidden min-w-0 items-center sm:inline-flex"
-          :class="counterStrafingListening ? 'gap-1.5' : 'gap-0'"
-        >
-          <span class="shrink-0 whitespace-nowrap">急停助手</span>
-          <div
-            class="grid min-w-0 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-            :class="counterStrafingListening ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
-            aria-hidden="true"
-          >
-            <div class="min-w-0 overflow-hidden">
-              <span
-                class="cs-header-status-badge inline-flex w-max shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
-                :class="
-                  counterStrafingListening
-                    ? 'cs-header-status-badge--visible'
-                    : 'cs-header-status-badge--hidden'
-                "
-              >
-                <span
-                  class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse"
-                  aria-hidden="true"
-                />
-                记录中
-              </span>
-            </div>
-          </div>
-        </span>
-      </button>
+
+      <CounterStrafingHeaderControl
+        :active-page="view === 'counter-strafing'"
+        :listening="counterStrafingListening"
+        :busy="counterStrafingBusy"
+        @open="emit('openCounterStrafing')"
+        @toggle="emit('toggleCounterStrafing')"
+      />
+
       <button
         v-if="view === 'main'"
         type="button"
@@ -213,65 +156,3 @@ function counterStrafingAriaLabel(): string {
     </div>
   </header>
 </template>
-
-<style scoped>
-.cs-header-status-badge {
-  transition:
-    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.cs-header-status-badge--visible {
-  opacity: 1;
-  transform: translateX(0);
-  filter: blur(0);
-  transition-delay: 200ms;
-}
-
-.cs-header-status-badge--hidden {
-  opacity: 0;
-  transform: translateX(-4px);
-  filter: blur(2px);
-  pointer-events: none;
-  transition-delay: 0ms;
-}
-
-.cs-header-status-dot-enter-active,
-.cs-header-status-dot-leave-active {
-  transition:
-    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.cs-header-status-dot-enter-from,
-.cs-header-status-dot-leave-to {
-  opacity: 0;
-  transform: scale(0.25);
-}
-
-.cs-header-status-dot-enter-to,
-.cs-header-status-dot-leave-from {
-  opacity: 1;
-  transform: scale(1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cs-header-strafing-btn,
-  .cs-header-status-badge,
-  .cs-header-status-badge--visible {
-    transition-duration: 0.01ms !important;
-    transition-delay: 0ms !important;
-  }
-
-  .cs-header-status-dot-enter-active,
-  .cs-header-status-dot-leave-active {
-    transition-duration: 0.01ms;
-  }
-
-  .cs-header-status-dot-enter-from,
-  .cs-header-status-dot-leave-to {
-    transform: none;
-  }
-}
-</style>

@@ -228,8 +228,8 @@ const modePanelLayerClass =
               <p class="mt-0.5 text-[12px] leading-snug text-fg-muted">
                 {{
                   snapshot.listening
-                    ? '正在记录按键'
-                    : '选好显示方式后，开启记录再进游戏'
+                    ? '正在记录按键 · 也可在顶部快速停止'
+                    : '选好显示方式后开启记录；也可在顶部一键开始'
                 }}
               </p>
               <div
