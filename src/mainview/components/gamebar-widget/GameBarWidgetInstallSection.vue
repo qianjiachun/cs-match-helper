@@ -54,6 +54,7 @@ const {
   gameBarInstalled,
   downloadSources,
   widgetReady,
+  widgetNeedsUpdate,
   widgetSetupStep,
   widgetStep2Title,
   widgetStep2Badge,
@@ -90,11 +91,13 @@ defineExpose({ openInstallPanel });
     :class="[
       widgetDetecting
         ? 'border-accent/40 bg-accent/8 ring-1 ring-accent/20'
-        : widgetReady
-          ? 'border-emerald-500/25 bg-emerald-500/6'
-          : widgetSetupStep === 2
-            ? 'border-accent/30 bg-accent/5'
-            : 'border-border bg-base',
+        : widgetNeedsUpdate
+          ? 'border-warning/30 bg-warning/5'
+          : widgetReady
+            ? 'border-emerald-500/25 bg-emerald-500/6'
+            : widgetSetupStep === 2
+              ? 'border-accent/30 bg-accent/5'
+              : 'border-border bg-base',
       contentClass,
     ]"
   >
@@ -106,9 +109,11 @@ defineExpose({ openInstallPanel });
           :class="
             widgetDetecting
               ? 'bg-accent/15 text-accent'
-              : widgetReady
-                ? 'bg-emerald-500/15 text-emerald-700'
-                : 'bg-accent/12 text-accent'
+              : widgetNeedsUpdate
+                ? 'bg-warning/15 text-amber-700'
+                : widgetReady
+                  ? 'bg-emerald-500/15 text-emerald-700'
+                  : 'bg-accent/12 text-accent'
           "
         >
           2
@@ -125,11 +130,13 @@ defineExpose({ openInstallPanel });
         :class="
           widgetDetecting
             ? 'bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent'
-            : widgetReady
-              ? 'bg-emerald-500/12 text-emerald-700'
-              : !widgetStatus?.installed
-                ? 'bg-warning/12 text-amber-700'
-                : 'bg-elevated text-fg-muted'
+            : widgetNeedsUpdate
+              ? 'bg-warning/12 text-amber-700'
+              : widgetReady
+                ? 'bg-emerald-500/12 text-emerald-700'
+                : !widgetStatus?.installed
+                  ? 'bg-warning/12 text-amber-700'
+                  : 'bg-elevated text-fg-muted'
         "
       >
         <Loader2

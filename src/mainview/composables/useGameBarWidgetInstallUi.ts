@@ -73,14 +73,19 @@ export function useGameBarWidgetInstallUi(
       Boolean(widgetStatus.value?.loopbackConfigured),
   );
 
+  const widgetNeedsUpdate = computed(
+    () => Boolean(widgetStatus.value?.installed) && Boolean(widgetUpdate.value?.hasUpdate),
+  );
+
   const widgetSetupStep = computed(() => {
     if (!widgetStatus.value?.gameBarInstalled && !options?.gameBarInstalledAssumed) return 1;
-    if (!widgetReady.value) return 2;
+    if (!widgetReady.value || widgetNeedsUpdate.value) return 2;
     return 3;
   });
 
   const widgetStep2Title = computed(() => {
     if (widgetDetecting.value) return '正在扫描小组件';
+    if (widgetNeedsUpdate.value) return '小组件有可用更新';
     if (widgetReady.value) return '小组件已安装';
     if (!widgetStatus.value?.installed) return '小组件未安装';
     if (!widgetStatus.value?.loopbackConfigured) return '小组件连接未就绪';
@@ -89,6 +94,7 @@ export function useGameBarWidgetInstallUi(
 
   const widgetStep2Badge = computed(() => {
     if (widgetDetecting.value) return '检测中';
+    if (widgetNeedsUpdate.value) return '可更新';
     if (widgetReady.value) return '已就绪';
     if (!widgetStatus.value?.installed) return '未安装';
     return '待修复';
@@ -96,7 +102,7 @@ export function useGameBarWidgetInstallUi(
 
   const widgetInstallCtaLabel = computed(() => {
     if (!widgetStatus.value?.installed) return '安装小组件';
-    if (widgetUpdate.value?.hasUpdate) return '更新小组件';
+    if (widgetNeedsUpdate.value) return '更新小组件';
     return '重新安装小组件';
   });
 
@@ -151,6 +157,12 @@ export function useGameBarWidgetInstallUi(
       return '已检测到小组件，但本机连接未就绪，请重新安装';
     }
     const version = widgetStatus.value.installedVersion;
+    if (widgetNeedsUpdate.value) {
+      const latest = widgetUpdate.value?.latestVersion;
+      if (version && latest) return `已安装 v${version}，可更新至 v${latest}`;
+      if (latest) return `已安装，可更新至 v${latest}`;
+      return version ? `已安装 v${version}，发现新版本，建议更新` : '已安装，发现新版本，建议更新';
+    }
     return version ? `已安装 v${version}，本机连接正常` : '已安装，本机连接正常';
   });
 
@@ -164,6 +176,10 @@ export function useGameBarWidgetInstallUi(
 
   async function redetectWidget() {
     await Promise.all([widget.refreshStatus(), widget.checkUpdate({ silent: true })]);
+    if (widgetNeedsUpdate.value) {
+      toast('检测到小组件有更新', 'warning');
+      return;
+    }
     toast(
       widgetReady.value ? '小组件已就绪' : '尚未检测到小组件',
       widgetReady.value ? 'success' : 'warning',
@@ -251,6 +267,7 @@ export function useGameBarWidgetInstallUi(
     gameBarInstalled,
     downloadSources,
     widgetReady,
+    widgetNeedsUpdate,
     widgetSetupStep,
     widgetStep2Title,
     widgetStep2Badge,
