@@ -512,6 +512,7 @@ fn snapshot_revision(snapshot: &GameBarIpcSnapshot) -> u64 {
     hash = fold_u64(hash, layout.line_stroke_width.to_bits());
     hash = fold_u64(hash, layout.assessment_chart_opacity.to_bits());
     hash = fold_u64(hash, layout.shooting_chart_opacity.to_bits());
+    hash = fold_u64(hash, layout.assessment_chart_type as u8 as u64);
     hash
 }
 
@@ -637,6 +638,21 @@ mod tests {
             timestamp_ms: 42,
         });
         assert_ne!(base, snapshot_revision(&snapshot));
+    }
+
+    #[test]
+    fn revision_changes_when_assessment_chart_style_changes() {
+        use crate::counter_strafing::types::AssessmentChartType;
+
+        let mut snapshot = GameBarIpcSnapshot {
+            assessment: Default::default(),
+            shooting: None,
+            layout: Default::default(),
+        };
+        let base = snapshot_revision(&snapshot);
+        snapshot.layout.assessment_chart_type = AssessmentChartType::Scatter;
+        assert_ne!(base, snapshot_revision(&snapshot));
+
     }
 
     #[test]

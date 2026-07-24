@@ -433,16 +433,16 @@ const modePanelLayerClass =
           ]"
           :aria-hidden="displayMode !== 'widget'"
         >
-            <div class="flex flex-col gap-3">
-              <GameBarWidgetDisplaySettings :cs="cs" />
+          <div class="flex flex-col gap-3">
+            <GameBarWidgetDisplaySettings :cs="cs" />
 
-              <div class="flex items-center gap-3">
-                <ListChecks class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
-                <div>
-                  <p class="text-[14px] font-semibold text-fg">小组件开启步骤</p>
-                  <p class="text-[12px] text-fg-muted">按顺序完成，就能在全屏游戏里看到数据</p>
-                </div>
+            <div class="flex items-center gap-3">
+              <ListChecks class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+              <div>
+                <p class="text-[14px] font-semibold text-fg">小组件开启步骤</p>
+                <p class="text-[12px] text-fg-muted">按顺序完成，就能在全屏游戏里看到数据</p>
               </div>
+            </div>
 
             <div class="space-y-3">
               <div
@@ -587,7 +587,8 @@ const modePanelLayerClass =
                 </span>
               </p>
             </div>
-            </div>
+
+          </div>
         </div>
       </div>
     </div>

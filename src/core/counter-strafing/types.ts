@@ -76,7 +76,7 @@ export interface CounterStrafingSnapshot {
   hudLineStrokeWidth: number;
   /** 急停折线图整体透明度（0.15–1） */
   hudAssessmentChartOpacity: number;
-  /** 开枪柱状图整体透明度（0.15–1） */
+  /** 开枪直方图整体透明度（0.15–1） */
   hudShootingChartOpacity: number;
   /** 统计文字与图表显隐：all / chartOnly / textOnly */
   hudContentMode: HudContentMode;
@@ -92,6 +92,7 @@ export interface CounterStrafingSnapshot {
 
 export type AssessmentAxis = 'horizontal' | 'vertical';
 export type AssessmentTiming = 'early' | 'late' | 'perfect';
+export type AssessmentChartType = 'line' | 'scatter';
 
 export interface CounterStrafingAssessmentRecord {
   axis: AssessmentAxis;
@@ -125,6 +126,7 @@ export interface CounterStrafingAssessmentSnapshot {
   hudAssessmentChartOpacity?: number;
   hudShootingChartOpacity?: number;
   hudContentMode?: HudContentMode;
+  assessmentChartType?: AssessmentChartType;
 }
 
 export interface ShotFeedback {
@@ -188,6 +190,7 @@ export interface CounterStrafingSettings {
   hudAssessmentChartOpacity: number;
   hudShootingChartOpacity: number;
   hudContentMode: HudContentMode;
+  assessmentChartType: AssessmentChartType;
 }
 
 export const DEFAULT_KEY_MAP: CounterStrafingKeyMap = {
@@ -248,6 +251,7 @@ export function mergeCounterStrafingSettings(
     hudAssessmentChartOpacity: loaded.hudAssessmentChartOpacity ?? 1,
     hudShootingChartOpacity: loaded.hudShootingChartOpacity ?? 1,
     hudContentMode: clampHudContentMode(loaded.hudContentMode),
+    assessmentChartType: loaded.assessmentChartType === 'scatter' ? 'scatter' : 'line',
     keyMap: {
       ...DEFAULT_KEY_MAP,
       ...loaded.keyMap,
@@ -306,6 +310,7 @@ export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   hudAssessmentChartOpacity: 1,
   hudShootingChartOpacity: 1,
   hudContentMode: 'all',
+  assessmentChartType: 'line',
 };
 
 export const BINDING_ROLE_LABELS: Record<BindingRole, string> = {

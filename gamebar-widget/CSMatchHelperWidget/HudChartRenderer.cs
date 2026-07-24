@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Windows.Foundation;
 using Windows.Data.Json;
 using Windows.UI;
 using Windows.UI.Xaml;
@@ -17,12 +18,15 @@ namespace CSMatchHelperWidget
 
         private readonly Canvas _canvas;
         private readonly Line _baseline;
-        private readonly Line[] _segments;
+        private readonly Path[] _segments;
+        private readonly PathFigure[] _segmentFigures;
+        private readonly BezierSegment[] _segmentBeziers;
         private readonly Ellipse[] _dots;
         private readonly SolidColorBrush[] _segmentBrushes;
         private readonly SolidColorBrush[] _dotBrushes;
         private readonly SolidColorBrush _baselineBrush;
         private double _strokeWidth = 1.5;
+        private string _chartType = "line";
         private readonly List<JsonObject> _recordCache = new List<JsonObject>();
 
         public AssessmentChartRenderer(Canvas canvas)
@@ -30,7 +34,9 @@ namespace CSMatchHelperWidget
             _canvas = canvas;
             _baselineBrush = new SolidColorBrush(Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF));
             _baseline = CreateDashedLine(_baselineBrush);
-            _segments = new Line[MaxSegments];
+            _segments = new Path[MaxSegments];
+            _segmentFigures = new PathFigure[MaxSegments];
+            _segmentBeziers = new BezierSegment[MaxSegments];
             _segmentBrushes = new SolidColorBrush[MaxSegments];
             _dots = new Ellipse[MaxPoints];
             _dotBrushes = new SolidColorBrush[MaxPoints];
@@ -41,7 +47,12 @@ namespace CSMatchHelperWidget
             {
                 var brush = new SolidColorBrush(Colors.Transparent);
                 _segmentBrushes[i] = brush;
-                var line = new Line
+                var bezier = new BezierSegment();
+                var figure = new PathFigure { IsClosed = false, IsFilled = false };
+                figure.Segments.Add(bezier);
+                var geometry = new PathGeometry();
+                geometry.Figures.Add(figure);
+                var path = new Path
                 {
                     Stroke = brush,
                     StrokeThickness = 1.25,
@@ -50,9 +61,12 @@ namespace CSMatchHelperWidget
                     StrokeEndLineCap = PenLineCap.Round,
                     Opacity = 0.9,
                     Visibility = Visibility.Collapsed,
+                    Data = geometry,
                 };
-                _segments[i] = line;
-                _canvas.Children.Add(line);
+                _segments[i] = path;
+                _segmentFigures[i] = figure;
+                _segmentBeziers[i] = bezier;
+                _canvas.Children.Add(path);
             }
 
             for (var i = 0; i < MaxPoints; i++)
@@ -69,9 +83,10 @@ namespace CSMatchHelperWidget
             }
         }
 
-        public void Configure(double strokeWidth)
+        public void Configure(double strokeWidth, string chartType)
         {
             _strokeWidth = HudDisplayMetrics.ClampLineStrokeWidth(strokeWidth);
+            _chartType = chartType == "scatter" ? "scatter" : "line";
             for (var i = 0; i < MaxSegments; i++)
             {
                 _segments[i].StrokeThickness = _strokeWidth;
@@ -162,17 +177,26 @@ namespace CSMatchHelperWidget
                 dots.Add((x, y, HudChartRenderer.AssessmentRecordColor(record), i == data.Count - 1));
             }
 
-            var segmentCount = Math.Max(0, dots.Count - 1);
+            var segmentCount = _chartType == "scatter" ? 0 : Math.Max(0, dots.Count - 1);
+            var tangents = segmentCount > 0 ? MonotoneTangents(dots) : null;
             for (var i = 0; i < MaxSegments; i++)
             {
                 if (i < segmentCount)
                 {
                     var start = dots[i];
                     var end = dots[i + 1];
-                    _segments[i].X1 = start.x;
-                    _segments[i].Y1 = start.y;
-                    _segments[i].X2 = end.x;
-                    _segments[i].Y2 = end.y;
+                    var controlWidth = (end.x - start.x) / 3.0;
+                    var control1 = new Point(
+                        start.x + controlWidth,
+                        ClampBetween(start.y + tangents[i] * controlWidth, start.y, end.y));
+                    var control2 = new Point(
+                        end.x - controlWidth,
+                        ClampBetween(end.y - tangents[i + 1] * controlWidth, start.y, end.y));
+
+                    _segmentFigures[i].StartPoint = new Point(start.x, start.y);
+                    _segmentBeziers[i].Point1 = control1;
+                    _segmentBeziers[i].Point2 = control2;
+                    _segmentBeziers[i].Point3 = new Point(end.x, end.y);
                     _segmentBrushes[i].Color = end.color;
                     _segments[i].Visibility = Visibility.Visible;
                 }
@@ -187,7 +211,9 @@ namespace CSMatchHelperWidget
                 if (i < dots.Count)
                 {
                     var dot = dots[i];
-                    var radius = dot.isLatest ? 2.0 : dots.Count > 24 ? 1.0 : dots.Count > 16 ? 1.25 : 1.5;
+                    var radius = _chartType == "scatter"
+                        ? dot.isLatest ? 2.75 : dots.Count > 24 ? 1.75 : dots.Count > 16 ? 2.0 : 2.25
+                        : dot.isLatest ? 2.0 : dots.Count > 24 ? 1.0 : dots.Count > 16 ? 1.25 : 1.5;
                     _dots[i].Width = radius * 2;
                     _dots[i].Height = radius * 2;
                     _dotBrushes[i].Color = dot.color;
@@ -201,6 +227,46 @@ namespace CSMatchHelperWidget
                     _dots[i].Visibility = Visibility.Collapsed;
                 }
             }
+        }
+
+        private static double[] MonotoneTangents(
+            List<(double x, double y, Color color, bool isLatest)> points)
+        {
+            var slopes = new double[points.Count - 1];
+            var tangents = new double[points.Count];
+            for (var i = 0; i < slopes.Length; i++)
+            {
+                var width = points[i + 1].x - points[i].x;
+                slopes[i] = width > 0 ? (points[i + 1].y - points[i].y) / width : 0;
+            }
+
+            tangents[0] = slopes[0];
+            tangents[tangents.Length - 1] = slopes[slopes.Length - 1];
+            for (var i = 1; i < points.Count - 1; i++)
+            {
+                var previousSlope = slopes[i - 1];
+                var nextSlope = slopes[i];
+                if (previousSlope == 0 || nextSlope == 0 || previousSlope * nextSlope <= 0)
+                {
+                    tangents[i] = 0;
+                    continue;
+                }
+
+                var previousWidth = points[i].x - points[i - 1].x;
+                var nextWidth = points[i + 1].x - points[i].x;
+                var weight1 = 2 * nextWidth + previousWidth;
+                var weight2 = nextWidth + 2 * previousWidth;
+                tangents[i] =
+                    (weight1 + weight2) /
+                    (weight1 / previousSlope + weight2 / nextSlope);
+            }
+
+            return tangents;
+        }
+
+        private static double ClampBetween(double value, double a, double b)
+        {
+            return Math.Min(Math.Max(value, Math.Min(a, b)), Math.Max(a, b));
         }
 
         private static JsonArray ToJsonArray(List<JsonObject> records)
@@ -309,8 +375,6 @@ namespace CSMatchHelperWidget
         {
             return new Rectangle
             {
-                RadiusX = 1,
-                RadiusY = 1,
                 Fill = brush,
                 Visibility = Visibility.Collapsed,
             };
@@ -372,12 +436,11 @@ namespace CSMatchHelperWidget
                 return;
             }
 
-            const double gap = 2;
-            const double padX = 6;
+            const double padX = 10;
             const double padY = 6;
             var count = MaxPoints;
             var innerW = width - padX * 2;
-            var blockW = Math.Max(3, (innerW - gap * (count - 1)) / count);
+            var blockW = Math.Max(0, innerW / count);
             var blockH = height - padY * 2;
             var barBottom = padY + blockH;
 
@@ -406,16 +469,16 @@ namespace CSMatchHelperWidget
                     continue;
                 }
 
-                var x = padX + slot * (blockW + gap);
+                var x = padX + slot * blockW;
 
                 var greenH = seg.GreenRatio * blockH;
                 var yellowH = seg.YellowRatio * blockH;
                 var redH = seg.RedRatio * blockH;
                 var thresholdY = barBottom - seg.ThresholdLineRatio * blockH;
 
-                _thresholdLines[slot].X1 = x + 1;
+                _thresholdLines[slot].X1 = x;
                 _thresholdLines[slot].Y1 = thresholdY;
-                _thresholdLines[slot].X2 = x + blockW - 1;
+                _thresholdLines[slot].X2 = x + blockW;
                 _thresholdLines[slot].Y2 = thresholdY;
                 _thresholdLines[slot].Visibility = Visibility.Visible;
 

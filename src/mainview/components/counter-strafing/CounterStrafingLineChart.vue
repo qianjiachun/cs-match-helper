@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { CounterStrafingRecord } from '@core/counter-strafing/types';
+import { assessmentSegmentPaths } from '@core/counter-strafing/assessmentChartGeometry';
+import type { AssessmentChartType, CounterStrafingRecord } from '@core/counter-strafing/types';
 import { assessmentRecordColor, ASSESSMENT_COLORS } from '@core/counter-strafing/types';
 
 /** 折线图纵轴上限（ms），超出部分按边界绘制 */
@@ -18,6 +19,7 @@ const props = withDefaults(
     topInset?: number;
     lineStrokeWidth?: number;
     chartOpacity?: number;
+    chartType?: AssessmentChartType;
   }>(),
   {
     maxPoints: 40,
@@ -29,6 +31,7 @@ const props = withDefaults(
     topInset: 0,
     lineStrokeWidth: undefined,
     chartOpacity: 1,
+    chartType: 'line',
   },
 );
 
@@ -55,7 +58,6 @@ const chart = computed(() => {
       padBottom,
       innerW,
       innerH,
-      line: '',
       zeroY: padTop + innerH / 2,
       dots: [] as Array<{ x: number; y: number; color: string; isLatest: boolean }>,
       segments: [] as Array<{ d: string; color: string }>,
@@ -72,21 +74,24 @@ const chart = computed(() => {
     return { x, y, color: assessmentRecordColor(r), isLatest: i === data.length - 1 };
   });
 
-  const line = dots.map((d, i) => `${i === 0 ? 'M' : 'L'} ${d.x.toFixed(1)} ${d.y.toFixed(1)}`).join(' ');
+  const baseLineColor = props.minimal
+    ? 'rgba(167,139,250,0.55)'
+    : props.ghost
+      ? '#A78BFA'
+      : 'var(--color-accent)';
+  const paths = props.chartType === 'line' ? assessmentSegmentPaths(dots) : [];
+  const segments = paths.map((d, i) => ({
+    d,
+    color: props.colored ? dots[i + 1].color : baseLineColor,
+  }));
 
-  const segments =
-    props.colored && dots.length > 1
-      ? dots.slice(1).map((dot, i) => ({
-          d: `M ${dots[i].x.toFixed(1)} ${dots[i].y.toFixed(1)} L ${dot.x.toFixed(1)} ${dot.y.toFixed(1)}`,
-          color: dot.color,
-        }))
-      : [];
-
-  return { width, height, padX, padTop, padBottom, innerW, innerH, line, zeroY, dots, segments };
+  return { width, height, padX, padTop, padBottom, innerW, innerH, zeroY, dots, segments };
 });
 
 const segmentStroke = computed(
-  () => props.lineStrokeWidth ?? (isHudMode.value ? 1.25 : 1.5),
+  () =>
+    props.lineStrokeWidth ??
+    (props.colored ? (isHudMode.value ? 1.25 : 1.5) : props.minimal ? 1 : 2),
 );
 const segmentOpacity = computed(() => (isHudMode.value ? 0.9 : 1) * props.chartOpacity);
 const chartLayerOpacity = computed(() => props.chartOpacity);
@@ -94,8 +99,17 @@ const zeroStroke = computed(() =>
   isHudMode.value ? 'rgba(255,255,255,0.18)' : 'rgba(148, 163, 184, 0.42)',
 );
 const showZeroLine = computed(() => props.colored && (isHudMode.value ? chart.value.dots.length > 0 : true));
+const chartAriaLabel = computed(() =>
+  props.chartType === 'scatter' ? '急停历史散点图' : '急停历史折线图',
+);
 
 function dotRadius(dot: { isLatest: boolean }, total: number): number {
+  if (props.chartType === 'scatter') {
+    if (dot.isLatest) return isHudMode.value ? 2.75 : 3.25;
+    if (total > 24) return isHudMode.value ? 1.75 : 2;
+    if (total > 16) return isHudMode.value ? 2 : 2.25;
+    return isHudMode.value ? 2.25 : 2.5;
+  }
   if (props.minimal) return 0;
   if (props.colored) {
     if (dot.isLatest) return isHudMode.value ? 2 : 2.5;
@@ -123,6 +137,13 @@ function segmentGlow(color: string): string {
     ? `drop-shadow(0 0 2px ${color}44)`
     : `drop-shadow(0 0 1.5px ${color}55)`;
 }
+
+function segmentFilter(color: string): string | undefined {
+  if (props.colored) return segmentGlow(color);
+  return props.ghost && !props.minimal
+    ? 'drop-shadow(0 0 6px rgba(124,58,237,0.65))'
+    : undefined;
+}
 </script>
 
 <template>
@@ -137,7 +158,7 @@ function segmentGlow(color: string): string {
       ]"
       :preserve-aspect-ratio="ghost ? 'none' : undefined"
       role="img"
-      aria-label="急停历史折线图"
+      :aria-label="chartAriaLabel"
     >
       <line
         v-if="showZeroLine"
@@ -171,20 +192,10 @@ function segmentGlow(color: string): string {
         stroke-linecap="round"
         stroke-linejoin="round"
         vector-effect="non-scaling-stroke"
-        :style="{ filter: segmentGlow(segment.color) }"
-      />
-      <path
-        v-if="chart.line && !colored"
-        :d="chart.line"
-        fill="none"
-        :stroke="minimal ? 'rgba(167,139,250,0.55)' : ghost ? '#A78BFA' : 'var(--color-accent)'"
-        :stroke-width="minimal ? 1 : 2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        :style="ghost && !minimal ? { filter: 'drop-shadow(0 0 6px rgba(124,58,237,0.65))' } : undefined"
+        :style="{ filter: segmentFilter(segment.color) }"
       />
       <circle
-        v-if="!minimal"
+        v-if="!minimal || chartType === 'scatter'"
         v-for="(dot, i) in chart.dots"
         :key="i"
         :cx="dot.x"

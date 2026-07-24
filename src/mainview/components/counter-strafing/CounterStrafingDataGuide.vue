@@ -76,7 +76,7 @@ const assessmentLegend = [
         <p class="text-[13px] leading-relaxed text-fg-secondary">
           系统根据移速模型计算开枪采样时刻的移动速度。速度低于准度阈值时判定为
           <span class="font-medium text-fg">稳定</span>
-          ；超出阈值则按程度显示黄色或红色。柱状图自左向右展示最近的开火记录，柱高表示该次射击的不稳定程度。
+          ；超出阈值则按程度显示黄色或红色。直方图自左向右展示最近的开火记录，柱高表示该次射击的不稳定程度。
         </p>
 
         <div class="grid gap-2 sm:grid-cols-2">
@@ -135,7 +135,7 @@ const assessmentLegend = [
     >
       <div class="space-y-4">
         <p class="text-[13px] leading-relaxed text-fg-secondary">
-          在同一移动轴上完成方向切换时（如先释放 A 再按下 D），系统测量两次按键之间的时间差，单位为毫秒。折线图纵轴表示该次切换的时间偏差，数值越接近零表示衔接越理想。亦可对照反馈调节
+          在同一移动轴上完成方向切换时（如先释放 A 再按下 D），系统测量两次按键之间的时间差，单位为毫秒。图表纵轴表示该次切换的时间偏差，数值越接近零表示衔接越理想。亦可对照反馈调节
           <span class="font-medium text-fg">磁轴键盘的按下与抬起触发高度</span>
           （如 RT 行程），找到更顺手的急停节奏。
         </p>

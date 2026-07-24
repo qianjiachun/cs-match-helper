@@ -282,6 +282,8 @@ function applyUpcomingTabWidth() {
             :assessment-snapshot="assessmentSnapshot"
             :last-shot="lastShot"
             :last-assessment-record="lastAssessmentRecord"
+            :assessment-chart-type="settings.assessmentChartType"
+            @update:assessment-chart-type="cs.applySettings({ assessmentChartType: $event })"
           />
 
           <CounterStrafingDataGuide v-else-if="activeTab === 'guide'" key="guide" />
@@ -336,7 +338,7 @@ function applyUpcomingTabWidth() {
                     <div class="min-w-0">
                       <p class="text-[13px] font-semibold text-fg">统计数据条数</p>
                       <p class="mt-0.5 text-[11px] leading-relaxed text-fg-muted">
-                        开枪柱状图与急停折线图共用，影响平均误差、稳定率、标准差等统计
+                        开枪直方图与急停图表共用，影响平均误差、稳定率、标准差等统计
                       </p>
                     </div>
                   </div>

@@ -14,12 +14,14 @@ import {
   Waves,
 } from 'lucide-vue-next';
 import CounterStrafingLineChart from './CounterStrafingLineChart.vue';
+import AssessmentChartStyleControls from './AssessmentChartStyleControls.vue';
 import ShootingErrorBars from './ShootingErrorBars.vue';
 import type {
   CounterStrafingAssessmentRecord,
   CounterStrafingAssessmentSnapshot,
   CounterStrafingSnapshot,
   ShootingErrorRecord,
+  AssessmentChartType,
 } from '@core/counter-strafing/types';
 import {
   assessmentRecordColor,
@@ -40,6 +42,11 @@ const props = defineProps<{
   assessmentSnapshot: CounterStrafingAssessmentSnapshot;
   lastShot: ShootingErrorRecord | null;
   lastAssessmentRecord: CounterStrafingAssessmentRecord | null;
+  assessmentChartType: AssessmentChartType;
+}>();
+
+const emit = defineEmits<{
+  'update:assessmentChartType': [value: AssessmentChartType];
 }>();
 
 const lastShotFeedback = computed(() =>
@@ -338,14 +345,22 @@ const shootingKpis = computed(() => [
       </div>
 
       <div class="mx-5 mb-5 rounded-xl border border-border-subtle bg-[#0f172a]/3 px-4 py-3.5">
-        <div class="mb-2 flex items-center justify-between gap-2">
-          <p class="text-[11px] font-medium text-fg-muted">近 32 次趋势</p>
-          <p v-if="!hasAssessmentData" class="text-[11px] text-fg-muted">等待样本…</p>
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <p class="text-[11px] font-medium text-fg-muted">近 32 次趋势</p>
+            <p v-if="!hasAssessmentData" class="text-[11px] text-fg-muted">等待样本…</p>
+          </div>
+          <AssessmentChartStyleControls
+            :chart-type="assessmentChartType"
+            compact
+            @update:chart-type="emit('update:assessmentChartType', $event)"
+          />
         </div>
         <CounterStrafingLineChart
           :records="assessmentSnapshot.records"
           :max-points="32"
           :height="104"
+          :chart-type="assessmentChartType"
           colored
         />
       </div>

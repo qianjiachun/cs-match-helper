@@ -57,20 +57,19 @@ const legendItems = [
 const chart = computed(() => {
   const data = blocks.value;
   const count = props.maxPoints;
-  const gap = props.compact ? 2 : 4;
-  const padX = props.compact ? 6 : 10;
+  const padX = props.compact ? 10 : 14;
   const padY = props.compact ? 6 : 8;
   const width = props.width;
   const height = props.height;
   const innerW = width - padX * 2;
-  const blockW = Math.max(3, (innerW - gap * (count - 1)) / count);
+  const blockW = Math.max(0, innerW / count);
   const blockH = height - padY * 2;
   const barBottom = padY + blockH;
 
   const items = data.map((record, i) => {
     const slot = count - data.length + i;
     const isLatest = i === data.length - 1;
-    const x = padX + slot * (blockW + gap);
+    const x = padX + slot * blockW;
     const y = padY;
     const seg = shotBarSegments(record);
     const isStableHidden = !props.showStableBars && seg.state === 'stable';
@@ -152,7 +151,7 @@ const chart = computed(() => {
       class="w-full h-full instrument-chart"
       :style="{ opacity: chartOpacity }"
       role="img"
-      aria-label="射击稳定度仪表条"
+      aria-label="射击稳定度直方图"
     >
       <defs>
         <filter id="instrument-glow" x="-60%" y="-60%" width="220%" height="220%">
@@ -180,9 +179,9 @@ const chart = computed(() => {
       <g v-for="(block, i) in chart.items" :key="i">
         <line
           v-if="!block.isStableHidden"
-          :x1="block.x + 1"
+          :x1="block.x"
           :y1="block.thresholdY"
-          :x2="block.x + block.w - 1"
+          :x2="block.x + block.w"
           :y2="block.thresholdY"
           :stroke="SHOT_BAR_COLORS.threshold"
           stroke-width="1"
@@ -197,7 +196,6 @@ const chart = computed(() => {
           :width="block.w"
           :height="block.greenH"
           :fill="block.stableColor"
-          rx="1"
         />
 
         <rect
@@ -207,7 +205,6 @@ const chart = computed(() => {
           :width="block.w"
           :height="block.yellowH"
           :fill="SHOT_BAR_COLORS.micro"
-          rx="1"
         />
 
         <rect
@@ -217,7 +214,6 @@ const chart = computed(() => {
           :width="block.w"
           :height="block.redH"
           :fill="SHOT_BAR_COLORS.run"
-          rx="1"
           :filter="block.isLatest && ghost ? 'url(#instrument-glow)' : undefined"
         />
 

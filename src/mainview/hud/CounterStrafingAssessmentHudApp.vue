@@ -58,6 +58,7 @@ const lineStrokeWidth = computed(() =>
 const assessmentChartOpacity = computed(() =>
   clampHudChartOpacity(snapshot.value.hudAssessmentChartOpacity ?? 1),
 );
+const assessmentChartType = computed(() => snapshot.value.assessmentChartType ?? 'line');
 const contentMode = computed(() => snapshot.value.hudContentMode ?? 'all');
 const showText = computed(() => showHudTextContent(contentMode.value));
 const showChart = computed(() => showHudChartContent(contentMode.value));
@@ -287,6 +288,7 @@ onUnmounted(() => {
           :max-points="32"
           :height="chartHeight"
           :line-stroke-width="lineStrokeWidth"
+          :chart-type="assessmentChartType"
           ghost
           colored
           compact

@@ -147,6 +147,19 @@ impl Default for HudContentMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AssessmentChartType {
+    Line,
+    Scatter,
+}
+
+impl Default for AssessmentChartType {
+    fn default() -> Self {
+        Self::Line
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CounterStrafingAssessmentRecord {
@@ -193,6 +206,8 @@ pub struct CounterStrafingAssessmentSnapshot {
     pub hud_shooting_chart_opacity: f64,
     #[serde(default)]
     pub hud_content_mode: HudContentMode,
+    #[serde(default)]
+    pub assessment_chart_type: AssessmentChartType,
 }
 
 impl Default for CounterStrafingAssessmentSnapshot {
@@ -214,6 +229,7 @@ impl Default for CounterStrafingAssessmentSnapshot {
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
             hud_content_mode: HudContentMode::default(),
+            assessment_chart_type: AssessmentChartType::default(),
         }
     }
 }
@@ -258,6 +274,8 @@ pub struct GameBarWidgetLayout {
     pub shooting_chart_opacity: f64,
     #[serde(default)]
     pub content_mode: HudContentMode,
+    #[serde(default)]
+    pub assessment_chart_type: AssessmentChartType,
 }
 
 impl Default for GameBarWidgetLayout {
@@ -272,6 +290,7 @@ impl Default for GameBarWidgetLayout {
             assessment_chart_opacity: default_hud_chart_opacity(),
             shooting_chart_opacity: default_hud_chart_opacity(),
             content_mode: HudContentMode::default(),
+            assessment_chart_type: AssessmentChartType::default(),
         }
     }
 }
@@ -507,6 +526,8 @@ pub struct CounterStrafingSettings {
     pub hud_shooting_chart_opacity: f64,
     #[serde(default)]
     pub hud_content_mode: HudContentMode,
+    #[serde(default)]
+    pub assessment_chart_type: AssessmentChartType,
 }
 
 pub const GAMEBAR_ASSESSMENT_RATIO_MIN: f64 = 0.05;
@@ -571,6 +592,7 @@ pub fn gamebar_layout_from_settings(settings: &CounterStrafingSettings) -> GameB
         assessment_chart_opacity: clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity),
         shooting_chart_opacity: clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity),
         content_mode: normalize_hud_content_mode(settings.hud_content_mode),
+        assessment_chart_type: settings.assessment_chart_type,
     }
 }
 
@@ -584,6 +606,7 @@ pub fn apply_hud_display_to_assessment_snapshot(
         clamp_hud_chart_opacity(settings.hud_assessment_chart_opacity);
     snap.hud_shooting_chart_opacity = clamp_hud_chart_opacity(settings.hud_shooting_chart_opacity);
     snap.hud_content_mode = normalize_hud_content_mode(settings.hud_content_mode);
+    snap.assessment_chart_type = settings.assessment_chart_type;
 }
 
 pub fn apply_hud_display_to_snapshot(snap: &mut CounterStrafingSnapshot, settings: &CounterStrafingSettings) {
@@ -728,6 +751,7 @@ impl Default for CounterStrafingSettings {
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
             hud_content_mode: HudContentMode::default(),
+            assessment_chart_type: AssessmentChartType::default(),
         }
     }
 }
@@ -743,4 +767,29 @@ pub struct InputEvent {
     pub source: InputSource,
     pub is_down: bool,
     pub time_secs: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_settings_default_to_line_chart() {
+        let settings: CounterStrafingSettings =
+            serde_json::from_str(r#"{"assessmentChartSmooth":false}"#).unwrap();
+        assert_eq!(settings.assessment_chart_type, AssessmentChartType::Line);
+    }
+
+    #[test]
+    fn chart_settings_propagate_to_hud_and_gamebar() {
+        let mut settings = CounterStrafingSettings::default();
+        settings.assessment_chart_type = AssessmentChartType::Scatter;
+
+        let mut assessment = CounterStrafingAssessmentSnapshot::default();
+        apply_hud_display_to_assessment_snapshot(&mut assessment, &settings);
+        let layout = gamebar_layout_from_settings(&settings);
+
+        assert_eq!(assessment.assessment_chart_type, AssessmentChartType::Scatter);
+        assert_eq!(layout.assessment_chart_type, AssessmentChartType::Scatter);
+    }
 }
