@@ -84,6 +84,103 @@ fn rollback_replaced_executable(current_exe: &Path, old_exe: &Path) {
     let _ = std::fs::rename(old_exe, current_exe);
 }
 
+/// Escape a path for use inside a PowerShell single-quoted string.
+fn powershell_single_quoted(path: &Path) -> String {
+    path.to_string_lossy().replace('\'', "''")
+}
+
+#[cfg(windows)]
+fn write_utf8_bom_text_file(path: &Path, content: &str) -> Result<(), String> {
+    let mut file = std::fs::File::create(path).map_err(|e| format!("写入文件失败: {e}"))?;
+    file.write_all(&[0xEF, 0xBB, 0xBF])
+        .map_err(|e| format!("写入文件失败: {e}"))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("写入文件失败: {e}"))?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn powershell_system_exe() -> PathBuf {
+    std::env::var("SystemRoot")
+        .map(|root| {
+            PathBuf::from(root)
+                .join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe")
+        })
+        .unwrap_or_else(|_| {
+            PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+        })
+}
+
+/// Build the PowerShell restart helper script content.
+/// Paths must already be escaped for PowerShell single-quoted strings.
+fn build_restart_helper_script(
+    pid: u32,
+    log_literal: &str,
+    marker_literal: &str,
+    work_literal: &str,
+    target_literal: &str,
+    old_literal: &str,
+    new_literal: &str,
+) -> String {
+    format!(
+        r#"$ErrorActionPreference = 'Continue'
+$logPath = '{log_literal}'
+$markerPath = '{marker_literal}'
+$workDir = '{work_literal}'
+$targetExe = '{target_literal}'
+$oldExe = '{old_literal}'
+$newExe = '{new_literal}'
+$pidToWait = {pid}
+
+function Write-UpdateLog([string]$Message) {{
+  $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Message"
+  Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+}}
+
+function Write-FailureMarker {{
+  Set-Content -LiteralPath $markerPath -Value '1' -Encoding UTF8
+}}
+
+Write-UpdateLog "Restart helper started; waiting for PID $pidToWait"
+while ($true) {{
+  $proc = Get-Process -Id $pidToWait -ErrorAction SilentlyContinue
+  if ($null -eq $proc) {{ break }}
+  Start-Sleep -Milliseconds 500
+}}
+
+Write-UpdateLog "Process exited; starting updated exe"
+try {{
+  Start-Process -FilePath $targetExe -WorkingDirectory $workDir | Out-Null
+}} catch {{
+  Write-UpdateLog ("Failed to start updated exe: " + $_.Exception.Message)
+  Write-FailureMarker
+  exit 1
+}}
+
+Start-Sleep -Milliseconds 800
+if (Test-Path -LiteralPath $oldExe) {{
+  Remove-Item -LiteralPath $oldExe -Force -ErrorAction SilentlyContinue
+}}
+if (Test-Path -LiteralPath $newExe) {{
+  Remove-Item -LiteralPath $newExe -Force -ErrorAction SilentlyContinue
+}}
+Write-UpdateLog "Update completed successfully"
+Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+exit 0
+"#,
+        log_literal = log_literal,
+        marker_literal = marker_literal,
+        work_literal = work_literal,
+        target_literal = target_literal,
+        old_literal = old_literal,
+        new_literal = new_literal,
+        pid = pid,
+    )
+}
+
 fn replace_executable_in_place(current_exe: &Path, new_exe: &Path) -> Result<(), String> {
     unblock_motw(new_exe);
 
@@ -555,55 +652,50 @@ pub async fn apply_update_and_restart(
             .unwrap_or_else(|| PathBuf::from("."));
         let old_exe = old_exe_path(&current_exe);
         let script_path = std::env::temp_dir().join(format!(
-            "cs-match-helper-restart-{}.cmd",
+            "cs-match-helper-restart-{}.ps1",
             uuid::Uuid::new_v4()
         ));
         let log_path = update_log_path();
+        let marker_path = update_failure_marker_path();
 
         // Wait for this process to fully exit before starting the new binary,
         // so WebView2/app data locks are released.
-        let script = format!(
-            "@echo off\r\n\
-setlocal\r\n\
-set \"LOG={log}\"\r\n\
-echo [%date% %time%] Restart helper started>>\"%LOG%\"\r\n\
-echo [%date% %time%] Waiting for PID {pid}>>\"%LOG%\"\r\n\
-:wait_loop\r\n\
-tasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
-if not errorlevel 1 (\r\n\
-  ping 127.0.0.1 -n 2 >nul\r\n\
-  goto wait_loop\r\n\
-)\r\n\
-echo [%date% %time%] Process exited; starting updated exe>>\"%LOG%\"\r\n\
-start \"\" /D \"{work}\" \"{target}\"\r\n\
-if errorlevel 1 (\r\n\
-  echo [%date% %time%] Failed to start updated exe>>\"%LOG%\"\r\n\
-  exit /b 1\r\n\
-)\r\n\
-ping 127.0.0.1 -n 2 >nul\r\n\
-del /f /q \"{old}\" >nul 2>nul\r\n\
-del /f /q \"{new}\" >nul 2>nul\r\n\
-echo [%date% %time%] Update completed successfully>>\"%LOG%\"\r\n\
-del /f /q \"%~f0\" >nul 2>nul\r\n\
-",
-            log = log_path.to_string_lossy().replace('"', ""),
-            pid = pid,
-            work = work_dir.to_string_lossy().replace('"', ""),
-            target = current_exe.to_string_lossy().replace('"', ""),
-            old = old_exe.to_string_lossy().replace('"', ""),
-            new = new_exe.to_string_lossy().replace('"', ""),
+        // Use UTF-8 BOM PowerShell (not .cmd) so Chinese paths decode correctly.
+        let script = build_restart_helper_script(
+            pid,
+            &powershell_single_quoted(&log_path),
+            &powershell_single_quoted(&marker_path),
+            &powershell_single_quoted(&work_dir),
+            &powershell_single_quoted(&current_exe),
+            &powershell_single_quoted(&old_exe),
+            &powershell_single_quoted(&new_exe),
         );
 
-        std::fs::write(&script_path, script)
+        write_utf8_bom_text_file(&script_path, &script)
             .map_err(|error| format!("创建重启脚本失败: {error}"))?;
+
+        let powershell = powershell_system_exe();
+        if !powershell.is_file() {
+            let _ = std::fs::remove_file(&script_path);
+            rollback_replaced_executable(&current_exe, &old_exe);
+            write_update_failure_marker();
+            return Err(format!("未找到系统 PowerShell: {}", powershell.display()));
+        }
 
         let spawn_flags_primary =
             CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW;
         let spawn_flags_fallback = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW;
 
         let spawn_helper = |flags: u32| {
-            std::process::Command::new("cmd")
-                .args(["/d", "/c"])
+            std::process::Command::new(&powershell)
+                .args([
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-File",
+                ])
                 .arg(&script_path)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
@@ -719,6 +811,84 @@ mod tests {
             std::fs::read(&current).expect("read current"),
             b"old-binary"
         );
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn powershell_single_quoted_escapes_apostrophe() {
+        let path = PathBuf::from(r"C:\User's Apps\cs-match-helper.exe");
+        assert_eq!(
+            powershell_single_quoted(&path),
+            r"C:\User''s Apps\cs-match-helper.exe"
+        );
+    }
+
+    #[test]
+    fn restart_helper_script_preserves_chinese_and_space_paths() {
+        let work = PathBuf::from(r"C:\Users\Administrator\Desktop\CS匹配助手");
+        let target = work.join("cs-match-helper.exe");
+        let old = old_exe_path(&target);
+        let new_exe = PathBuf::from(r"C:\Users\Admin Name\AppData\Local\Temp\update.exe");
+        let log = PathBuf::from(r"C:\Users\Admin Name\AppData\Local\Temp\cs-match-helper-update.log");
+        let marker =
+            PathBuf::from(r"C:\Users\Admin Name\AppData\Local\Temp\cs-match-helper-update-failed.marker");
+
+        let script = build_restart_helper_script(
+            12345,
+            &powershell_single_quoted(&log),
+            &powershell_single_quoted(&marker),
+            &powershell_single_quoted(&work),
+            &powershell_single_quoted(&target),
+            &powershell_single_quoted(&old),
+            &powershell_single_quoted(&new_exe),
+        );
+
+        assert!(script.contains(r"$workDir = 'C:\Users\Administrator\Desktop\CS匹配助手'"));
+        assert!(script.contains(
+            r"$targetExe = 'C:\Users\Administrator\Desktop\CS匹配助手\cs-match-helper.exe'"
+        ));
+        assert!(script.contains(r"$newExe = 'C:\Users\Admin Name\AppData\Local\Temp\update.exe'"));
+        assert!(script.contains("$pidToWait = 12345"));
+        assert!(script.contains("Start-Process -FilePath $targetExe -WorkingDirectory $workDir"));
+        assert!(script.contains("Write-FailureMarker"));
+    }
+
+    #[test]
+    fn restart_helper_script_escapes_single_quotes_in_paths() {
+        let work = PathBuf::from(r"C:\O'Brien\CS Match Helper");
+        let target = work.join("cs-match-helper.exe");
+        let script = build_restart_helper_script(
+            1,
+            &powershell_single_quoted(Path::new(r"C:\Temp\log.txt")),
+            &powershell_single_quoted(Path::new(r"C:\Temp\marker.txt")),
+            &powershell_single_quoted(&work),
+            &powershell_single_quoted(&target),
+            &powershell_single_quoted(&old_exe_path(&target)),
+            &powershell_single_quoted(Path::new(r"C:\Temp\new.exe")),
+        );
+
+        assert!(script.contains(r"$workDir = 'C:\O''Brien\CS Match Helper'"));
+        assert!(script.contains(
+            r"$targetExe = 'C:\O''Brien\CS Match Helper\cs-match-helper.exe'"
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn write_utf8_bom_text_file_writes_bom_prefix() {
+        let temp = std::env::temp_dir().join(format!(
+            "cs-match-helper-bom-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp).expect("create temp dir");
+        let path = temp.join("restart.ps1");
+        write_utf8_bom_text_file(&path, "Write-Host 'CS匹配助手'").expect("write bom file");
+
+        let bytes = std::fs::read(&path).expect("read bom file");
+        assert_eq!(&bytes[..3], &[0xEF, 0xBB, 0xBF]);
+        let body = String::from_utf8(bytes[3..].to_vec()).expect("utf8 body");
+        assert!(body.contains("CS匹配助手"));
 
         let _ = std::fs::remove_dir_all(&temp);
     }
