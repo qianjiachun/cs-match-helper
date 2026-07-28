@@ -14,9 +14,17 @@ import { useMatchHistory } from './composables/useMatchHistory';
 import { useP5eCdp } from './composables/useP5eCdp';
 import { useCloseConfirm } from './composables/useCloseConfirm';
 import { useUpdateCheck } from './composables/useUpdateCheck';
+import CounterStrafingView from './views/CounterStrafingView.vue';
+import HomeView from './views/HomeView.vue';
 import MatchAssistantView from './views/MatchAssistantView.vue';
 import PlatformSelectView from './views/PlatformSelectView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
+import {
+  resolveInitialView,
+  viewFromModuleId,
+  writeLastModuleId,
+  type AppModuleId,
+} from './modules/appModules';
 import { startupMark } from './utils/startup-metrics';
 import type { PlatformId } from '@platforms/types';
 import { requestMatchAttention } from './native';
@@ -24,7 +32,6 @@ import { requestMatchAttention } from './native';
 startupMark('app setup start');
 
 const P5eLaunchView = defineAsyncComponent(() => import('./views/P5eLaunchView.vue'));
-const CounterStrafingView = defineAsyncComponent(() => import('./views/CounterStrafingView.vue'));
 const PlayerCommentsDrawer = defineAsyncComponent(
   () => import('./components/comments/PlayerCommentsDrawer.vue'),
 );
@@ -168,35 +175,63 @@ async function injectAiResult(raw: string): Promise<string | null> {
   return ai.injectResult(match.id, raw);
 }
 
-type AppView = 'main' | 'settings' | 'counter-strafing';
+type AppView = 'home' | 'main' | 'settings' | 'counter-strafing';
 
-const currentView = ref<AppView>('main');
+const currentView = ref<AppView>(resolveInitialView());
 const settingsTab = ref<SettingsTab>('history');
+const viewBeforeSettings = ref<Exclude<AppView, 'settings'>>('home');
 
 const settingsViewRef = ref<{ goBack: () => boolean } | null>(null);
 
 function openSettings(tab: SettingsTab = 'history') {
+  if (currentView.value !== 'settings') {
+    viewBeforeSettings.value = currentView.value;
+  }
   settingsTab.value = tab;
   currentView.value = 'settings';
 }
 
+function openHome() {
+  currentView.value = 'home';
+}
+
+function openModule(id: AppModuleId) {
+  const view = viewFromModuleId(id);
+  if (!view) return;
+  writeLastModuleId(id);
+  currentView.value = view;
+  if (view === 'main') {
+    const match = matches.value[0];
+    if (match) {
+      void ai.analyzeMatch(match);
+    }
+  }
+}
+
 function openCounterStrafing() {
-  currentView.value = 'counter-strafing';
+  openModule('counter-strafing');
 }
 
 async function toggleCounterStrafing() {
   await toggleCounterStrafingListening();
 }
 
-function goMain() {
+/** Leave settings (nested back first) or return to previous module view. */
+function goHome() {
   if (currentView.value === 'settings' && settingsViewRef.value?.goBack?.()) {
     return;
   }
-  currentView.value = 'main';
-  const match = matches.value[0];
-  if (match) {
-    void ai.analyzeMatch(match);
+  if (currentView.value === 'settings') {
+    currentView.value = viewBeforeSettings.value;
+    if (currentView.value === 'main') {
+      const match = matches.value[0];
+      if (match) {
+        void ai.analyzeMatch(match);
+      }
+    }
+    return;
   }
+  openHome();
 }
 
 async function onSelectPlatform(id: PlatformId) {
@@ -253,11 +288,23 @@ function onBackFromP5e() {
       @open-settings="openSettings()"
       @open-counter-strafing="openCounterStrafing()"
       @toggle-counter-strafing="toggleCounterStrafing()"
-      @go-main="goMain"
+      @go-home="goHome"
+      @open-home="openHome"
       @open-update-dialog="openDialog()"
       @debug-open="onDebugOpen()"
     />
     <main class="relative min-h-0 flex-1 overflow-hidden">
+      <div
+        class="view-shell"
+        :class="currentView === 'home' ? 'view-shell--active' : 'view-shell--exit-left'"
+        :aria-hidden="currentView !== 'home'"
+      >
+        <HomeView
+          class="h-full"
+          :version="formattedVersion"
+          @open-module="openModule"
+        />
+      </div>
       <div
         class="view-shell"
         :class="currentView === 'main' ? 'view-shell--active' : 'view-shell--exit-left'"
@@ -314,12 +361,10 @@ function onBackFromP5e() {
         :class="currentView === 'counter-strafing' ? 'view-shell--active' : 'view-shell--exit-right'"
         :aria-hidden="currentView !== 'counter-strafing'"
       >
-        <KeepAlive>
-          <CounterStrafingView
-            v-if="currentView === 'counter-strafing'"
-            class="h-full"
-          />
-        </KeepAlive>
+        <CounterStrafingView
+          class="h-full"
+          :visible="currentView === 'counter-strafing'"
+        />
       </div>
     </main>
     <CopyToast />

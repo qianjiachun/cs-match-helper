@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ArrowLeft, Bug, Minus, Settings, Square, X } from 'lucide-vue-next';
-import { defineAsyncComponent, ref } from 'vue';
+import { ArrowLeft, Bug, Home, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from '../native';
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
@@ -23,8 +23,8 @@ function openDebugPanel() {
   emit('debugOpen');
 }
 
-defineProps<{
-  view: 'main' | 'settings' | 'counter-strafing';
+const props = defineProps<{
+  view: 'home' | 'main' | 'settings' | 'counter-strafing';
   counterStrafingListening: boolean;
   counterStrafingBusy: boolean;
   injectMatch: (data: Record<string, unknown>) => void;
@@ -43,10 +43,18 @@ const emit = defineEmits<{
   openSettings: [];
   openCounterStrafing: [];
   toggleCounterStrafing: [];
-  goMain: [];
+  goHome: [];
+  openHome: [];
   openUpdateDialog: [];
   debugOpen: [];
 }>();
+
+const showSettingsButton = computed(
+  () => props.view === 'home' || props.view === 'main' || props.view === 'counter-strafing',
+);
+
+/** Leave settings (nested back / restore previous view). */
+const showSettingsBackButton = computed(() => props.view === 'settings');
 </script>
 
 <template>
@@ -55,7 +63,12 @@ const emit = defineEmits<{
     data-tauri-drag-region
   >
     <div class="flex min-w-0 flex-1 items-center gap-3 px-4" data-tauri-drag-region>
-      <div class="flex items-center gap-2.5">
+      <button
+        type="button"
+        class="no-drag flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md px-1 py-0.5 text-left transition-colors duration-200 hover:bg-elevated/80 active:scale-[0.98]"
+        aria-label="返回首页"
+        @click="emit('openHome')"
+      >
         <img
           :src="appIcon"
           alt=""
@@ -63,15 +76,16 @@ const emit = defineEmits<{
           aria-hidden="true"
         />
         <div class="flex min-w-0 items-baseline gap-2">
-          <p class="truncate text-[13px] font-semibold text-fg">CS 匹配助手 -By 小淳</p>
+          <p class="truncate text-[13px] font-semibold text-fg">CS 对局助手 -By 小淳</p>
           <span class="shrink-0 text-[11px] text-fg-muted">{{ version }}</span>
-          <UpdateBadge
-            v-if="hasUpdate"
-            compact
-            @click="emit('openUpdateDialog')"
-          />
         </div>
-      </div>
+      </button>
+      <UpdateBadge
+        v-if="hasUpdate"
+        compact
+        class="no-drag"
+        @click="emit('openUpdateDialog')"
+      />
     </div>
 
     <div class="no-drag relative flex h-full items-stretch">
@@ -107,7 +121,19 @@ const emit = defineEmits<{
       />
 
       <button
-        v-if="view === 'main'"
+        type="button"
+        class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
+        :class="view === 'home' ? 'text-fg' : 'text-fg-muted'"
+        :aria-current="view === 'home' ? 'page' : undefined"
+        aria-label="打开首页"
+        @click="emit('openHome')"
+      >
+        <Home class="h-4 w-4" />
+        <span class="hidden sm:inline">首页</span>
+      </button>
+
+      <button
+        v-if="showSettingsButton"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
         aria-label="打开设置"
@@ -116,12 +142,13 @@ const emit = defineEmits<{
         <Settings class="h-4 w-4" />
         <span class="hidden sm:inline">设置</span>
       </button>
+
       <button
-        v-if="view !== 'main'"
+        v-if="showSettingsBackButton"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-        aria-label="返回主页"
-        @click="emit('goMain')"
+        aria-label="返回上一页"
+        @click="emit('goHome')"
       >
         <ArrowLeft class="h-4 w-4" />
         <span class="hidden sm:inline">返回</span>
