@@ -26,7 +26,8 @@ const toggleAriaLabel = computed(() => {
 });
 
 function onOpen() {
-  if (!props.activePage) emit('open');
+  if (props.activePage) return;
+  emit('open');
 }
 
 function onToggle() {
@@ -49,16 +50,11 @@ function onToggle() {
     <button
       type="button"
       tabindex="-1"
-      class="relative flex cursor-pointer items-center gap-1.5 py-0 pl-2.5 pr-2 text-[12px] outline-none transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.96] motion-reduce:active:scale-100"
-      :class="
-        activePage
-          ? listening
-            ? 'bg-emerald-500/10 text-fg'
-            : 'bg-elevated text-fg-secondary'
-          : listening
-            ? 'text-emerald-700 hover:bg-emerald-500/10'
-            : 'text-fg-muted hover:bg-elevated hover:text-fg-secondary'
-      "
+      class="relative flex items-center gap-1.5 py-0 pl-2.5 pr-2 text-[12px] outline-none transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
+      :class="[
+        listening ? 'bg-emerald-500/10 text-fg' : 'bg-elevated text-fg-secondary',
+        activePage ? 'cursor-default' : 'cursor-pointer hover:bg-elevated',
+      ]"
       :aria-label="openAriaLabel"
       :aria-current="activePage ? 'page' : undefined"
       @mousedown.prevent
@@ -72,7 +68,7 @@ function onToggle() {
         />
         <span
           v-if="listening"
-          class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-surface motion-safe:animate-pulse sm:hidden"
+          class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500 ring-2 ring-surface sm:hidden"
           aria-hidden="true"
         />
       </span>
@@ -89,7 +85,7 @@ function onToggle() {
               :class="listening ? 'cs-header-strafing__badge--visible' : 'cs-header-strafing__badge--hidden'"
             >
               <span
-                class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                class="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
                 aria-hidden="true"
               />
               记录中
@@ -108,7 +104,7 @@ function onToggle() {
     <button
       type="button"
       tabindex="-1"
-      class="relative flex w-8 cursor-pointer items-center justify-center outline-none transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.96] motion-reduce:active:scale-100 disabled:cursor-not-allowed disabled:opacity-60"
+      class="relative flex w-8 cursor-pointer items-center justify-center outline-none transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60"
       :class="listening ? 'text-danger hover:bg-danger/8' : 'text-accent hover:bg-accent/10'"
       :aria-label="toggleAriaLabel"
       :aria-pressed="listening"
@@ -131,7 +127,6 @@ function onToggle() {
               : 'cs-header-strafing__icon--hidden'
           "
         >
-          <!-- Play 三角光学对齐：略偏右 -->
           <Play class="h-3.5 w-3.5 translate-x-[0.5px]" aria-hidden="true" />
         </span>
         <span
@@ -192,18 +187,4 @@ function onToggle() {
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .cs-header-strafing,
-  .cs-header-strafing__badge,
-  .cs-header-strafing__badge--visible,
-  .cs-header-strafing__icon {
-    transition-duration: 0.01ms !important;
-    transition-delay: 0ms !important;
-  }
-
-  .cs-header-strafing__icon--hidden {
-    transform: scale(1);
-    filter: none;
-  }
-}
 </style>

@@ -198,7 +198,7 @@ onUnmounted(() => {
 });
 
 const modePanelLayerClass =
-  'absolute inset-x-0 top-0 transform-gpu px-5 pt-2.5 pb-4 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none will-change-[opacity]';
+  'absolute inset-x-0 top-0 transform-gpu px-5 pt-2.5 pb-4 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity]';
 </script>
 
 <template>
@@ -550,7 +550,7 @@ const modePanelLayerClass =
                         <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" />
                         打开 Game Bar
                       </li>
-                      <li>在「小组件」里找到 <strong class="font-medium text-fg">CS 匹配助手</strong> 并固定</li>
+                      <li>在「小组件」里找到 <strong class="font-medium text-fg">CS 对局助手</strong> 并固定</li>
                     </ol>
                     <p
                       v-if="snapshot.listening && widgetReady"

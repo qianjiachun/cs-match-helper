@@ -186,7 +186,7 @@ const shootingKpis = computed(() => [
           >
             <CircleDot
               v-if="isRecording"
-              class="h-5 w-5 text-emerald-600 motion-safe:animate-pulse"
+              class="h-5 w-5 animate-pulse text-emerald-600"
             />
             <CirclePause
               v-else
@@ -511,9 +511,4 @@ const shootingKpis = computed(() => [
   gap: 0.375rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .cs-data-panel :deep(.motion-safe\:animate-pulse) {
-    animation: none;
-  }
-}
 </style>

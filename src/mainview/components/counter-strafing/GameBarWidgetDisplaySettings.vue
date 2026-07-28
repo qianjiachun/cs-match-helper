@@ -122,7 +122,7 @@ function patchAssessmentRatio(raw: string) {
     </button>
 
     <div
-      class="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+      class="grid transition-[grid-template-rows] duration-200 ease-out"
       :class="expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
     >
       <div class="min-h-0 overflow-hidden">

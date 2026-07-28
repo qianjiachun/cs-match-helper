@@ -237,7 +237,7 @@ function applyUpcomingTabWidth() {
                 v-if="inputListenNeedsAdmin"
                 class="mt-3 list-decimal space-y-1.5 pl-4 text-[12px] leading-relaxed text-fg-secondary"
               >
-                <li>完全退出 CS 匹配助手</li>
+                <li>完全退出 CS 对局助手</li>
                 <li>在桌面或开始菜单找到程序图标</li>
                 <li>右键 → 以管理员身份运行</li>
                 <li>返回急停助手，再次点击「开始记录」</li>
@@ -786,14 +786,4 @@ function applyUpcomingTabWidth() {
   opacity: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .cs-strafing-content-shell {
-    transition-duration: 0.01ms;
-  }
-
-  .cs-strafing-tab-enter-active,
-  .cs-strafing-tab-leave-active {
-    transition-duration: 0.01ms;
-  }
-}
 </style>

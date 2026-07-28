@@ -89,18 +89,6 @@
   transform: translate3d(0, -6px, 0);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .display-mode-panel-enter-active,
-  .display-mode-panel-leave-active {
-    transition-duration: 0.01ms;
-  }
-
-  .display-mode-panel-enter-from,
-  .display-mode-panel-leave-to {
-    transform: none;
-  }
-}
-
 .tab-fade-enter-active,
 .tab-fade-leave-active {
   transition: opacity 160ms ease-out;
