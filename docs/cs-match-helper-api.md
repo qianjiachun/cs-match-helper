@@ -1,4 +1,4 @@
-# CS 匹配助手评论接口文档
+# CS 对局助手评论接口文档
 
 本文档供 [cs-match-helper](https://github.com/qianjiachun/cs-match-helper) 等客户端项目对接使用。
 

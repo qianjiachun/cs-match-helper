@@ -78,7 +78,7 @@ namespace CSMatchHelperWidget
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            SetLinkState(WidgetLinkState.Preparing, "请打开 CS 匹配助手开始记录");
+            SetLinkState(WidgetLinkState.Preparing, "请打开 CS 对局助手开始记录");
             UpdateChartStatsVisibility();
             _ = StreamLoopAsync();
         }
@@ -121,13 +121,13 @@ namespace CSMatchHelperWidget
                             await RunOnUiThreadAsync(() =>
                             {
                                 ResetIdleState();
-                                SetLinkState(WidgetLinkState.Offline, "请确认 CS 匹配助手已启动并开始记录");
+                                SetLinkState(WidgetLinkState.Offline, "请确认 CS 对局助手已启动并开始记录");
                             });
                         }
                         else if (!_hasLiveSnapshot)
                         {
                             await RunOnUiThreadAsync(() =>
-                                SetLinkState(WidgetLinkState.Preparing, "请打开 CS 匹配助手开始记录"));
+                                SetLinkState(WidgetLinkState.Preparing, "请打开 CS 对局助手开始记录"));
                         }
                     }
 
@@ -886,12 +886,12 @@ namespace CSMatchHelperWidget
                     return;
                 case WidgetLinkState.Offline:
                     StatusText.Text = "未连接";
-                    StatusHintText.Text = hint ?? "请确认 CS 匹配助手已启动并开始记录";
+                    StatusHintText.Text = hint ?? "请确认 CS 对局助手已启动并开始记录";
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
                 default:
                     StatusText.Text = "数据准备中…";
-                    StatusHintText.Text = hint ?? "请打开 CS 匹配助手开始记录";
+                    StatusHintText.Text = hint ?? "请打开 CS 对局助手开始记录";
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
             }

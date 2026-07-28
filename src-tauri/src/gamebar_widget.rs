@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter};
 use zip::read::ZipArchive;
 
 const WIDGET_PACKAGE_NAME: &str = "CSMatchHelper.GameBarWidget";
-const WIDGET_DISPLAY_NAME: &str = "CS 匹配助手";
+const WIDGET_DISPLAY_NAME: &str = "CS 对局助手";
 const LEGACY_PACKAGE_NAMES: &[&str] = &["CSMatchHelper.CounterStrafingHudWidget"];
 const WIDGET_ZIP_PREFIX: &str = "CSMatchHelperGameBarWidget-";
 const LUNARIS_USERNAME: &str = "qianjiachun";
@@ -723,7 +723,7 @@ $logPath = '{log_literal}'
 $resultPath = '{result_literal}'
 $startedPath = '{started_literal}'
 $installScript = '{install_literal}'
-try {{ $Host.UI.RawUI.WindowTitle = 'CS 匹配助手 - 小组件安装' }} catch {{ }}
+try {{ $Host.UI.RawUI.WindowTitle = 'CS 对局助手 - 小组件安装' }} catch {{ }}
 "started $(Get-Date -Format o)" | Set-Content -Path $startedPath -Encoding UTF8
 "=== Widget install started $(Get-Date -Format o) ===" | Set-Content -Path $logPath -Encoding UTF8
 try {{

@@ -354,7 +354,7 @@ async function copyAllLogs() {
   }
 
   const isP5e = logSubTab.value === 'p5e';
-  const title = isP5e ? 'CS 匹配助手 · 5E 数据' : 'CS 匹配助手 · 完美日志';
+  const title = isP5e ? 'CS 对局助手 · 5E 数据' : 'CS 对局助手 · 完美日志';
   const text = formatDebugLogEntriesForCopy(entries, {
     title,
     metaLines: buildLogCopyMetaLines(),

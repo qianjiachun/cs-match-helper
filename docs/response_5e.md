@@ -1028,7 +1028,7 @@ sequenceDiagram
   participant Comet as Comet_WS
   participant Gate as gate.5eplay.com
   participant Platform as platform-api.5eplay.com
-  participant App as CS匹配助手
+  participant App as CS对局助手
 
   Client->>Comet: game_ctx / ready_members
   App->>App: CDP 解码 WS 帧并定锚 gameId

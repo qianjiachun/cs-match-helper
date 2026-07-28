@@ -199,7 +199,7 @@
                     TextAlignment="Center"/>
                 <TextBlock
                     x:Name="StatusHintText"
-                    Text="请打开 CS 匹配助手开始记录"
+                    Text="请打开 CS 对局助手开始记录"
                     FontSize="10"
                     Foreground="#B3FFFFFF"
                     FontFamily="Segoe UI"

@@ -66,6 +66,6 @@ export function formatRuntimeDiagnostics(info: RuntimeDiagnostics): string {
 
 export function logRuntimeDiagnostics(): RuntimeDiagnostics {
   const info = collectRuntimeDiagnostics();
-  console.info('[CS匹配助手] 运行时诊断\n' + formatRuntimeDiagnostics(info));
+  console.info('[CS对局助手] 运行时诊断\n' + formatRuntimeDiagnostics(info));
   return info;
 }

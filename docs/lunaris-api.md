@@ -1,6 +1,6 @@
 # Lunaris CDN API 文档
 
-[Lunaris](https://lunaris.win/) 是面向版本化文件的第三方 CDN 服务，适用于在国内分发安装包等大文件。本文档汇总其 REST API 与 CDN 访问方式，供 CS 匹配助手发版与自动更新对接使用。
+[Lunaris](https://lunaris.win/) 是面向版本化文件的第三方 CDN 服务，适用于在国内分发安装包等大文件。本文档汇总其 REST API 与 CDN 访问方式，供 CS 对局助手发版与自动更新对接使用。
 
 官方文档：<https://lunaris.win/docs>
 

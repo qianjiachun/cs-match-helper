@@ -1,13 +1,13 @@
 ---
 name: git-release
 description: >-
-  CS 匹配助手项目的 GitHub Release 发版流程。含主程序 exe 与 Widget 独立版本号、构建、Lunaris CDN
+  CS 对局助手项目的 GitHub Release 发版流程。含主程序 exe 与 Widget 独立版本号、构建、Lunaris CDN
   上传、README 更新、推送与 gh release 发布；支持断点续跑（继续发版）。首次发版须同时指定 exe 与
   widget 版本。Release 说明必须中文。Use when the user asks to release, 发版, 继续发版, publish,
   tag, version bump, build exe to release/, or mentions @git-release / release folder.
 ---
 
-# CS 匹配助手 — GitHub Release 发版
+# CS 对局助手 — GitHub Release 发版
 
 > **提交规范**见同目录下的 `git-commit` skill。发版流程中的 commit 步骤遵循该规范。
 
@@ -142,7 +142,7 @@ npm run widget:version:verify
 |------|------|
 | 标题栏版本号 | `TitleBar` 旁 `vX.Y.Z` |
 | 关于页「版本」 | `AboutSettingsSection` |
-| 系统窗口标题 | 启动时 Rust 设置为 `CS 匹配助手 -By 小淳 vX.Y.Z` |
+| 系统窗口标题 | 启动时 Rust 设置为 `CS 对局助手 -By 小淳 vX.Y.Z` |
 | 更新检查 | 与 GitHub Release `tag_name` 对比 |
 | 自动更新下载 | 优先 Lunaris CDN `cs-match-helper`；失败时回退 GitHub Release |
 

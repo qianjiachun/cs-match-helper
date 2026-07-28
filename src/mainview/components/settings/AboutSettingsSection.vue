@@ -11,7 +11,7 @@ import { useUpdateCheck } from '../../composables/useUpdateCheck';
 import { openExternalUrl } from '../../native';
 import UpdateBadge from '../UpdateBadge.vue';
 
-const appName = 'CS 匹配助手';
+const appName = 'CS 对局助手';
 const { state, formattedVersion, isBusy, checkManual, openDialog } = useUpdateCheck();
 const author = '小淳';
 const authorGithubUrl = 'https://github.com/qianjiachun/';

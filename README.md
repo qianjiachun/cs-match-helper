@@ -1,8 +1,8 @@
-<div align="center">
+﻿<div align="center">
 
-<img src="https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba" width="128" height="128" alt="CS 匹配助手" />
+<img src="https://github.com/user-attachments/assets/10ae99ab-5738-4780-a9c4-87ea0cdca1ba" width="128" height="128" alt="CS 对局助手" />
 
-# CS 匹配助手
+# CS 对局助手
 
 <p>
   <a href="https://github.com/qianjiachun/cs-match-helper/stargazers"><img src="https://img.shields.io/github/stars/qianjiachun/cs-match-helper?style=flat-square&logo=github&labelColor=FFF3C4&color=EAB308&logoColor=333" alt="GitHub stars" /></a>
@@ -67,7 +67,7 @@
 **显示方式**（在急停助手「控制台」中选择）：
 
 - **游戏内悬浮窗** — 适用于窗口化、全屏窗口化或无边框全屏
-- **Game Bar 小组件** — 适用于独占全屏；需安装 Xbox Game Bar 与 CS 匹配助手小组件，可在应用内一键安装
+- **Game Bar 小组件** — 适用于独占全屏；需安装 Xbox Game Bar 与 CS 对局助手小组件，可在应用内一键安装
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/41a1fc5c-44fc-412a-bd38-3e55aca16e8b" width="36%" alt="急停助手 Game Bar 小组件" />

@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Install CS Match Helper Game Bar Widget (end user, pre-built package).
@@ -91,11 +91,11 @@ function Write-InstallLog {
 
 function Show-InstallWelcome {
     try {
-        $Host.UI.RawUI.WindowTitle = 'CS 匹配助手 - 小组件安装'
+        $Host.UI.RawUI.WindowTitle = 'CS 对局助手 - 小组件安装'
     } catch { }
 
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Game)CS 匹配助手 · 游戏内小组件安装" -ForegroundColor Cyan
+    Write-Host "  $($InstallGlyphs.Game)CS 对局助手 · 游戏内小组件安装" -ForegroundColor Cyan
     Write-Host $InstallGlyphs.Divider -ForegroundColor DarkGray
     Write-Host ''
     Write-Host "  $($InstallGlyphs.Wait)正在安装，请保持此窗口开启。" -ForegroundColor White
@@ -143,7 +143,7 @@ function Show-InstallSuccess {
     Write-Host $InstallGlyphs.Rule -ForegroundColor DarkGray
     Write-Host ''
     Write-Host "  $($InstallGlyphs.Target)接下来你可以：" -ForegroundColor White
-    Write-Host "$($InstallGlyphs.Bullet)关闭此窗口，回到 CS 匹配助手" -ForegroundColor DarkGray
+    Write-Host "$($InstallGlyphs.Bullet)关闭此窗口，回到 CS 对局助手" -ForegroundColor DarkGray
     Write-Host "$($InstallGlyphs.Bullet)游戏中按 " -NoNewline -ForegroundColor DarkGray
     Write-Host 'Win+G' -NoNewline -ForegroundColor Cyan
     Write-Host " 打开游戏栏，固定小组件$($InstallGlyphs.Party)" -ForegroundColor DarkGray
@@ -154,7 +154,7 @@ function Show-InstallFailure {
     Write-Host ''
     Write-Host "  $($InstallGlyphs.Fail)安装未能完成" -ForegroundColor Red
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Guide)请关闭此窗口，回到 CS 匹配助手查看提示或重试。" -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Guide)请关闭此窗口，回到 CS 对局助手查看提示或重试。" -ForegroundColor DarkGray
     Write-Host "  $($InstallGlyphs.Chat)若多次失败，可在应用内复制诊断信息以便反馈。" -ForegroundColor DarkGray
     Write-Host ''
 }
