@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ArrowLeft, Bug, Home, Minus, Settings, Square, X } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
+import { ArrowLeft, Bug, Minus, Settings, Square, X } from 'lucide-vue-next';
 import { computed, defineAsyncComponent, ref } from 'vue';
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from '../native';
 import type { DebugLogEntry } from '@core/log/types';
@@ -10,6 +11,8 @@ import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import UpdateBadge from './UpdateBadge.vue';
 import CounterStrafingHeaderControl from './counter-strafing/CounterStrafingHeaderControl.vue';
+
+const { t, locale } = useI18n();
 
 const MatchDebugPanel = defineAsyncComponent(() => import('./MatchDebugPanel.vue'));
 
@@ -24,7 +27,7 @@ function openDebugPanel() {
 }
 
 const props = defineProps<{
-  view: 'home' | 'main' | 'settings' | 'counter-strafing';
+  view: 'main' | 'settings' | 'counter-strafing';
   counterStrafingListening: boolean;
   counterStrafingBusy: boolean;
   injectMatch: (data: Record<string, unknown>) => void;
@@ -44,17 +47,15 @@ const emit = defineEmits<{
   openCounterStrafing: [];
   toggleCounterStrafing: [];
   goHome: [];
-  openHome: [];
   openUpdateDialog: [];
   debugOpen: [];
 }>();
 
 const showSettingsButton = computed(
-  () => props.view === 'home' || props.view === 'main' || props.view === 'counter-strafing',
+  () => props.view === 'main',
 );
 
-/** Leave settings (nested back / restore previous view). */
-const showSettingsBackButton = computed(() => props.view === 'settings');
+const showBackButton = computed(() => props.view === 'settings' || props.view === 'counter-strafing');
 </script>
 
 <template>
@@ -63,12 +64,7 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
     data-tauri-drag-region
   >
     <div class="flex min-w-0 flex-1 items-center gap-3 px-4" data-tauri-drag-region>
-      <button
-        type="button"
-        class="no-drag flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md px-1 py-0.5 text-left transition-colors duration-200 hover:bg-elevated/80 active:scale-[0.98]"
-        aria-label="返回首页"
-        @click="emit('openHome')"
-      >
+      <div class="flex min-w-0 items-center gap-2.5 px-1 py-0.5">
         <img
           :src="appIcon"
           alt=""
@@ -76,10 +72,10 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
           aria-hidden="true"
         />
         <div class="flex min-w-0 items-baseline gap-2">
-          <p class="truncate text-[13px] font-semibold text-fg">CS 对局助手 -By 小淳</p>
+          <p class="truncate text-[13px] font-semibold text-fg">{{ locale === 'en-US' ? 'CS Match Helper - by 小淳' : 'CS 对局助手 -By 小淳' }}</p>
           <span class="shrink-0 text-[11px] text-fg-muted">{{ version }}</span>
         </div>
-      </button>
+      </div>
       <UpdateBadge
         v-if="hasUpdate"
         compact
@@ -96,7 +92,7 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
         @click="openDebugPanel"
       >
         <Bug class="h-4 w-4" />
-        <span class="hidden sm:inline">调试</span>
+        <span class="hidden sm:inline">{{ t('common.debug') }}</span>
       </button>
       <MatchDebugPanel
         v-else-if="debugEnabled && debugPanelMounted"
@@ -121,37 +117,25 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
       />
 
       <button
-        type="button"
-        class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-        :class="view === 'home' ? 'text-fg' : 'text-fg-muted'"
-        :aria-current="view === 'home' ? 'page' : undefined"
-        aria-label="打开首页"
-        @click="emit('openHome')"
-      >
-        <Home class="h-4 w-4" />
-        <span class="hidden sm:inline">首页</span>
-      </button>
-
-      <button
         v-if="showSettingsButton"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-        aria-label="打开设置"
+        :aria-label="t('common.settings')"
         @click="emit('openSettings')"
       >
         <Settings class="h-4 w-4" />
-        <span class="hidden sm:inline">设置</span>
+        <span class="hidden sm:inline">{{ t('common.settings') }}</span>
       </button>
 
       <button
-        v-if="showSettingsBackButton"
+        v-if="showBackButton"
         type="button"
         class="flex h-full cursor-pointer items-center gap-1 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-        aria-label="返回上一页"
+        :aria-label="t('common.previous')"
         @click="emit('goHome')"
       >
         <ArrowLeft class="h-4 w-4" />
-        <span class="hidden sm:inline">返回</span>
+        <span class="hidden sm:inline">{{ t('common.back') }}</span>
       </button>
 
       <div class="mx-1 w-px self-stretch bg-border" />
@@ -159,7 +143,7 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
       <button
         type="button"
         class="flex w-11 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg"
-        aria-label="最小化"
+        :aria-label="t('common.minimize')"
         @click="minimizeWindow"
       >
         <Minus class="h-4 w-4" />
@@ -167,7 +151,7 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
       <button
         type="button"
         class="flex w-11 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg"
-        aria-label="最大化"
+        :aria-label="t('common.maximize')"
         @click="toggleMaximizeWindow"
       >
         <Square class="h-3.5 w-3.5" />
@@ -175,7 +159,7 @@ const showSettingsBackButton = computed(() => props.view === 'settings');
       <button
         type="button"
         class="flex w-11 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-200 hover:bg-danger/8 hover:text-danger"
-        aria-label="关闭"
+        :aria-label="t('common.close')"
         @click="closeWindow"
       >
         <X class="h-4 w-4" />
