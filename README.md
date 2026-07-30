@@ -31,15 +31,15 @@ Automatically reads match information during the ready phase and presents player
 
 ## Features
 
-- **Lightweight:** About 6 MB, low memory usage, and fast startup without affecting game performance
-- **Ready to use:** No installation or complex setup; match data appears automatically during the ready phase
-- **Match information:** Map, countdown, and both team rosters
-- **Player statistics:** Rank, damage, rating, seasonal statistics, and more
-- **Team comparison:** Radar charts and party detection
-- **AI analysis:** Win probability and pre-match assessment with a configured DeepSeek API key
-- **Player comments:** Read and post comments from the match view, then manage comment history in Settings
-- **Multiple platforms:** Perfect World Arena and 5E Arena
-- **Counter-strafing assistant:** Measures shooting stability and counter-strafing quality with an in-game HUD and Game Bar widget
+- ⚡ **Lightweight:** About 6 MB, low memory usage, and fast startup without affecting game performance
+- 🖱️ **Ready to use:** No installation or complex setup; match data appears automatically during the ready phase
+- 🗺️ **Match information:** Map, countdown, and both team rosters
+- 📊 **Player statistics:** Rank, damage, rating, seasonal statistics, and more
+- ⚔️ **Team comparison:** Radar charts and party detection
+- 🤖 **AI analysis:** Win probability and pre-match assessment with a configured DeepSeek API key
+- 💬 **Player comments:** Read and post comments from the match view, then manage comment history in Settings
+- 🎮 **Multiple platforms:** Perfect World Arena and 5E Arena
+- 🎯 **Counter-strafing assistant:** Measures shooting stability and counter-strafing quality with an in-game HUD and Game Bar widget
 
 ## Supported Platforms
 
@@ -56,6 +56,8 @@ Automatically reads match information during the ready phase and presents player
 ## Counter-strafing Assistant
 
 The assistant listens to local movement, crouch, and fire-key input, then estimates movement state and input timing with a speed model. It **does not read game memory or inject code into the game process**. It is intended for deathmatch, aim practice, and regular matches.
+
+CS2 data integration is enabled by default, can be disabled under Advanced, and remembers the user's choice. It uses CS2's official GSI interface to identify the active weapon and round context. It filters invalid samples such as knife or grenade clicks, death and spectating, freeze time, an unfocused game, and empty-magazine clicks. GSI only validates the sample context; movement error still comes from the existing speed model. If GSI is unavailable or stale for more than three seconds, the assistant falls back automatically. Advanced settings shows the managed config location; if automatic setup fails, users can retry or select the CS2 folder manually. When enabled, the app creates and manages only its own `gamestate_integration_cs_match_helper.cfg` file.
 
 | Metric | Description |
 | --- | --- |
@@ -91,8 +93,8 @@ Key bindings, HUD typography, line width, opacity, speed models, and assessment 
 
 ## Security
 
-- The application does not modify game files, inject into the game process, or perform cheat-related operations.
-- The counter-strafing assistant only observes local keyboard input and estimates movement from a speed model. It does not read game memory or network traffic.
+- The application does not read game memory, inject into the game process, or perform cheat-related operations.
+- The counter-strafing assistant observes local keyboard and mouse input and estimates movement from a speed model. Its optional enhancement uses CS2's official GSI interface and manages only the app's dedicated GSI configuration; it does not alter game content or other GSI configurations.
 - DeepSeek credentials are optional and stored locally.
 - Comments use an anonymous client key and are not linked to a real account identity.
 
