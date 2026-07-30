@@ -8,6 +8,7 @@ import { useCopySuccessAnimation } from '../../composables/useCopySuccessAnimati
 import PlayerAvatar from '../PlayerAvatar.vue';
 import CommentListItem from './CommentListItem.vue';
 import CommentEmojiPicker from './CommentEmojiPicker.vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   comments: ReturnType<typeof useComments>;
@@ -176,7 +177,7 @@ function onRetry() {
         <button
           type="button"
           class="comment-drawer-backdrop absolute inset-0 m-0 cursor-pointer border-0 p-0 appearance-none"
-          aria-label="关闭评论"
+          :aria-label="l('关闭评论', 'Close comments')"
           @click="onBackdropClick"
         />
 
@@ -184,7 +185,7 @@ function onRetry() {
           class="comment-drawer-panel relative flex h-full w-full max-w-[460px] flex-col border-l border-slate-200/80 bg-white shadow-2xl"
           role="dialog"
           aria-modal="true"
-          :aria-label="`${displayPlayer.nickname} 的评论`"
+          :aria-label="l(`${displayPlayer.nickname} 的评论`, `Comments for ${displayPlayer.nickname}`)"
         >
           <!-- 玩家头部 -->
           <header class="relative z-10 shrink-0 border-b border-slate-100 bg-linear-to-b from-slate-50 to-white pt-5">
@@ -192,7 +193,7 @@ function onRetry() {
               <button
                 type="button"
                 class="absolute right-2 top-0 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
-                aria-label="关闭"
+                :aria-label="l('关闭', 'Close')"
                 @click="comments.closeDrawer()"
               >
                 <X class="h-4 w-4" aria-hidden="true" />
@@ -213,7 +214,7 @@ function onRetry() {
                   <button
                     type="button"
                     class="group/copy relative inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 self-start overflow-visible rounded-md border border-transparent py-px font-mono text-[12px] leading-4 tracking-tight text-slate-500 transition-colors duration-200 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
-                    title="点击复制 Steam ID"
+                    :title="l('点击复制 Steam ID', 'Copy Steam ID')"
                     @click="onCopySteamId"
                   >
                     <span class="truncate tabular-nums">{{ displayPlayer.steamId }}</span>
@@ -245,7 +246,7 @@ function onRetry() {
                   @click="comments.changeSort('time')"
                 >
                   <Clock class="h-3.5 w-3.5" :class="comments.listSort.value === 'time' ? 'text-blue-500' : ''" aria-hidden="true" />
-                  最新
+                  {{ l('最新', 'Newest') }}
                 </button>
                 <button
                   type="button"
@@ -255,11 +256,11 @@ function onRetry() {
                   @click="comments.changeSort('hot')"
                 >
                   <Flame class="h-3.5 w-3.5" :class="comments.listSort.value === 'hot' ? 'text-orange-500' : ''" aria-hidden="true" />
-                  最热
+                  {{ l('最热', 'Top') }}
                 </button>
               </div>
               <span class="text-[12px] font-medium text-slate-500">
-                <span class="text-slate-800 tabular-nums">{{ comments.activeCount.value }}</span> 条评论
+                {{ l(`${comments.activeCount.value} 条评论`, `${comments.activeCount.value} comments`) }}
               </span>
             </div>
           </header>
@@ -271,7 +272,7 @@ function onRetry() {
               class="flex flex-col items-center justify-center py-20 text-center"
             >
               <Loader2 class="h-6 w-6 animate-spin text-blue-500" aria-hidden="true" />
-              <p class="mt-3 text-[13px] font-medium text-slate-500">正在加载评论…</p>
+              <p class="mt-3 text-[13px] font-medium text-slate-500">{{ l('正在加载评论…', 'Loading comments…') }}</p>
             </div>
 
             <div
@@ -285,7 +286,7 @@ function onRetry() {
                 @click="onRetry"
               >
                 <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-                重试
+                {{ l('重试', 'Retry') }}
               </button>
             </div>
 
@@ -298,9 +299,9 @@ function onRetry() {
               >
                 <MessageSquare class="h-7 w-7" aria-hidden="true" />
               </div>
-              <p class="mt-4 text-[14px] font-semibold text-slate-700">还没有人评价这位玩家</p>
+              <p class="mt-4 text-[14px] font-semibold text-slate-700">{{ l('还没有人评价这位玩家', 'No comments for this player yet') }}</p>
               <p class="mt-1.5 max-w-[240px] text-[12px] leading-relaxed text-slate-500">
-                在下方输入框写下你的看法，帮助其他玩家了解这位选手
+                {{ l('在下方输入框写下你的看法，帮助其他玩家了解这位选手', 'Share useful context about this player with the community.') }}
               </p>
             </div>
 
@@ -337,9 +338,9 @@ function onRetry() {
             >
               <span v-if="comments.listLoadingMore.value" class="inline-flex items-center justify-center gap-1.5">
                 <Loader2 class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                加载中…
+                {{ l('加载中…', 'Loading…') }}
               </span>
-              <span v-else>加载更多</span>
+              <span v-else>{{ l('加载更多', 'Load more') }}</span>
             </button>
           </div>
 
@@ -360,7 +361,7 @@ function onRetry() {
                 v-model="draft"
                 rows="1"
                 maxlength="200"
-                placeholder="写下你的评论…"
+                :placeholder="l('写下你的评论…', 'Write a comment…')"
                 aria-describedby="comment-composer-meta"
                 class="comment-composer-textarea block w-full min-h-[26px] resize-none border-0 bg-transparent px-4 pb-2.5 pt-3.5 text-[14px] leading-5 text-slate-800 outline-none focus:ring-0"
                 @keydown="onKeydown"
@@ -387,7 +388,7 @@ function onRetry() {
                       >
                         Enter
                       </kbd>
-                      <span class="ml-0.5">发送</span>
+                      <span class="ml-0.5">{{ l('发送', 'Send') }}</span>
                     </span>
                   </p>
                 </div>
@@ -404,8 +405,8 @@ function onRetry() {
                   type="button"
                   class="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors duration-200 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                   :disabled="!canSubmit"
-                  title="发送评论 (Ctrl+Enter)"
-                  aria-label="发送评论"
+                  :title="l('发送评论 (Ctrl+Enter)', 'Send comment (Ctrl+Enter)')"
+                  :aria-label="l('发送评论', 'Send comment')"
                   @click="onSubmit"
                 >
                   <Loader2 v-if="comments.submitting.value" class="h-4 w-4 animate-spin" aria-hidden="true" />

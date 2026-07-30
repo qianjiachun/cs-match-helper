@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { assessmentSegmentPaths } from '@core/counter-strafing/assessmentChartGeometry';
 import type { AssessmentChartType, CounterStrafingRecord } from '@core/counter-strafing/types';
 import { assessmentRecordColor, ASSESSMENT_COLORS } from '@core/counter-strafing/types';
+import { localize as l } from '../../i18n';
 
 /** 折线图纵轴上限（ms），超出部分按边界绘制 */
 const CHART_DIFF_CLAMP_MS = 100;
@@ -100,7 +101,7 @@ const zeroStroke = computed(() =>
 );
 const showZeroLine = computed(() => props.colored && (isHudMode.value ? chart.value.dots.length > 0 : true));
 const chartAriaLabel = computed(() =>
-  props.chartType === 'scatter' ? '急停历史散点图' : '急停历史折线图',
+  props.chartType === 'scatter' ? l('急停历史散点图', 'Counter-strafe history scatter plot') : l('急停历史折线图', 'Counter-strafe history line chart'),
 );
 
 function dotRadius(dot: { isLatest: boolean }, total: number): number {
@@ -213,11 +214,11 @@ function segmentFilter(color: string): string | undefined {
     >
       <span class="inline-flex items-center gap-1">
         <span class="inline-block h-1.5 w-1.5 rounded-full" :style="{ background: ASSESSMENT_COLORS.early }" />
-        偏早 ↑
+        {{ l('偏早 ↑', 'Early ↑') }}
       </span>
       <span>0ms</span>
       <span class="inline-flex items-center gap-1">
-        偏晚 ↓
+        {{ l('偏晚 ↓', 'Late ↓') }}
         <span class="inline-block h-1.5 w-1.5 rounded-full" :style="{ background: ASSESSMENT_COLORS.late }" />
       </span>
     </div>

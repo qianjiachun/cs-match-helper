@@ -1,6 +1,7 @@
 import { type Ref, ref } from 'vue';
 import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
+import { localize as l } from '../i18n';
 
 const COPY_GHOST_CLASS =
   'copy-steamid-ghost pointer-events-none absolute left-1/2 bottom-0 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-600 shadow-sm ring-1 ring-emerald-100';
@@ -44,8 +45,7 @@ export function useCopySuccessAnimation(refs: CopySuccessAnimationRefs) {
     const ghost = document.createElement('span');
     ghost.setAttribute('aria-hidden', 'true');
     ghost.className = COPY_GHOST_CLASS;
-    ghost.innerHTML =
-      '<span class="inline-flex h-3 w-3 items-center justify-center" aria-hidden="true"></span><span>已复制</span>';
+    ghost.innerHTML = `<span class="inline-flex h-3 w-3 items-center justify-center" aria-hidden="true"></span><span>${l('已复制', 'Copied')}</span>`;
     const iconSlot = ghost.querySelector('span');
     if (iconSlot) {
       iconSlot.appendChild(source.cloneNode(true));

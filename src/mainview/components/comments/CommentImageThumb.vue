@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { X } from 'lucide-vue-next';
 import { fetchProxiedImageDataUrl } from '@core/comments/platform-board';
 import { PERFECT_MEDIA_REFERER } from '@core/comments/platform-board/perfect-board';
+import { localize as l } from '../../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -10,11 +11,10 @@ const props = withDefaults(
     alt?: string;
     source?: 'perfect' | '5e' | 'internal';
   }>(),
-  {
-    alt: '评论图片',
-    source: 'internal',
-  },
+  { source: 'internal' },
 );
+
+const resolvedAlt = computed(() => props.alt ?? l('评论图片', 'Comment image'));
 
 const resolvedSrc = ref('');
 const failed = ref(false);
@@ -89,12 +89,12 @@ onMounted(() => {
     v-if="resolvedSrc && !failed"
     type="button"
     class="comment-image-thumb inline-flex cursor-pointer overflow-hidden rounded-md border border-slate-200/80 bg-slate-100 transition-[box-shadow,border-color] duration-200 hover:border-slate-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
-    :aria-label="`预览${alt}`"
+    :aria-label="l(`预览${resolvedAlt}`, `Preview ${resolvedAlt}`)"
     @click="openPreview"
   >
     <img
       :src="resolvedSrc"
-      :alt="alt"
+      :alt="resolvedAlt"
       class="h-16 w-16 object-cover"
       loading="lazy"
       decoding="async"
@@ -108,26 +108,26 @@ onMounted(() => {
         class="fixed inset-0 z-70 flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
-        :aria-label="alt"
+        :aria-label="resolvedAlt"
       >
         <button
           type="button"
           class="absolute inset-0 cursor-pointer border-0 bg-slate-900/72 backdrop-blur-[2px]"
-          aria-label="关闭预览"
+          :aria-label="l('关闭预览', 'Close preview')"
           @click="closePreview"
         />
 
         <div class="relative z-10 flex max-h-[min(90vh,920px)] max-w-[min(92vw,1100px)] items-center justify-center">
           <img
             :src="resolvedSrc"
-            :alt="alt"
+            :alt="resolvedAlt"
             class="max-h-[min(90vh,920px)] max-w-[min(92vw,1100px)] rounded-lg object-contain shadow-2xl"
             @click.stop
           />
           <button
             type="button"
             class="absolute -right-2 -top-2 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/20 bg-slate-900/80 text-white transition-colors duration-200 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-            aria-label="关闭预览"
+            :aria-label="l('关闭预览', 'Close preview')"
             @click="closePreview"
           >
             <X class="h-4 w-4" aria-hidden="true" />

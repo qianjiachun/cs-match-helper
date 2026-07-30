@@ -2,6 +2,7 @@
 import { Shield, Swords, TrendingUp, Users } from 'lucide-vue-next';
 import type { MatchTeam } from '@core/match/models';
 import PlayerStatCard from './PlayerStatCard.vue';
+import { localize as l } from '../i18n';
 
 defineProps<{
   team: MatchTeam;
@@ -40,12 +41,12 @@ function pct(n?: number): string {
           class="h-4 w-4"
           :class="team.side === 'A' ? 'text-blue-600' : 'text-orange-600'"
         />
-        <h3 class="text-[13px] font-semibold text-fg">队伍 {{ team.side }}</h3>
+        <h3 class="text-[13px] font-semibold text-fg">{{ l(`队伍 ${team.side}`, `Team ${team.side}`) }}</h3>
         <span
           v-if="highlight"
           class="rounded bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-white"
         >
-          优势
+          {{ l('优势', 'Edge') }}
         </span>
       </div>
       <div class="flex items-center gap-1 text-[11px] text-fg-muted">
@@ -58,7 +59,7 @@ function pct(n?: number): string {
       <div class="rounded-md bg-surface px-2 py-1.5 text-center shadow-sm">
         <dt class="flex items-center justify-center gap-0.5 text-[9px] text-fg-muted">
           <Swords class="h-2.5 w-2.5" />
-          均分
+          {{ l('均分', 'Avg. score') }}
         </dt>
         <dd class="text-[13px] font-bold text-fg">{{ fmt(team.avgScore) }}</dd>
       </div>
@@ -70,7 +71,7 @@ function pct(n?: number): string {
         <dd class="text-[13px] font-bold text-fg">{{ fmt(team.avgRating, 2) }}</dd>
       </div>
       <div class="rounded-md bg-surface px-2 py-1.5 text-center shadow-sm">
-        <dt class="text-[9px] text-fg-muted">近期胜</dt>
+        <dt class="text-[9px] text-fg-muted">{{ l('近期胜', 'Recent WR') }}</dt>
         <dd class="text-[13px] font-bold text-fg">{{ pct(team.recentWinRate) }}</dd>
       </div>
     </dl>

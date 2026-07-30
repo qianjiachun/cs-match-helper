@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Layers } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import PlatformLogo from '../PlatformLogo.vue';
 import { historyFilterOptions, type HistoryPlatformFilter } from '../../utils/matchHistoryDisplay';
+import { localize as l } from '../../i18n';
 
 export type PlatformFilter = HistoryPlatformFilter;
 
@@ -16,7 +17,7 @@ const emit = defineEmits<{
   'update:filter': [PlatformFilter];
 }>();
 
-const filters = historyFilterOptions();
+const filters = computed(() => historyFilterOptions());
 const scrollContainerRef = ref<HTMLElement | null>(null);
 
 function scrollToTop() {
@@ -34,13 +35,13 @@ defineExpose({ scrollToTop });
         <header class="mb-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-baseline gap-2.5">
             <h1 class="text-[1.75rem] font-bold tracking-tight text-slate-900">
-              历史对局
+              {{ l('历史对局', 'Match history') }}
             </h1>
             <span
               v-if="loading || totalCount > 0"
               class="inline-flex min-w-8 items-center justify-center rounded-full bg-slate-200/70 px-2.5 py-0.5 text-sm font-medium tabular-nums text-slate-600"
               :class="loading ? 'animate-pulse text-transparent' : ''"
-              :aria-label="loading ? '加载中' : `共 ${totalCount} 条`"
+              :aria-label="loading ? l('加载中', 'Loading') : l(`共 ${totalCount} 条`, `${totalCount} matches`)"
             >
               {{ loading ? '0' : totalCount }}
             </span>
@@ -49,7 +50,7 @@ defineExpose({ scrollToTop });
           <div
             class="flex rounded-lg bg-slate-200/50 p-0.5"
             role="tablist"
-            aria-label="平台筛选"
+            :aria-label="l('平台筛选', 'Platform filter')"
           >
             <button
               v-for="opt in filters"

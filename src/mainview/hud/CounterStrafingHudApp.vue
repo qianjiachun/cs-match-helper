@@ -22,6 +22,10 @@ import {
   useHudChartStatsVisibility,
 } from './useHudChartStatsVisibility';
 import { useHudStatFontSizes } from './useHudStatFontSizes';
+import { useI18n } from 'vue-i18n';
+import { applyResolvedLocale } from '../i18n';
+
+const { t } = useI18n();
 
 const DEFAULT_CHART_HEIGHT = 88;
 const DEFAULT_CHART_WIDTH = 320;
@@ -127,11 +131,13 @@ onMounted(async () => {
 
   try {
     snapshot.value = await getCounterStrafingSnapshot();
+    if (snapshot.value.locale) applyResolvedLocale(snapshot.value.locale);
     if (snapshot.value.lastShot) {
       liveSample.value = snapshot.value.lastShot;
     }
     const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
       snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
+      if (next.locale) applyResolvedLocale(next.locale);
       if (next.shotRecords.length === 0) {
         liveSample.value = null;
       }
@@ -160,7 +166,7 @@ onMounted(async () => {
       }),
     ]);
   } catch (e) {
-    initError.value = e instanceof Error ? e.message : 'HUD 初始化失败';
+    initError.value = e instanceof Error ? e.message : t('hud.initError');
   }
 });
 
@@ -184,7 +190,7 @@ onUnmounted(() => {
     <div
       v-if="!snapshot.hudLocked"
       class="hud-drag-handle absolute right-0 bottom-0 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-tl-xl bg-black/40 backdrop-blur-sm active:cursor-grabbing opacity-0 transition-opacity duration-200 group-hover/hud:opacity-100"
-      aria-label="拖动 HUD"
+      :aria-label="t('hud.drag')"
       @pointerdown="onHudDragPointerDown"
     >
       <Grip class="h-4 w-4 text-white/80" aria-hidden="true" />
@@ -207,7 +213,7 @@ onUnmounted(() => {
           <span
             class="hud-shooting-stat-label"
             :style="{ fontSize: `${statFontSizes.labelPx}px` }"
-          >误差</span>
+          >{{ t('hud.error') }}</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
             :style="{
@@ -222,7 +228,7 @@ onUnmounted(() => {
           <span
             class="hud-shooting-stat-label"
             :style="{ fontSize: `${statFontSizes.labelPx}px` }"
-          >稳定</span>
+          >{{ t('hud.stable') }}</span>
           <span
             class="hud-shooting-stat-value tabular-nums"
             :style="{

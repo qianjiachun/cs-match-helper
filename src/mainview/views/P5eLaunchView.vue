@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { animate } from 'animejs';
 import {
   AlertTriangle,
@@ -18,6 +19,9 @@ import {
   getP5eSimulatedProbeResult,
   p5eSimulateClientNotFound,
 } from '@platforms/5e/p5e-dev-overrides';
+import { localizeErrorMessage } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   p5e: ReturnType<typeof useP5eCdp>;
@@ -87,16 +91,16 @@ function onVisibilityChange() {
 }
 
 const statusText = computed(() => {
-  if (!installChecked.value) return '正在检查环境…';
-  if (!installed.value) return '请填写或选择 5E 客户端路径';
+  if (!installChecked.value) return t('p5e.checking');
+  if (!installed.value) return t('p5e.pathPrompt');
   if (launching.value) {
-    return externalRunning.value ? '正在结束已运行的 5E 并重新启动…' : '正在启动 5E…';
+    return externalRunning.value ? t('p5e.restarting') : t('p5e.launching');
   }
-  if (externalRunning.value) return '检测到 5E 正在运行，点击启动将自动结束并重新启动';
+  if (externalRunning.value) return t('p5e.running');
   const phase = props.p5e.status.value.phase;
-  if (phase === 'collecting' || phase === 'reconnecting') return '已连接，等待对局';
-  if (phase === 'error') return props.p5e.status.value.lastError ?? '连接出现问题';
-  return '点击下方按钮启动';
+  if (phase === 'collecting' || phase === 'reconnecting') return t('p5e.connected');
+  if (phase === 'error') return props.p5e.status.value.lastError ? localizeErrorMessage(props.p5e.status.value.lastError) : t('p5e.connectionError');
+  return t('p5e.clickLaunch');
 });
 
 function applyProbeResult(
@@ -131,7 +135,7 @@ async function validatePath(options?: { fillPath?: boolean }) {
     installed.value = false;
     await saveP5eClientRoot(null);
     persistedClientRoot.value = null;
-    pathError.value = '请输入 5E 客户端路径';
+    pathError.value = t('p5e.emptyPath');
     return false;
   }
 
@@ -146,7 +150,7 @@ async function validatePath(options?: { fillPath?: boolean }) {
     applyProbeResult(probe, { fillPath: options?.fillPath ?? true });
 
     if (!probe.installed || !probe.clientRoot) {
-      pathError.value = '路径无效，请指向包含 5EClient.exe 的目录';
+      pathError.value = t('p5e.invalidPath');
       return false;
     }
 
@@ -154,7 +158,7 @@ async function validatePath(options?: { fillPath?: boolean }) {
     await persistValidatedPath(probe.clientRoot);
     return true;
   } catch (err) {
-    pathError.value = String(err).replace(/^Error:\s*/, '');
+    pathError.value = localizeErrorMessage(err);
     pathValid.value = false;
     installed.value = false;
     return false;
@@ -195,8 +199,8 @@ async function browseClientPath() {
     const selected = await open({
       multiple: false,
       directory: false,
-      title: '选择 5EClient.exe',
-      filters: [{ name: '5E 客户端', extensions: ['exe'] }],
+      title: t('p5e.pickerTitle'),
+      filters: [{ name: t('p5e.client'), extensions: ['exe'] }],
     });
 
     if (!selected || Array.isArray(selected)) return;
@@ -205,7 +209,7 @@ async function browseClientPath() {
     pathInputTouched = true;
     await validatePath({ fillPath: true });
   } catch (err) {
-    pathError.value = String(err).replace(/^Error:\s*/, '');
+    pathError.value = localizeErrorMessage(err);
   } finally {
     browsing.value = false;
     if (alive) startProbeLoop();
@@ -254,9 +258,9 @@ function teardownProbe() {
 }
 
 function formatLaunchError(message: string): string {
-  return message
+  return localizeErrorMessage(message
     .replace(/^Error:\s*/, '')
-    .replace(/^TERMINATE_5E_FAILED:\s*/, '');
+    .replace(/^TERMINATE_5E_FAILED:\s*/, ''));
 }
 
 function goBack() {
@@ -293,7 +297,7 @@ async function launch() {
       launchError.value = formatLaunchError(message);
     } else if (message.includes('EXTERNAL_5E_RUNNING')) {
       externalRunning.value = true;
-      launchError.value = '检测到外部 5E 调试连接，请手动完全退出 5E 后重试';
+      launchError.value = t('p5e.externalDebug');
     } else if (
       message.includes('NOT_INSTALLED_5E') ||
       message.includes('未找到 5E') ||
@@ -370,7 +374,7 @@ onBeforeUnmount(() => {
         @click="goBack"
       >
         <ArrowLeft class="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-        更换平台
+        {{ t('p5e.changePlatform') }}
       </button>
     </div>
 
@@ -385,7 +389,7 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <h1 class="mt-4 text-[1.375rem] font-bold tracking-tight text-fg">启动 5E 对战平台</h1>
+        <h1 class="mt-4 text-[1.375rem] font-bold tracking-tight text-fg">{{ t('p5e.title') }}</h1>
         <p class="mt-2 max-w-xs text-[13px] leading-relaxed text-fg-muted">
           {{ statusText }}
         </p>
@@ -396,11 +400,11 @@ onBeforeUnmount(() => {
             <span
               class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
               :class="pathValid ? 'bg-success' : 'bg-danger'"
-              :title="pathValid ? '路径有效' : '未找到客户端'"
+              :title="pathValid ? t('p5e.pathValid') : t('p5e.clientMissing')"
               aria-hidden="true"
             />
             <label for="p5e-client-path" class="text-[11px] font-medium tracking-wide text-fg-secondary">
-              客户端路径
+              {{ t('p5e.pathLabel') }}
             </label>
           </div>
 
@@ -411,7 +415,7 @@ onBeforeUnmount(() => {
               type="text"
               spellcheck="false"
               autocomplete="off"
-              placeholder="包含 5EClient.exe 的目录路径"
+              :placeholder="t('p5e.pathPlaceholder')"
               class="selectable min-w-0 flex-1 rounded-lg border bg-surface px-2.5 py-1.5 font-mono text-[11px] text-fg outline-none transition-colors duration-200 placeholder:text-fg-muted focus:ring-2"
               :class="
                 pathError
@@ -428,7 +432,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-[30px] w-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-surface text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
-              title="浏览文件"
+              :title="t('p5e.browse')"
               :disabled="launching || browsing || validating"
               @click="browseClientPath"
             >
@@ -442,7 +446,7 @@ onBeforeUnmount(() => {
             class="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-fg-muted"
           >
             <Info class="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
-            支持手动输入或粘贴路径，验证通过后自动保存
+            {{ t('p5e.pathHelp') }}
           </p>
 
           <p
@@ -451,7 +455,7 @@ onBeforeUnmount(() => {
             role="status"
           >
             <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
-            5E 正在运行。点击「立即启动」将尝试自动结束进程；若失败请按下方提示手动退出。
+            {{ t('p5e.runningHelp') }}
           </p>
         </div>
 
@@ -489,7 +493,7 @@ onBeforeUnmount(() => {
 
           <Loader2 v-if="launching" class="relative z-10 h-4 w-4 animate-spin text-fg-muted" aria-hidden="true" />
           <Play v-else class="relative z-10 h-4 w-4 fill-current" :class="canLaunch ? 'text-white' : 'text-border'" aria-hidden="true" />
-          <span class="relative z-10" :class="canLaunch ? 'text-white' : 'text-fg-muted'">{{ launching ? '正在唤起客户端…' : '立即启动 5E' }}</span>
+          <span class="relative z-10" :class="canLaunch ? 'text-white' : 'text-fg-muted'">{{ launching ? t('p5e.waking') : t('p5e.launchNow') }}</span>
         </button>
       </div>
     </div>

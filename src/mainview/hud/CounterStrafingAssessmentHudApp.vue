@@ -30,6 +30,10 @@ import {
   useHudChartStatsVisibility,
 } from './useHudChartStatsVisibility';
 import { useHudStatFontSizes } from './useHudStatFontSizes';
+import { useI18n } from 'vue-i18n';
+import { applyResolvedLocale } from '../i18n';
+
+const { t } = useI18n();
 
 const snapshot = ref<CounterStrafingAssessmentSnapshot>({
   active: false,
@@ -41,7 +45,7 @@ const snapshot = ref<CounterStrafingAssessmentSnapshot>({
   successRate: 0,
   stdDevMs: 0,
   tendency: 'normal',
-  tendencyLabel: '正常',
+  tendencyLabel: '',
   lastRecord: null,
 });
 const liveRecord = ref<CounterStrafingAssessmentRecord | null>(null);
@@ -150,11 +154,13 @@ onMounted(async () => {
 
   try {
     snapshot.value = await getCounterStrafingAssessmentSnapshot();
+    if (snapshot.value.locale) applyResolvedLocale(snapshot.value.locale);
     if (snapshot.value.lastRecord) {
       liveRecord.value = snapshot.value.lastRecord;
     }
     const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
       snapshot.value = mergeCounterStrafingAssessmentSnapshot(snapshot.value, next);
+      if (next.locale) applyResolvedLocale(next.locale);
       if (next.records.length === 0) {
         liveRecord.value = null;
       }
@@ -180,7 +186,7 @@ onMounted(async () => {
       }),
     ]);
   } catch (e) {
-    initError.value = e instanceof Error ? e.message : '急停评估 HUD 初始化失败';
+    initError.value = e instanceof Error ? e.message : t('hud.assessmentInitError');
   }
 });
 
@@ -204,7 +210,7 @@ onUnmounted(() => {
     <div
       v-if="!snapshot.hudLocked"
       class="hud-drag-handle absolute right-0 bottom-0 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-tl-xl bg-black/40 backdrop-blur-sm active:cursor-grabbing opacity-0 transition-opacity duration-200 group-hover/hud:opacity-100"
-      aria-label="拖动 HUD"
+      :aria-label="t('hud.drag')"
       @pointerdown="onHudDragPointerDown"
     >
       <Grip class="h-4 w-4 text-white/80" aria-hidden="true" />
@@ -228,7 +234,7 @@ onUnmounted(() => {
             <span
               class="hud-shooting-stat-label"
               :style="{ fontSize: `${statFontSizes.labelPx}px` }"
-            >平均</span>
+            >{{ t('hud.average') }}</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
               :style="{
@@ -243,7 +249,7 @@ onUnmounted(() => {
             <span
               class="hud-shooting-stat-label"
               :style="{ fontSize: `${statFontSizes.labelPx}px` }"
-            >优秀率</span>
+            >{{ t('hud.goodRate') }}</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
               :style="{
@@ -258,7 +264,7 @@ onUnmounted(() => {
             <span
               class="hud-shooting-stat-label"
               :style="{ fontSize: `${statFontSizes.labelPx}px` }"
-            >标准差</span>
+            >{{ t('hud.standardDeviation') }}</span>
             <span
               class="hud-shooting-stat-value tabular-nums"
               :style="{
@@ -278,7 +284,7 @@ onUnmounted(() => {
             color: snapshot.records.length ? tendencyColor(snapshot.tendency) : undefined,
           }"
         >
-          {{ snapshot.records.length ? snapshot.tendencyLabel : '—' }}
+          {{ snapshot.records.length ? t(`hud.${snapshot.tendency === 'early' ? 'early' : snapshot.tendency === 'late' ? 'late' : 'normal'}`) : '—' }}
         </span>
       </div>
       <div ref="chartWrapRef" class="assessment-hud-chart relative min-h-0 w-full flex-1">

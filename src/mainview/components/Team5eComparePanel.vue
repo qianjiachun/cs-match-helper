@@ -15,6 +15,7 @@ import {
 } from './p5e-compare-utils';
 import P5eRadarCompare from './P5eRadarCompare.vue';
 import Team5ePlayerRow from './Team5ePlayerRow.vue';
+import { currentLocale, localize as l } from '../i18n';
 
 const props = defineProps<{
   teamA: MatchTeam;
@@ -32,9 +33,9 @@ function onPlayerClick(player: MatchPlayer) {
   emit('openComments', player);
 }
 
-const coreMetrics = computed(() => buildP5eCoreMetrics(props.teamA, props.teamB));
-const fightMetrics = computed(() => buildP5eFightMetrics(props.teamA, props.teamB));
-const radarData = computed(() => buildP5eTeamRadar(props.teamA, props.teamB));
+const coreMetrics = computed(() => buildP5eCoreMetrics(props.teamA, props.teamB, currentLocale()));
+const fightMetrics = computed(() => buildP5eFightMetrics(props.teamA, props.teamB, currentLocale()));
+const radarData = computed(() => buildP5eTeamRadar(props.teamA, props.teamB, currentLocale()));
 const radarAxesForA = computed(() =>
   radarData.value.axes.map((axis) => ({
     label: axis.label,
@@ -152,21 +153,21 @@ onUnmounted(() => {
       <div class="compare-entrance-panel main-section col-span-3 flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/90 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md">
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-blue-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-blue-500" />
-          <h2 class="text-[14px] font-bold text-blue-600">队伍 A</h2>
+          <h2 class="text-[14px] font-bold text-blue-600">{{ l('队伍 A', 'Team A') }}</h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
           <Team5ePlayerRow :players="teamA.players" variant="a" @player-click="onPlayerClick" />
 
           <div class="mb-2 text-center">
-            <div class="mb-0.5 text-[12px] font-medium text-slate-500">队伍平均 ELO</div>
+            <div class="mb-0.5 text-[12px] font-medium text-slate-500">{{ l('队伍平均 ELO', 'Team average ELO') }}</div>
             <div class="score-a text-4xl font-black tracking-tight text-blue-600">{{ Math.round(teamAvgElo.a) }}</div>
             <div class="mt-1.5 flex items-center justify-center gap-4 text-[11px] text-slate-500">
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最高 <span class="font-bold text-slate-700">{{ Math.max(...teamA.players.map((p) => Math.round(p.score || 0))) }}</span>
+                {{ l('最高', 'High') }} <span class="font-bold text-slate-700">{{ Math.max(...teamA.players.map((p) => Math.round(p.score || 0))) }}</span>
               </div>
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最低 <span class="font-bold text-slate-700">{{ Math.min(...teamA.players.map((p) => Math.round(p.score || 0))) }}</span>
+                {{ l('最低', 'Low') }} <span class="font-bold text-slate-700">{{ Math.min(...teamA.players.map((p) => Math.round(p.score || 0))) }}</span>
               </div>
             </div>
           </div>
@@ -186,7 +187,7 @@ onUnmounted(() => {
       <div class="compare-entrance-panel main-section col-span-6 flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/90 px-8 py-6 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md">
         <div class="mb-4 text-center">
           <div class="mb-3 inline-flex items-center justify-center rounded-full bg-slate-100/80 px-4 py-1.5">
-            <h2 class="text-[13px] font-bold uppercase tracking-wider text-slate-600">综合对比分析</h2>
+            <h2 class="text-[13px] font-bold uppercase tracking-wider text-slate-600">{{ l('综合对比分析', 'Overall comparison') }}</h2>
           </div>
 
           <div class="flex items-center justify-center gap-8">
@@ -237,21 +238,21 @@ onUnmounted(() => {
       <div class="compare-entrance-panel main-section col-span-3 flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/90 shadow-sm backdrop-blur-sm transition-shadow duration-300 hover:shadow-md">
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-orange-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-orange-500" />
-          <h2 class="text-[14px] font-bold text-orange-500">队伍 B</h2>
+          <h2 class="text-[14px] font-bold text-orange-500">{{ l('队伍 B', 'Team B') }}</h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
           <Team5ePlayerRow :players="teamB.players" variant="b" @player-click="onPlayerClick" />
 
           <div class="mb-2 text-center">
-            <div class="mb-0.5 text-[12px] font-medium text-slate-500">队伍平均 ELO</div>
+            <div class="mb-0.5 text-[12px] font-medium text-slate-500">{{ l('队伍平均 ELO', 'Team average ELO') }}</div>
             <div class="score-b text-4xl font-black tracking-tight text-orange-500">{{ Math.round(teamAvgElo.b) }}</div>
             <div class="mt-1.5 flex items-center justify-center gap-4 text-[11px] text-slate-500">
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最高 <span class="font-bold text-slate-700">{{ Math.max(...teamB.players.map((p) => Math.round(p.score || 0))) }}</span>
+                {{ l('最高', 'High') }} <span class="font-bold text-slate-700">{{ Math.max(...teamB.players.map((p) => Math.round(p.score || 0))) }}</span>
               </div>
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最低 <span class="font-bold text-slate-700">{{ Math.min(...teamB.players.map((p) => Math.round(p.score || 0))) }}</span>
+                {{ l('最低', 'Low') }} <span class="font-bold text-slate-700">{{ Math.min(...teamB.players.map((p) => Math.round(p.score || 0))) }}</span>
               </div>
             </div>
           </div>
@@ -300,8 +301,8 @@ onUnmounted(() => {
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
-            <span>A 队</span>
-            <span>B 队</span>
+            <span>{{ l('A 队', 'Team A') }}</span>
+            <span>{{ l('B 队', 'Team B') }}</span>
           </div>
         </div>
       </div>
@@ -313,7 +314,7 @@ onUnmounted(() => {
       class="compare-entrance-panel flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-3 text-[12px] text-slate-500"
     >
       <Swords class="h-4 w-4 shrink-0 text-slate-400" />
-      K/D、爆头率等指标对比需要双方均有数据才会显示
+      {{ l('K/D、爆头率等指标对比需要双方均有数据才会显示', 'K/D, HS%, and other comparisons appear when both teams have data.') }}
     </div>
   </div>
 </template>

@@ -1,5 +1,7 @@
 /** 调试面板「更新模拟」默认 Markdown，样式接近真实 GitHub Release。 */
-export const MOCK_RELEASE_NOTES = `## 更新内容
+export const MOCK_RELEASE_NOTES = `## zh-CN
+
+## 更新内容
 
 - 新增玩家评论功能：对局页可查看与发表评论，设置页可管理我的评论
 - 支持评论热评排序、Emoji 表情插入与 30 天编辑限制
@@ -8,4 +10,17 @@ export const MOCK_RELEASE_NOTES = `## 更新内容
 
 ---
 
-**调试说明**：以上内容仅供测试更新弹窗的 Markdown 渲染效果。`;
+**调试说明**：以上内容仅供测试更新弹窗的 Markdown 渲染效果。
+
+## en-US
+
+## What’s new
+
+- Added player comments to match details and comment management in Settings
+- Added hot-comment sorting, emoji insertion, and a 30-day editing limit
+- Added 5E data capture, team comparison, and platform-specific AI analysis
+- Improved navigation animation and comment-list loading states
+
+---
+
+**Debug note:** This content is only used to test Markdown rendering in the update dialog.`;

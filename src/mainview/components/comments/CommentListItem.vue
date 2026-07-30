@@ -5,6 +5,7 @@ import { animate } from 'animejs/animation';
 import { createTimeline } from 'animejs/timeline';
 import type { CommentItem } from '@core/comments/types';
 import { formatCommentTimeMeta } from '@core/comments/format-time';
+import { currentLocale, localize as l } from '../../i18n';
 import { isCommentEditable } from '@core/comments/edit-policy';
 import { isInternalTopLevelComment } from '@core/comments/internal-comment';
 import { resolveCommentAuthorIdentity } from '@core/comments/comment-identity';
@@ -70,7 +71,7 @@ watch(
   },
 );
 
-const timeMeta = computed(() => formatCommentTimeMeta(props.comment.createTime));
+const timeMeta = computed(() => formatCommentTimeMeta(props.comment.createTime, Date.now(), currentLocale()));
 
 const author = computed(() =>
   resolveCommentAuthorIdentity(props.comment.color, {
@@ -385,13 +386,13 @@ function onLikeClick() {
         v-if="isPlatformComment && comment.authorAvatar && comment.source === 'perfect'"
         :src="comment.authorAvatar"
         source="perfect"
-        :alt="displayName ?? '用户头像'"
+        :alt="displayName ?? l('用户头像', 'User avatar')"
         class="h-8 w-8 rounded-md"
       />
       <PlayerAvatar
         v-else-if="isPlatformComment && comment.authorAvatar"
         :src="comment.authorAvatar"
-        :alt="displayName ?? '用户头像'"
+        :alt="displayName ?? l('用户头像', 'User avatar')"
         size="sm"
         shape="rounded"
         class="h-8! w-8!"
@@ -413,13 +414,13 @@ function onLikeClick() {
             >
               <div class="comment-item__meta min-w-0 flex-1">
                 <h3 class="comment-item__author m-0 min-w-0">
-                  <span class="comment-item__author-prefix">{{ displayName ?? '用户' }}</span>
+                  <span class="comment-item__author-prefix">{{ displayName ?? l('用户', 'User') }}</span>
                 </h3>
                 <span
                   v-if="comment.self"
                   class="shrink-0 rounded-full bg-blue-100 px-1.5 py-px text-[10px] font-medium leading-none text-blue-600"
                 >
-                  我
+                  {{ l('我', 'You') }}
                 </span>
                 <span class="comment-item__meta-sep" aria-hidden="true">·</span>
                 <time
@@ -458,11 +459,11 @@ function onLikeClick() {
                   <span class="comment-item__author-prefix">{{ displayName }}</span>
                 </template>
                 <template v-else>
-                  <span class="comment-item__author-prefix">用户</span>
+                  <span class="comment-item__author-prefix">{{ l('用户', 'User') }}</span>
                   <span v-if="aliasCode" class="comment-item__author-code">
                     {{ aliasCode }}
                   </span>
-                  <span v-else class="comment-item__author-prefix text-slate-600">匿名</span>
+                  <span v-else class="comment-item__author-prefix text-slate-600">{{ l('匿名', 'Anonymous') }}</span>
                 </template>
               </h3>
               <span
@@ -481,7 +482,7 @@ function onLikeClick() {
                 v-if="comment.self"
                 class="shrink-0 rounded-full bg-blue-100 px-1.5 py-px text-[10px] font-medium leading-none text-blue-600"
               >
-                我
+                {{ l('我', 'You') }}
               </span>
               <span class="comment-item__meta-sep" aria-hidden="true">·</span>
               <time
@@ -493,7 +494,7 @@ function onLikeClick() {
                 {{ timeMeta.relative }}
                 <template v-if="comment.editedAt">
                   <span class="comment-item__meta-sep" aria-hidden="true">·</span>
-                  <span>已编辑</span>
+                  <span>{{ l('已编辑', 'Edited') }}</span>
                 </template>
               </time>
             </div>
@@ -510,7 +511,7 @@ function onLikeClick() {
               @click="emit('startReply')"
             >
               <MessageSquareReply class="h-3 w-3" aria-hidden="true" />
-              回复
+              {{ l('回复', 'Reply') }}
             </button>
 
             <button
@@ -520,7 +521,7 @@ function onLikeClick() {
               @click="startEdit"
             >
               <PencilLine class="h-3 w-3" aria-hidden="true" />
-              编辑
+              {{ l('编辑', 'Edit') }}
             </button>
 
             <button
@@ -532,7 +533,7 @@ function onLikeClick() {
                   ? 'bg-rose-50 text-rose-500'
                   : 'text-slate-400 hover:bg-white/80 hover:text-rose-500'
               "
-              :aria-label="comment.liked ? '取消点赞' : '点赞'"
+              :aria-label="comment.liked ? l('取消点赞', 'Remove like') : l('点赞', 'Like')"
               @click="onLikeClick"
             >
               <span ref="thumbWrapRef" class="relative inline-flex overflow-visible">
@@ -569,7 +570,7 @@ function onLikeClick() {
             :key="`${comment.id}-image-${index}`"
             :src="image"
             :source="imageSource"
-            :alt="`评论图片 ${index + 1}`"
+            :alt="l(`评论图片 ${index + 1}`, `Comment image ${index + 1}`)"
           />
         </div>
 
@@ -581,7 +582,7 @@ function onLikeClick() {
         >
           <component :is="replyExpanded ? ChevronUp : ChevronDown" class="h-3.5 w-3.5" aria-hidden="true" />
           <span class="tabular-nums">{{ replyCountLabel }}</span>
-          条回复
+          {{ l('条回复', 'replies') }}
         </button>
 
         <div
@@ -593,7 +594,7 @@ function onLikeClick() {
             class="flex items-center justify-center gap-2 px-3 py-4 text-[12px] text-slate-500"
           >
             <Loader2 class="h-4 w-4 animate-spin text-blue-500" aria-hidden="true" />
-            正在加载回复…
+            {{ l('正在加载回复…', 'Loading replies…') }}
           </div>
 
           <div v-else-if="comment.internalReplies?.length" class="divide-y divide-slate-100 px-2.5 py-1">
@@ -613,7 +614,7 @@ function onLikeClick() {
             v-else-if="replyExpanded && !replying"
             class="px-3 py-3 text-center text-[12px] text-slate-400"
           >
-            暂无回复，来抢沙发吧
+            {{ l('暂无回复，来抢沙发吧', 'No replies yet') }}
           </p>
 
           <button
@@ -625,9 +626,9 @@ function onLikeClick() {
           >
             <span v-if="replyLoadingMore" class="inline-flex items-center justify-center gap-1.5">
               <Loader2 class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              加载中…
+              {{ l('加载中…', 'Loading…') }}
             </span>
-            <span v-else>加载更多回复</span>
+            <span v-else>{{ l('加载更多回复', 'Load more replies') }}</span>
           </button>
 
           <div
@@ -641,7 +642,7 @@ function onLikeClick() {
                 v-model="replyDraft"
                 rows="1"
                 maxlength="200"
-                placeholder="写下你的回复…"
+                :placeholder="l('写下你的回复…', 'Write a reply…')"
                 class="comment-edit-textarea w-full resize-none rounded-t-lg border-0 bg-transparent px-3 py-2 text-[12px] leading-[1.65] text-slate-700 outline-none focus:ring-0"
                 @input="resizeReplyTextarea"
               />
@@ -661,7 +662,7 @@ function onLikeClick() {
                     class="inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[11px] font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700"
                     @click="emit('cancelReply')"
                   >
-                    取消
+                    {{ l('取消', 'Cancel') }}
                   </button>
                   <button
                     type="button"
@@ -670,7 +671,7 @@ function onLikeClick() {
                     @click="submitReplyDraft"
                   >
                     <Loader2 v-if="submitting" class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                    发送
+                    {{ l('发送', 'Send') }}
                   </button>
                 </div>
               </div>
@@ -683,7 +684,7 @@ function onLikeClick() {
           class="mt-3 space-y-2 rounded-lg border border-slate-200/70 bg-slate-50/70 px-2.5 py-2"
         >
           <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            {{ comment.replies.length }} 条回复
+            {{ l(`${comment.replies.length} 条回复`, `${comment.replies.length} replies`) }}
           </p>
           <div
             v-for="reply in comment.replies"
@@ -709,7 +710,7 @@ function onLikeClick() {
                 <div class="comment-item__meta min-w-0 flex-1">
                   <span class="text-[11px] font-semibold text-slate-700">{{ reply.authorName }}</span>
                   <span v-if="reply.replyToName" class="comment-item__meta-time shrink-0">
-                    回复 {{ reply.replyToName }}
+                    {{ l(`回复 ${reply.replyToName}`, `Replying to ${reply.replyToName}`) }}
                   </span>
                   <template v-if="reply.region">
                     <span class="comment-item__meta-sep" aria-hidden="true">·</span>
@@ -727,7 +728,7 @@ function onLikeClick() {
                 <CommentImageThumb
                   :src="reply.image"
                   :source="imageSource"
-                  alt="回复图片"
+                  :alt="l('回复图片', 'Reply image')"
                 />
               </div>
             </div>
@@ -741,7 +742,7 @@ function onLikeClick() {
             class="comment-item__author"
             :class="{ 'comment-item__author--accent': Boolean(author) }"
           >
-            <span class="comment-item__author-prefix">用户</span>
+            <span class="comment-item__author-prefix">{{ l('用户', 'User') }}</span>
             <span v-if="aliasCode" class="comment-item__author-code">
               {{ aliasCode }}
             </span>
@@ -750,7 +751,7 @@ function onLikeClick() {
             v-if="comment.self"
             class="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium leading-snug text-blue-600"
           >
-            我
+            {{ l('我', 'You') }}
           </span>
         </header>
 
@@ -779,7 +780,7 @@ function onLikeClick() {
                 class="inline-flex h-7 cursor-pointer items-center rounded-md px-2 text-[11px] font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700"
                 @click="cancelEdit"
               >
-                取消
+                {{ l('取消', 'Cancel') }}
               </button>
               <button
                 type="button"
@@ -788,7 +789,7 @@ function onLikeClick() {
                 @click="saveEdit"
               >
                 <Loader2 v-if="submitting" class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                保存
+                {{ l('保存', 'Save') }}
               </button>
             </div>
           </div>

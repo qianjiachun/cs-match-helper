@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-vue-next';
 import type { WatcherStatus } from '@core/types';
 import type { PlatformId } from '@platforms/types';
 import type { P5eCdpPhase } from '@platforms/5e/types';
+import { localize as l } from '../i18n';
 
 const props = defineProps<{
   watcher: WatcherStatus;
@@ -38,13 +39,13 @@ const showPlatformHint = computed(() => {
 const hintText = computed(() => {
   if (props.platform === '5e') {
     if (props.p5eRecovering || props.p5ePhase === 'needsRelaunch') {
-      return '检测到 5E 可能已更新并重启，正在重新连接…';
+      return l('检测到 5E 可能已更新并重启，正在重新连接…', '5E may have updated and restarted. Reconnecting…');
     }
-    if (props.p5ePhase === 'reconnecting') return '正在连接 5E，请稍候…';
-    if (props.p5ePhase === 'error') return '连接中断，请尝试重新启动 5E';
+    if (props.p5ePhase === 'reconnecting') return l('正在连接 5E，请稍候…', 'Connecting to 5E…');
+    if (props.p5ePhase === 'error') return l('连接中断，请尝试重新启动 5E', 'Connection lost. Try relaunching 5E.');
     return '';
   }
-  return '请重启完美对战平台';
+  return l('请重启完美对战平台', 'Restart Perfect World Arena');
 });
 
 const orbits = [
@@ -119,7 +120,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="wait-container" ref="containerRef" role="status" aria-label="等待对局数据">
+  <div class="wait-container" ref="containerRef" role="status" :aria-label="l('等待对局数据', 'Waiting for match data')">
     <div class="wait__back">
       <button
         type="button"
@@ -127,7 +128,7 @@ onMounted(() => {
         @click="emit('back')"
       >
         <ArrowLeft class="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-        更换平台
+        {{ l('更换平台', 'Change platform') }}
       </button>
     </div>
 
@@ -168,7 +169,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <p class="wait__text">等待对局数据</p>
+    <p class="wait__text">{{ l('等待对局数据', 'Waiting for match data') }}</p>
     <p
       v-if="showPlatformHint"
       class="wait__hint"

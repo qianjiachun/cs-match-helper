@@ -29,6 +29,7 @@ import {
   seedMockMatchHistory,
   type MockHistoryPlatformMix,
 } from '../utils/matchHistoryMock';
+import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
 
 const { copyText } = useCopyFeedback();
 const MatchDebugWidgetPanel = defineAsyncComponent(
@@ -72,7 +73,8 @@ type LogSubTab = 'perfect' | 'p5e';
 
 const isDev = import.meta.env.DEV;
 
-const runtimeDiagnosticsText = formatRuntimeDiagnostics(collectRuntimeDiagnostics());
+const runtimeDiagnostics = collectRuntimeDiagnostics();
+const runtimeDiagnosticsText = computed(() => formatRuntimeDiagnostics(runtimeDiagnostics));
 
 const {
   state: updateState,
@@ -117,23 +119,23 @@ const totalLogCount = computed(
   () => props.logEntries.length + (props.p5e?.logEntries.value.length ?? 0),
 );
 
-const p5ePhaseLabel: Record<string, string> = {
-  idle: '空闲',
-  launching: '启动中',
-  cdpReady: '已连接',
-  collecting: '采集中',
-  reconnecting: '重连中',
-  needsRelaunch: '需重连',
-  stopped: '已停止',
-  error: '错误',
-};
+const p5ePhaseLabel = computed<Record<string, string>>(() => ({
+  idle: l('空闲', 'Idle'),
+  launching: l('启动中', 'Launching'),
+  cdpReady: l('已连接', 'Connected'),
+  collecting: l('采集中', 'Capturing'),
+  reconnecting: l('重连中', 'Reconnecting'),
+  needsRelaunch: l('需重连', 'Relaunch required'),
+  stopped: l('已停止', 'Stopped'),
+  error: l('错误', 'Error'),
+}));
 
 async function openDevtoolsPanel() {
   devtoolsError.value = '';
   try {
     await openAppDevtools();
   } catch (err) {
-    devtoolsError.value = String(err);
+    devtoolsError.value = localizeErrorMessage(err);
   }
 }
 
@@ -142,7 +144,7 @@ async function closeDevtoolsPanel() {
   try {
     await closeAppDevtools();
   } catch (err) {
-    devtoolsError.value = String(err);
+    devtoolsError.value = localizeErrorMessage(err);
   }
 }
 
@@ -154,23 +156,23 @@ function toggleClientNotFoundSim() {
 async function simulateP5eMatch() {
   p5eError.value = '';
   if (!props.p5e) {
-    p5eError.value = '5E 模块未就绪';
+    p5eError.value = l('5E 模块未就绪', 'The 5E module is not ready');
     return;
   }
   const record = await props.p5e.simulateFixture();
-  if (!record) p5eError.value = props.p5e.lastError.value ?? '模拟失败';
+  if (!record) p5eError.value = props.p5e.lastError.value ?? l('模拟失败', 'Simulation failed');
   else if (props.placement === 'header') open.value = false;
 }
 
 function replayP5eNdjson() {
   p5eError.value = '';
   if (!props.p5e) {
-    p5eError.value = '5E 模块未就绪';
+    p5eError.value = l('5E 模块未就绪', 'The 5E module is not ready');
     return;
   }
   const bundles = props.p5e.replayNdjson(p5eNdjsonInput.value);
   if (!bundles.length) {
-    p5eError.value = '未解析到有效 5e 匹配事件';
+    p5eError.value = l('未解析到有效 5E 匹配事件', 'No valid 5E match events were parsed');
     return;
   }
   p5eNdjsonInput.value = '';
@@ -180,28 +182,28 @@ function replayP5eNdjson() {
 async function toggleP5eGateDebugMode(event: Event) {
   p5eError.value = '';
   if (!props.p5e) {
-    p5eError.value = '5E 模块未就绪';
+    p5eError.value = l('5E 模块未就绪', 'The 5E module is not ready');
     return;
   }
   const checked = (event.target as HTMLInputElement).checked;
   try {
     await props.p5e.setGateDebugMode(checked);
   } catch (err) {
-    p5eError.value = String(err);
+    p5eError.value = localizeErrorMessage(err);
   }
 }
 
 async function toggleP5eWsDebugMode(event: Event) {
   p5eError.value = '';
   if (!props.p5e) {
-    p5eError.value = '5E 模块未就绪';
+    p5eError.value = l('5E 模块未就绪', 'The 5E module is not ready');
     return;
   }
   const checked = (event.target as HTMLInputElement).checked;
   try {
     await props.p5e.setWsDebugMode(checked);
   } catch (err) {
-    p5eError.value = String(err);
+    p5eError.value = localizeErrorMessage(err);
   }
 }
 
@@ -223,7 +225,7 @@ async function submitAi() {
   aiError.value = '';
   const raw = aiInput.value.trim();
   if (!raw) {
-    aiError.value = '请粘贴 AI 分析 JSON';
+    aiError.value = l('请粘贴 AI 分析 JSON', 'Paste an AI analysis JSON payload');
     return;
   }
   const inject = props.injectAiResult;
@@ -254,7 +256,7 @@ function fillMockHistory() {
 async function seedMatchHistory() {
   historyError.value = '';
   if (!props.matchHistory) {
-    historyError.value = '对局历史模块未就绪';
+    historyError.value = l('对局历史模块未就绪', 'The match-history module is not ready');
     return;
   }
   historyBusy.value = true;
@@ -264,10 +266,10 @@ async function seedMatchHistory() {
       platformMix: historyPlatformMix.value,
       withAi: historyWithAi.value,
     });
-    showToast(`已填充 ${saved} 条模拟对局`);
+    showToast(l(`已填充 ${saved} 条模拟对局`, `Added ${saved} simulated matches`));
     if (props.placement === 'header') open.value = false;
   } catch (err) {
-    historyError.value = err instanceof Error ? err.message : String(err);
+    historyError.value = localizeErrorMessage(err);
   } finally {
     historyBusy.value = false;
   }
@@ -276,15 +278,15 @@ async function seedMatchHistory() {
 async function clearMatchHistory() {
   historyError.value = '';
   if (!props.matchHistory) {
-    historyError.value = '对局历史模块未就绪';
+    historyError.value = l('对局历史模块未就绪', 'The match-history module is not ready');
     return;
   }
   historyBusy.value = true;
   try {
     await props.matchHistory.clearAll();
-    showToast('已清空对局历史');
+    showToast(l('已清空对局历史', 'Match history cleared'));
   } catch (err) {
-    historyError.value = err instanceof Error ? err.message : String(err);
+    historyError.value = localizeErrorMessage(err);
   } finally {
     historyBusy.value = false;
   }
@@ -331,36 +333,37 @@ function buildLogCopyMetaLines(): string[] {
   if (logSubTab.value === 'p5e' && props.p5e) {
     const status = props.p5e.status.value;
     return [
-      `采集: ${status.running ? '采集中' : '未采集'}`,
-      `阶段: ${p5ePhaseLabel[status.phase] ?? status.phase}`,
-      ...(status.port ? [`端口: ${status.port}`] : []),
-      `事件: ${status.eventsEmitted}`,
-      ...(props.p5e.lastError.value ? [`错误: ${props.p5e.lastError.value}`] : []),
+      l(`采集: ${status.running ? '采集中' : '未采集'}`, `Capture: ${status.running ? 'active' : 'inactive'}`),
+      l(`阶段: ${p5ePhaseLabel.value[status.phase] ?? status.phase}`, `Phase: ${p5ePhaseLabel.value[status.phase] ?? status.phase}`),
+      ...(status.port ? [l(`端口: ${status.port}`, `Port: ${status.port}`)] : []),
+      l(`事件: ${status.eventsEmitted}`, `Events: ${status.eventsEmitted}`),
+      ...(props.p5e.lastError.value ? [l(`错误: ${props.p5e.lastError.value}`, `Error: ${props.p5e.lastError.value}`)] : []),
     ];
   }
 
   return [
-    `监听: ${props.watcher.running ? '监听中' : '未监听'}`,
-    `已收: ${props.watcher.linesReceived} 行`,
-    `日志: ${props.watcher.fileExists ? props.watcher.logPath : '等待日志文件…'}`,
+    l(`监听: ${props.watcher.running ? '监听中' : '未监听'}`, `Watcher: ${props.watcher.running ? 'active' : 'inactive'}`),
+    l(`已收: ${props.watcher.linesReceived} 行`, `Received: ${props.watcher.linesReceived} lines`),
+    l(`日志: ${props.watcher.fileExists ? props.watcher.logPath : '等待日志文件…'}`, `Log: ${props.watcher.fileExists ? props.watcher.logPath : 'Waiting for a log file…'}`),
   ];
 }
 
 async function copyAllLogs() {
   const entries = activeLogEntries.value;
   if (!entries.length) {
-    showToast('暂无日志可复制', 'warning');
+    showToast(l('暂无日志可复制', 'No logs to copy'), 'warning');
     return;
   }
 
   const isP5e = logSubTab.value === 'p5e';
-  const title = isP5e ? 'CS 对局助手 · 5E 数据' : 'CS 对局助手 · 完美日志';
+  const title = isP5e ? l('CS 匹配助手 · 5E 数据', 'CS Match Helper · 5E data') : l('CS 匹配助手 · 完美日志', 'CS Match Helper · Perfect World logs');
   const text = formatDebugLogEntriesForCopy(entries, {
     title,
     metaLines: buildLogCopyMetaLines(),
+    locale: currentLocale(),
   });
-  const label = isP5e ? '5E' : '完美';
-  await copyText(text, `已复制 ${entries.length} 条${label}日志`);
+  const label = isP5e ? '5E' : l('完美', 'Perfect World');
+  await copyText(text, l(`已复制 ${entries.length} 条${label}日志`, `Copied ${entries.length} ${label} log entries`));
 }
 
 function truncate(text: string, max = 160) {
@@ -410,7 +413,7 @@ watch(
       @click="toggle"
     >
       <Bug class="h-4 w-4" />
-      <span class="hidden sm:inline">调试</span>
+      <span class="hidden sm:inline">{{ l('调试', 'Debug') }}</span>
     </button>
 
     <div
@@ -420,13 +423,13 @@ watch(
       <div class="flex items-center justify-between border-b border-border bg-elevated px-4 py-2.5">
         <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
           <Bug class="h-3.5 w-3.5 text-fg-muted" />
-          调试面板
+          {{ l('调试面板', 'Debug panel') }}
         </span>
         <div class="flex items-center gap-1">
           <button
             type="button"
             class="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-[11px] text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
-            title="打开 WebView 开发者工具（F12 / Ctrl+Shift+I）"
+            :title="l('打开 WebView 开发者工具（F12 / Ctrl+Shift+I）', 'Open WebView developer tools (F12 / Ctrl+Shift+I)')"
             @click="openDevtoolsPanel"
           >
             <Code2 class="h-3.5 w-3.5" />
@@ -435,7 +438,7 @@ watch(
           <button
             type="button"
             class="cursor-pointer rounded p-1 text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
-            aria-label="关闭"
+            :aria-label="l('关闭', 'Close')"
             @click="close"
           >
             <X class="h-4 w-4" />
@@ -454,7 +457,7 @@ watch(
           "
           @click="switchTab('inject')"
         >
-          注入数据
+          {{ l('注入数据', 'Inject data') }}
         </button>
         <button
           type="button"
@@ -467,7 +470,7 @@ watch(
           @click="switchTab('logs')"
         >
           <ScrollText class="h-3.5 w-3.5" />
-          日志输出
+          {{ l('日志输出', 'Logs') }}
           <span
             v-if="totalLogCount"
             class="rounded-full bg-elevated px-1.5 py-0.5 text-[10px] text-fg-muted"
@@ -491,7 +494,7 @@ watch(
               "
               @click="switchInjectSubTab('match')"
             >
-              匹配
+              {{ l('匹配', 'Match') }}
             </button>
             <button
               v-if="isDev"
@@ -528,7 +531,7 @@ watch(
               "
               @click="switchInjectSubTab('comments')"
             >
-              评论
+              {{ l('评论', 'Comments') }}
             </button>
             <button
               type="button"
@@ -540,7 +543,7 @@ watch(
               "
               @click="switchInjectSubTab('history')"
             >
-              历史
+              {{ l('历史', 'History') }}
             </button>
             <button
               type="button"
@@ -552,7 +555,7 @@ watch(
               "
               @click="switchInjectSubTab('update')"
             >
-              更新
+              {{ l('更新', 'Update') }}
             </button>
             <button
               type="button"
@@ -576,14 +579,14 @@ watch(
               "
               @click="switchInjectSubTab('runtime')"
             >
-              运行时
+              {{ l('运行时', 'Runtime') }}
             </button>
           </div>
         </div>
 
         <div v-if="injectSubTab === 'match'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            粘贴解码后的匹配 JSON，含 players 与 playerlist_extrainfo。
+            {{ l('粘贴解码后的匹配 JSON，含 players 与 playerlist_extrainfo。', 'Paste decoded match JSON containing players and playerlist_extrainfo.') }}
           </p>
           <textarea
             v-model="input"
@@ -599,18 +602,18 @@ watch(
               class="shrink-0 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
               @click="submit"
             >
-              注入
+              {{ l('注入', 'Inject') }}
             </button>
           </div>
         </div>
 
         <div v-else-if="isDev && injectSubTab === 'p5e'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            一键模拟 5e 匹配成功，或粘贴 NDJSON 逐行回放（自动过滤 token/curl）。
+            {{ l('一键模拟 5E 匹配成功，或粘贴 NDJSON 逐行回放（自动过滤 token/curl）。', 'Simulate a successful 5E match or paste NDJSON for line-by-line replay. Tokens and curl data are filtered automatically.') }}
           </p>
           <div class="rounded-md border border-border bg-elevated px-3 py-2.5">
             <p class="text-[11px] leading-relaxed text-fg-secondary">
-              启动页调试：模拟未安装 5E 时，启动页会提示填写路径且无法点击「立即启动」。
+              {{ l('启动页调试：模拟未安装 5E 时，启动页会提示填写路径且无法点击「立即启动」。', 'Launch-screen test: simulate a missing 5E install so the path is required and Launch now remains disabled.') }}
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <button
@@ -623,10 +626,10 @@ watch(
                 "
                 @click="toggleClientNotFoundSim"
               >
-                {{ p5eSimulateClientNotFound ? '关闭「找不到客户端」模拟' : '模拟找不到客户端' }}
+                {{ p5eSimulateClientNotFound ? l('关闭「找不到客户端」模拟', 'Disable missing-client simulation') : l('模拟找不到客户端', 'Simulate missing client') }}
               </button>
               <span class="text-[10px] text-fg-muted">
-                当前：{{ p5eSimulateClientNotFound ? '已开启' : '未开启' }}
+                {{ l('当前', 'Current') }}: {{ p5eSimulateClientNotFound ? l('已开启', 'Enabled') : l('未开启', 'Disabled') }}
               </span>
             </div>
           </div>
@@ -635,12 +638,12 @@ watch(
             class="w-full cursor-pointer rounded-md bg-accent px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover"
             @click="simulateP5eMatch"
           >
-            模拟 5e 匹配成功
+            {{ l('模拟 5E 匹配成功', 'Simulate successful 5E match') }}
           </button>
           <textarea
             v-model="p5eNdjsonInput"
             class="h-28 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
-            placeholder="粘贴 5e-match-events.ndjson 内容…"
+            :placeholder="l('粘贴 5e-match-events.ndjson 内容…', 'Paste 5e-match-events.ndjson content…')"
             spellcheck="false"
           />
           <div class="flex items-center justify-between gap-3">
@@ -651,14 +654,14 @@ watch(
               class="shrink-0 cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors hover:bg-elevated"
               @click="replayP5eNdjson"
             >
-              NDJSON 回放
+              {{ l('NDJSON 回放', 'Replay NDJSON') }}
             </button>
           </div>
         </div>
 
         <div v-else-if="injectSubTab === 'ai'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            粘贴 AI 分析 JSON，直接预览结果面板（需先有当前匹配数据）。
+            {{ l('粘贴 AI 分析 JSON，直接预览结果面板（需先有当前匹配数据）。', 'Paste AI analysis JSON to preview the result panel. Current match data is required.') }}
           </p>
           <textarea
             v-model="aiInput"
@@ -674,20 +677,20 @@ watch(
               class="shrink-0 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
               @click="submitAi"
             >
-              注入 AI 结果
+              {{ l('注入 AI 结果', 'Inject AI result') }}
             </button>
           </div>
         </div>
 
         <div v-else-if="injectSubTab === 'comments'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            打开带 Mock 数据的评论抽屉，或填充设置页「我的评论」列表（不请求接口）。
+            {{ l('打开带 Mock 数据的评论抽屉，或填充设置页「我的评论」列表（不请求接口）。', 'Open the comments drawer with mock data or populate My comments in Settings without making API requests.') }}
           </p>
           <div class="rounded-md border border-border bg-base px-3 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
-            <p>玩家：调试玩家_Mock</p>
+            <p>{{ l('玩家', 'Player') }}: DebugPlayer_Mock</p>
             <p class="mt-1">SteamID：76561198000000001</p>
-            <p class="mt-1">Mock 列表含 5 条评论（含 1 条自己的评论）</p>
-            <p class="mt-1">Mock 历史含 5 条评论（3 个不同 SteamID）</p>
+            <p class="mt-1">{{ l('Mock 列表含 5 条评论（含 1 条自己的评论）', 'Mock list: 5 comments, including 1 from you') }}</p>
+            <p class="mt-1">{{ l('Mock 历史含 5 条评论（3 个不同 SteamID）', 'Mock history: 5 comments across 3 Steam IDs') }}</p>
           </div>
           <button
             type="button"
@@ -695,7 +698,7 @@ watch(
             @click="openMockComments('list')"
           >
             <MessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
-            打开 Mock 评论抽屉
+            {{ l('打开 Mock 评论抽屉', 'Open mock comments drawer') }}
           </button>
           <button
             type="button"
@@ -703,7 +706,7 @@ watch(
             @click="fillMockHistory"
           >
             <MessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
-            填充我的评论
+            {{ l('填充我的评论', 'Populate My comments') }}
           </button>
           <div class="flex flex-wrap gap-2">
             <button
@@ -711,36 +714,36 @@ watch(
               class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
               @click="openMockComments('empty')"
             >
-              空状态
+              {{ l('空状态', 'Empty state') }}
             </button>
             <button
               type="button"
               class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
               @click="openMockComments('loading')"
             >
-              加载中
+              {{ l('加载中', 'Loading') }}
             </button>
             <button
               type="button"
               class="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
               @click="openMockComments('error')"
             >
-              错误态
+              {{ l('错误态', 'Error state') }}
             </button>
           </div>
         </div>
 
         <div v-else-if="injectSubTab === 'history'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            批量写入本地对局历史，覆盖多地图、完美/5E 平台与部分 AI 分析，便于测试列表分页与详情补分析。
+            {{ l('批量写入本地对局历史，覆盖多地图、完美/5E 平台与部分 AI 分析，便于测试列表分页与详情补分析。', 'Seed local match history across maps and platforms, with some AI results, to test pagination and analysis regeneration.') }}
           </p>
           <div class="rounded-md border border-border bg-base px-3 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
-            <p>当前历史：{{ historyListCount }} 条</p>
-            <p class="mt-1">5E 记录含 p5eBundle，可测试「补 AI 分析」数据保真</p>
+            <p>{{ l('当前历史', 'Current history') }}: {{ historyListCount }}</p>
+            <p class="mt-1">{{ l('5E 记录含 p5eBundle，可测试「补 AI 分析」数据保真', '5E records include p5eBundle for testing lossless AI regeneration') }}</p>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <label class="space-y-1">
-              <span class="text-[11px] font-medium text-fg-secondary">条数</span>
+              <span class="text-[11px] font-medium text-fg-secondary">{{ l('条数', 'Count') }}</span>
               <input
                 v-model.number="historySeedCount"
                 type="number"
@@ -750,14 +753,14 @@ watch(
               />
             </label>
             <label class="space-y-1">
-              <span class="text-[11px] font-medium text-fg-secondary">平台</span>
+              <span class="text-[11px] font-medium text-fg-secondary">{{ l('平台', 'Platform') }}</span>
               <select
                 v-model="historyPlatformMix"
                 class="w-full cursor-pointer rounded-md border border-border bg-base px-2.5 py-1.5 text-[12px] text-fg outline-none transition-colors focus:border-accent"
               >
-                <option value="both">完美 + 5E 交替</option>
-                <option value="perfect">仅完美</option>
-                <option value="5e">仅 5E</option>
+                <option value="both">{{ l('完美 + 5E 交替', 'Alternate Perfect World + 5E') }}</option>
+                <option value="perfect">{{ l('仅完美', 'Perfect World only') }}</option>
+                <option value="5e">{{ l('仅 5E', '5E only') }}</option>
               </select>
             </label>
           </div>
@@ -767,7 +770,7 @@ watch(
               type="checkbox"
               class="h-3.5 w-3.5 cursor-pointer rounded border-border accent-accent"
             />
-            约每 3 条写入 1 条 AI 分析
+            {{ l('约每 3 条写入 1 条 AI 分析', 'Include AI analysis in about 1 of every 3 matches') }}
           </label>
           <div class="flex flex-wrap justify-end gap-2">
             <p v-if="historyError" class="mr-auto text-[11px] text-danger">{{ historyError }}</p>
@@ -777,7 +780,7 @@ watch(
               :disabled="historyBusy || !matchHistory"
               @click="clearMatchHistory"
             >
-              清空历史
+              {{ l('清空历史', 'Clear history') }}
             </button>
             <button
               type="button"
@@ -785,33 +788,33 @@ watch(
               :disabled="historyBusy || !matchHistory"
               @click="seedMatchHistory"
             >
-              {{ historyBusy ? '写入中…' : '填充模拟历史' }}
+              {{ historyBusy ? l('写入中…', 'Writing…') : l('填充模拟历史', 'Seed mock history') }}
             </button>
           </div>
         </div>
 
         <div v-else-if="injectSubTab === 'update'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            模拟检测到新版本，用于测试标题栏与关于页的更新提示和弹窗。
+            {{ l('模拟检测到新版本，用于测试标题栏与关于页的更新提示和弹窗。', 'Simulate an available update to test title-bar and About-page indicators and dialogs.') }}
           </p>
           <div class="rounded-md border border-border bg-base px-3 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
-            <p>当前版本：{{ formattedVersion || '加载中…' }}</p>
+            <p>{{ l('当前版本', 'Current version') }}: {{ formattedVersion || l('加载中…', 'Loading…') }}</p>
             <p class="mt-1">
-              模拟状态：
+              {{ l('模拟状态', 'Simulation status') }}:
               <span :class="updateState.hasUpdate ? 'text-warning' : 'text-fg-muted'">
-                {{ updateState.hasUpdate ? `有新版本 ${formatAppVersion(updateState.latestVersion)}` : '无更新提示' }}
+                {{ updateState.hasUpdate ? l(`有新版本 ${formatAppVersion(updateState.latestVersion)}`, `Update available ${formatAppVersion(updateState.latestVersion)}`) : l('无更新提示', 'No update indicator') }}
               </span>
             </p>
           </div>
           <div class="space-y-1.5">
             <label class="text-[11px] font-medium text-fg-secondary" for="mock-release-notes">
-              模拟更新内容（Markdown）
+              {{ l('模拟更新内容（Markdown）', 'Mock release notes (Markdown)') }}
             </label>
             <textarea
               id="mock-release-notes"
               v-model="mockReleaseNotes"
               class="h-40 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
-              placeholder="## 更新内容&#10;&#10;- 第一条更新说明"
+              :placeholder="l('## 更新内容\n\n- 第一条更新说明', '## What’s new\n\n- First release note')"
               spellcheck="false"
             />
           </div>
@@ -822,7 +825,7 @@ watch(
               :disabled="!updateState.hasUpdate"
               @click="clearUpdateHint"
             >
-              清除提示
+              {{ l('清除提示', 'Clear indicator') }}
             </button>
             <button
               type="button"
@@ -830,14 +833,14 @@ watch(
               :disabled="!updateState.hasUpdate"
               @click="openUpdateDialog"
             >
-              打开弹窗
+              {{ l('打开弹窗', 'Open dialog') }}
             </button>
             <button
               type="button"
               class="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
               @click="simulateUpdate(mockReleaseNotes)"
             >
-              模拟检测到新版本
+              {{ l('模拟检测到新版本', 'Simulate update') }}
             </button>
           </div>
         </div>
@@ -846,7 +849,7 @@ watch(
 
         <div v-else-if="injectSubTab === 'runtime'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            WebView2 与动画能力诊断，用于排查其他电脑上的界面/动画异常。
+            {{ l('WebView2 与动画能力诊断，用于排查其他电脑上的界面/动画异常。', 'WebView2 and animation diagnostics for investigating rendering issues on other computers.') }}
           </p>
           <div class="flex flex-wrap gap-2">
             <button
@@ -855,18 +858,18 @@ watch(
               @click="openDevtoolsPanel"
             >
               <Code2 class="h-3.5 w-3.5" />
-              打开开发者工具
+              {{ l('打开开发者工具', 'Open developer tools') }}
             </button>
             <button
               type="button"
               class="cursor-pointer rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
               @click="closeDevtoolsPanel"
             >
-              关闭开发者工具
+              {{ l('关闭开发者工具', 'Close developer tools') }}
             </button>
           </div>
           <p class="text-[10px] text-fg-muted">
-            快捷键：F12 或 Ctrl+Shift+I<span v-if="!isDev">（需先解锁调试模式）</span>
+            {{ l('快捷键', 'Shortcut') }}: F12 {{ l('或', 'or') }} Ctrl+Shift+I<span v-if="!isDev">{{ l('（需先解锁调试模式）', ' (unlock Debug mode first)') }}</span>
           </p>
           <p v-if="devtoolsError" class="text-[11px] text-danger">{{ devtoolsError }}</p>
           <pre
@@ -888,7 +891,7 @@ watch(
             "
             @click="logSubTab = 'perfect'"
           >
-            完美日志
+            {{ l('完美日志', 'Perfect World logs') }}
             <span v-if="logEntries.length" class="ml-1 text-fg-muted">({{ logEntries.length }})</span>
           </button>
           <button
@@ -901,7 +904,7 @@ watch(
             "
             @click="logSubTab = 'p5e'"
           >
-            5E 数据
+            {{ l('5E 数据', '5E data') }}
             <span v-if="p5eLogEntries.length" class="ml-1 text-fg-muted">({{ p5eLogEntries.length }})</span>
           </button>
         </div>
@@ -911,37 +914,37 @@ watch(
         >
           <template v-if="logSubTab === 'p5e' && p5e">
             <span :class="p5e.status.value.running ? 'text-success' : 'text-fg-muted'">
-              {{ p5e.status.value.running ? '采集中' : '未采集' }}
+              {{ p5e.status.value.running ? l('采集中', 'Capturing') : l('未采集', 'Not capturing') }}
             </span>
-            <span>阶段 {{ p5ePhaseLabel[p5e.status.value.phase] ?? p5e.status.value.phase }}</span>
-            <span v-if="p5e.status.value.port">端口 {{ p5e.status.value.port }}</span>
-            <span>事件 {{ p5e.status.value.eventsEmitted }}</span>
+            <span>{{ l('阶段', 'Phase') }} {{ p5ePhaseLabel[p5e.status.value.phase] ?? p5e.status.value.phase }}</span>
+            <span v-if="p5e.status.value.port">{{ l('端口', 'Port') }} {{ p5e.status.value.port }}</span>
+            <span>{{ l('事件', 'Events') }} {{ p5e.status.value.eventsEmitted }}</span>
             <span v-if="p5e.captureProgress.value" class="text-accent">
-              采集 {{ p5e.captureProgress.value.collected }}/{{ p5e.captureProgress.value.total }}
+              {{ l('采集', 'Captured') }} {{ p5e.captureProgress.value.collected }}/{{ p5e.captureProgress.value.total }}
               <template v-if="p5e.captureProgress.value.missing.length">
-                · 缺 {{ p5e.captureProgress.value.missing.join(', ') }}
+                · {{ l('缺', 'missing') }} {{ p5e.captureProgress.value.missing.join(', ') }}
               </template>
             </span>
-            <span>展示 {{ filteredP5eLogEntries.length }}/{{ p5eLogEntries.length }} 条</span>
+            <span>{{ l('展示', 'Showing') }} {{ filteredP5eLogEntries.length }}/{{ p5eLogEntries.length }}</span>
             <span v-if="p5e.lastError.value" class="text-danger truncate" :title="p5e.lastError.value">
-              错误: {{ p5e.lastError.value }}
+              {{ l('错误', 'Error') }}: {{ p5e.lastError.value }}
             </span>
           </template>
           <template v-else>
             <span :class="watcher.running ? 'text-success' : 'text-fg-muted'">
-              {{ watcher.running ? '监听中' : '未监听' }}
+              {{ watcher.running ? l('监听中', 'Watching') : l('未监听', 'Not watching') }}
             </span>
-            <span>已收 {{ watcher.linesReceived }} 行</span>
-            <span>展示 {{ logEntries.length }} 条</span>
+            <span>{{ l('已收', 'Received') }} {{ watcher.linesReceived }} {{ l('行', 'lines') }}</span>
+            <span>{{ l('展示', 'Showing') }} {{ logEntries.length }}</span>
             <span class="truncate" :title="watcher.logPath">
-              {{ watcher.fileExists ? watcher.logPath : '等待日志文件…' }}
+              {{ watcher.fileExists ? watcher.logPath : l('等待日志文件…', 'Waiting for a log file…') }}
             </span>
           </template>
           <div class="ml-auto flex items-center gap-2">
             <label
               v-if="logSubTab === 'p5e' && p5e"
               class="flex cursor-pointer items-center gap-1"
-              title="监听 Comet WebSocket 帧（解码后输出到本页），不参与匹配聚合"
+              :title="l('监听 Comet WebSocket 帧（解码后输出到本页），不参与匹配聚合', 'Capture decoded Comet WebSocket frames on this page without using them for match aggregation')"
             >
               <input
                 type="checkbox"
@@ -949,12 +952,12 @@ watch(
                 :checked="p5e.wsDebugMode.value"
                 @change="toggleP5eWsDebugMode"
               />
-              WS 调试
+              {{ l('WS 调试', 'WS debug') }}
             </label>
             <label
               v-if="logSubTab === 'p5e' && p5e"
               class="flex cursor-pointer items-center gap-1"
-              title="记录 gate.5eplay.com 全部 HTTP 请求（分类：Gate 调试），不参与匹配聚合"
+              :title="l('记录 gate.5eplay.com 全部 HTTP 请求（分类：Gate 调试），不参与匹配聚合', 'Record all gate.5eplay.com HTTP requests under Gate debug without using them for match aggregation')"
             >
               <input
                 type="checkbox"
@@ -962,11 +965,11 @@ watch(
                 :checked="p5e.gateDebugMode.value"
                 @change="toggleP5eGateDebugMode"
               />
-              Gate 调试
+              {{ l('Gate 调试', 'Gate debug') }}
             </label>
             <label class="flex cursor-pointer items-center gap-1">
               <input v-model="autoScroll" type="checkbox" class="accent-accent" />
-              自动滚动
+              {{ l('自动滚动', 'Auto-scroll') }}
             </label>
             <button
               type="button"
@@ -974,19 +977,19 @@ watch(
               :disabled="!activeLogEntries.length"
               :title="
                 logSubTab === 'p5e'
-                  ? '复制当前筛选后的 5E 数据列表（完整内容）'
-                  : '复制当前完美日志列表（完整内容）'
+                  ? l('复制当前筛选后的 5E 数据列表（完整内容）', 'Copy the complete filtered 5E data list')
+                  : l('复制当前完美日志列表（完整内容）', 'Copy the complete Perfect World log list')
               "
               @click="copyAllLogs"
             >
-              复制全部
+              {{ l('复制全部', 'Copy all') }}
             </button>
             <button
               type="button"
               class="cursor-pointer rounded px-2 py-0.5 text-[10px] text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary"
               @click="clearLogs"
             >
-              清空
+              {{ l('清空', 'Clear') }}
             </button>
           </div>
         </div>
@@ -1008,13 +1011,13 @@ watch(
               "
               @click="p5eLogFilter = opt.key"
             >
-              {{ opt.label }}
+              {{ opt.key === 'all' ? l('全部', 'All') : opt.key === 'status' ? l('状态', 'Status') : opt.key === 'match' ? l('匹配', 'Match') : opt.label }}
             </button>
           </div>
           <input
             v-model="p5eLogSearch"
             type="search"
-            placeholder="搜索内容…"
+            :placeholder="l('搜索内容…', 'Search…')"
             class="ml-auto min-w-32 flex-1 rounded border border-border bg-surface px-2 py-1 text-[10px] text-fg outline-none focus:border-accent/50 sm:max-w-48 sm:flex-none"
           />
         </div>
@@ -1029,14 +1032,14 @@ watch(
           >
             <template v-if="logSubTab === 'p5e'">
               <template v-if="p5eLogEntries.length">
-                当前筛选无结果。可切换分类或清空搜索关键词。
+                {{ l('当前筛选无结果。可切换分类或清空搜索关键词。', 'No results for the current filters. Change category or clear the search.') }}
               </template>
               <template v-else>
-                暂无 5E 数据。启动 5E 并开始匹配后，采集到的 API 与 WebSocket 解码内容会显示在这里。
+                {{ l('暂无 5E 数据。启动 5E 并开始匹配后，采集到的 API 与 WebSocket 解码内容会显示在这里。', 'No 5E data yet. Captured API and decoded WebSocket data will appear here after 5E starts matchmaking.') }}
               </template>
             </template>
             <template v-else>
-              暂无日志。开始监听后，每行 log 的解析结果会显示在这里。
+              {{ l('暂无日志。开始监听后，每行 log 的解析结果会显示在这里。', 'No logs yet. Parsed log lines will appear here after watching starts.') }}
             </template>
           </p>
 
@@ -1061,7 +1064,7 @@ watch(
                 v-if="entry.isMatchEvent"
                 class="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-accent"
               >
-                匹配事件
+                {{ l('匹配事件', 'Match event') }}
               </span>
             </div>
 
@@ -1075,7 +1078,7 @@ watch(
               class="mt-1 cursor-pointer text-[10px] text-accent hover:underline"
               @click="toggleExpand(entry.id)"
             >
-              {{ expandedIds.has(entry.id) ? '收起' : '展开详情' }}
+              {{ expandedIds.has(entry.id) ? l('收起', 'Collapse') : l('展开详情', 'Show details') }}
             </button>
 
             <pre
@@ -1094,11 +1097,11 @@ watch(
       v-if="!open"
       type="button"
       class="absolute bottom-5 right-5 z-20 flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-[11px] font-medium text-fg-muted shadow-md transition-colors duration-200 hover:border-accent/40 hover:text-fg-secondary"
-      title="调试"
+      :title="l('调试', 'Debug')"
       @click="open = true"
     >
       <Bug class="h-3.5 w-3.5" />
-      调试
+      {{ l('调试', 'Debug') }}
     </button>
 
     <div
@@ -1108,12 +1111,12 @@ watch(
       <div class="flex items-center justify-between border-b border-border bg-elevated px-4 py-2.5">
         <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
           <Bug class="h-3.5 w-3.5 text-fg-muted" />
-          注入匹配数据
+          {{ l('注入匹配数据', 'Inject match data') }}
         </span>
         <button
           type="button"
           class="cursor-pointer rounded p-1 text-fg-muted transition-colors hover:bg-base hover:text-fg-secondary"
-          aria-label="关闭"
+          :aria-label="l('关闭', 'Close')"
           @click="close"
         >
           <X class="h-4 w-4" />
@@ -1132,7 +1135,7 @@ watch(
             class="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white"
             @click="submit"
           >
-            注入
+            {{ l('注入', 'Inject') }}
           </button>
         </div>
       </div>
@@ -1149,7 +1152,7 @@ watch(
     >
       <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
         <Bug class="h-3.5 w-3.5 text-fg-muted" />
-        调试：手动注入匹配数据
+        {{ l('调试：手动注入匹配数据', 'Debug: manually inject match data') }}
       </span>
       <ChevronDown
         class="h-3.5 w-3.5 text-fg-muted transition-transform duration-200"
@@ -1169,7 +1172,7 @@ watch(
           class="cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white"
           @click="submit"
         >
-          注入匹配数据
+          {{ l('注入匹配数据', 'Inject match data') }}
         </button>
       </div>
     </div>

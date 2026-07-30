@@ -11,6 +11,7 @@ import PlayerAvatar from './PlayerAvatar.vue';
 import TeamRadarCompare from './TeamRadarCompare.vue';
 import Team5eComparePanel from './Team5eComparePanel.vue';
 import type { Component } from 'vue';
+import { localize as l } from '../i18n';
 
 const props = defineProps<{
   teams: MatchTeam[];
@@ -55,12 +56,12 @@ interface CompareItem {
 
 function buildPerfectCompare(aPlayers: MatchPlayer[], bPlayers: MatchPlayer[]): CompareItem[] {
   return [
-    { key: 'adpr', label: '平均ADR', a: avgPlayerStat(aPlayers, 'adpr'), b: avgPlayerStat(bPlayers, 'adpr'), isPct: false, decimals: 1, icon: Target, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500' },
-    { key: 'rating', label: '平均近期Rating', a: avgPlayerStat(aPlayers, 'rating'), b: avgPlayerStat(bPlayers, 'rating'), isPct: false, decimals: 2, icon: Star, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
-    { key: 'kd', label: '平均K/D', a: avgPlayerStat(aPlayers, 'kd'), b: avgPlayerStat(bPlayers, 'kd'), isPct: false, decimals: 2, icon: Crosshair, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500' },
-    { key: 'hsRate', label: '平均爆头率', a: avgPlayerStat(aPlayers, 'hsRate'), b: avgPlayerStat(bPlayers, 'hsRate'), isPct: true, decimals: 0, icon: Skull, iconBg: 'bg-rose-50', iconColor: 'text-rose-500' },
-    { key: 'firstKill', label: '平均首杀成功率', a: avgPlayerStat(aPlayers, 'firstKillSuccessRate'), b: avgPlayerStat(bPlayers, 'firstKillSuccessRate'), isPct: true, decimals: 0, icon: UserCheck, iconBg: 'bg-cyan-50', iconColor: 'text-cyan-500' },
-    { key: 'clutch', label: '平均残局胜率', a: avgPlayerStat(aPlayers, 'clutchWinRate'), b: avgPlayerStat(bPlayers, 'clutchWinRate'), isPct: true, decimals: 0, icon: Flag, iconBg: 'bg-purple-50', iconColor: 'text-purple-500' },
+    { key: 'adpr', label: l('平均 ADR', 'Avg. ADR'), a: avgPlayerStat(aPlayers, 'adpr'), b: avgPlayerStat(bPlayers, 'adpr'), isPct: false, decimals: 1, icon: Target, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500' },
+    { key: 'rating', label: l('平均近期 Rating', 'Avg. recent Rating'), a: avgPlayerStat(aPlayers, 'rating'), b: avgPlayerStat(bPlayers, 'rating'), isPct: false, decimals: 2, icon: Star, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
+    { key: 'kd', label: l('平均 K/D', 'Avg. K/D'), a: avgPlayerStat(aPlayers, 'kd'), b: avgPlayerStat(bPlayers, 'kd'), isPct: false, decimals: 2, icon: Crosshair, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500' },
+    { key: 'hsRate', label: l('平均爆头率', 'Avg. HS%'), a: avgPlayerStat(aPlayers, 'hsRate'), b: avgPlayerStat(bPlayers, 'hsRate'), isPct: true, decimals: 0, icon: Skull, iconBg: 'bg-rose-50', iconColor: 'text-rose-500' },
+    { key: 'firstKill', label: l('平均首杀成功率', 'Avg. opening-kill rate'), a: avgPlayerStat(aPlayers, 'firstKillSuccessRate'), b: avgPlayerStat(bPlayers, 'firstKillSuccessRate'), isPct: true, decimals: 0, icon: UserCheck, iconBg: 'bg-cyan-50', iconColor: 'text-cyan-500' },
+    { key: 'clutch', label: l('平均残局胜率', 'Avg. clutch win rate'), a: avgPlayerStat(aPlayers, 'clutchWinRate'), b: avgPlayerStat(bPlayers, 'clutchWinRate'), isPct: true, decimals: 0, icon: Flag, iconBg: 'bg-purple-50', iconColor: 'text-purple-500' },
   ];
 }
 
@@ -77,7 +78,7 @@ const statCardGridClass = computed(() => {
   return 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 });
 
-const scoreLabel = computed(() => '队伍平均分');
+const scoreLabel = computed(() => l('队伍平均分', 'Team average rating'));
 
 function getTeamRadarScore(players: MatchPlayer[], radarKey: string) {
   const valid = players.filter((p) => p.radar?.[radarKey] && typeof p.radar[radarKey].score === 'number');
@@ -252,7 +253,7 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-blue-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-blue-500" />
-          <h2 class="text-[14px] font-bold text-blue-600">队伍 A</h2>
+          <h2 class="text-[14px] font-bold text-blue-600">{{ l('队伍 A', 'Team A') }}</h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
@@ -263,7 +264,7 @@ onUnmounted(() => {
               type="button"
               class="group flex cursor-pointer flex-col items-center transition-transform duration-200 hover:-translate-y-1"
               :class="isValidSteamId64(p.steamId) ? '' : 'cursor-default'"
-              :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+              :title="isValidSteamId64(p.steamId) ? l(`查看 ${p.nickname} 的评论`, `View comments for ${p.nickname}`) : p.steamId"
               @click="onPlayerClick(p)"
             >
               <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-blue-200" />
@@ -279,10 +280,10 @@ onUnmounted(() => {
             </div>
             <div class="mt-1.5 flex items-center justify-center gap-4 text-[11px] text-slate-500">
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最高 <span class="font-bold text-slate-700">{{ Math.max(...teamA.players.map((p) => p.score || 0)) }}</span>
+                {{ l('最高', 'High') }} <span class="font-bold text-slate-700">{{ Math.max(...teamA.players.map((p) => p.score || 0)) }}</span>
               </div>
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最低 <span class="font-bold text-slate-700">{{ Math.min(...teamA.players.map((p) => p.score || 0)) }}</span>
+                {{ l('最低', 'Low') }} <span class="font-bold text-slate-700">{{ Math.min(...teamA.players.map((p) => p.score || 0)) }}</span>
               </div>
             </div>
           </div>
@@ -306,7 +307,7 @@ onUnmounted(() => {
       >
         <div class="mb-4 text-center">
           <div class="mb-3 inline-flex items-center justify-center rounded-full bg-slate-100/80 px-4 py-1.5">
-            <h2 class="text-[13px] font-bold uppercase tracking-wider text-slate-600">综合对比分析</h2>
+            <h2 class="text-[13px] font-bold uppercase tracking-wider text-slate-600">{{ l('综合对比分析', 'Overall comparison') }}</h2>
           </div>
 
           <div class="flex items-center justify-center gap-8">
@@ -371,7 +372,7 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-orange-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-orange-500" />
-          <h2 class="text-[14px] font-bold text-orange-500">队伍 B</h2>
+          <h2 class="text-[14px] font-bold text-orange-500">{{ l('队伍 B', 'Team B') }}</h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
@@ -382,7 +383,7 @@ onUnmounted(() => {
               type="button"
               class="group flex cursor-pointer flex-col items-center transition-transform duration-200 hover:-translate-y-1"
               :class="isValidSteamId64(p.steamId) ? '' : 'cursor-default'"
-              :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+              :title="isValidSteamId64(p.steamId) ? l(`查看 ${p.nickname} 的评论`, `View comments for ${p.nickname}`) : p.steamId"
               @click="onPlayerClick(p)"
             >
               <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-orange-200" />
@@ -398,10 +399,10 @@ onUnmounted(() => {
             </div>
             <div class="mt-1.5 flex items-center justify-center gap-4 text-[11px] text-slate-500">
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最高 <span class="font-bold text-slate-700">{{ Math.max(...teamB.players.map((p) => p.score || 0)) }}</span>
+                {{ l('最高', 'High') }} <span class="font-bold text-slate-700">{{ Math.max(...teamB.players.map((p) => p.score || 0)) }}</span>
               </div>
               <div class="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1">
-                最低 <span class="font-bold text-slate-700">{{ Math.min(...teamB.players.map((p) => p.score || 0)) }}</span>
+                {{ l('最低', 'Low') }} <span class="font-bold text-slate-700">{{ Math.min(...teamB.players.map((p) => p.score || 0)) }}</span>
               </div>
             </div>
           </div>
@@ -430,7 +431,7 @@ onUnmounted(() => {
             <div class="flex h-6 w-6 items-center justify-center rounded-md" :class="item.iconBg">
               <component :is="item.icon" class="h-3.5 w-3.5" :class="item.iconColor" />
             </div>
-            {{ item.label.replace(/^平均/, '') }}
+            {{ item.label.replace(/^平均\s*/, '') }}
           </div>
           <div class="mb-3 flex items-center justify-between font-black">
             <span class="text-xl text-blue-600">{{ item.isPct ? formatPct(item.a) : formatNum(item.a, item.decimals) }}</span>
@@ -450,8 +451,8 @@ onUnmounted(() => {
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
-            <span>A 队</span>
-            <span>B 队</span>
+            <span>{{ l('A 队', 'Team A') }}</span>
+            <span>{{ l('B 队', 'Team B') }}</span>
           </div>
         </div>
       </div>

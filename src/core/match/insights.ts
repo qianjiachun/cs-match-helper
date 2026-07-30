@@ -10,6 +10,16 @@ const RADAR_LABELS: Record<string, string> = {
   sniper: '狙击',
 };
 
+const RADAR_LABELS_EN: Record<string, string> = {
+  fire_power: 'Firepower',
+  marksmanship: 'Aim',
+  follow_up_shot: 'Trading',
+  first: 'Entrying',
+  item: 'Utility',
+  '1vn': 'Clutching',
+  sniper: 'AWPing',
+};
+
 /** 队伍雷达图五维（与完美平台展示一致） */
 const TEAM_RADAR_DIMS = [
   { key: 'fire_power', label: '火力' },
@@ -344,4 +354,40 @@ function collectTendencies(team: MatchTeam, platformId: MatchPlatformId): string
   return tips;
 }
 
-export { RADAR_LABELS, TEAM_RADAR_DIMS };
+/** Translate app-generated insight copy while preserving unknown platform text verbatim. */
+export function formatMatchInsight(text: string, locale: 'zh-CN' | 'en-US'): string {
+  if (locale === 'zh-CN') return text;
+
+  const labelMatch = text.match(/^(队伍 [AB]|本队) (.+)$/);
+  if (!labelMatch) return text;
+  const team = labelMatch[1] === '本队' ? 'This team' : `Team ${labelMatch[1].slice(-1)}`;
+  const detail = labelMatch[2];
+  const metrics: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+    [/^平均 ELO 偏高 \((.+)\)$/, (m) => `has a high average ELO (${m[1]})`],
+    [/^Rating 偏高 \((.+)\)$/, (m) => `has a high Rating (${m[1]})`],
+    [/^RWS 均值较高 \((.+)\)$/, (m) => `has a high average RWS (${m[1]})`],
+    [/^地图胜率较高 \((.+)\)$/, (m) => `has a high map win rate (${m[1]})`],
+    [/^近期胜率较高 \((.+)\)$/, (m) => `has a high recent win rate (${m[1]})`],
+    [/^近期 Rating 偏高 \((.+)\)$/, (m) => `has a high recent Rating (${m[1]})`],
+    [/^WE 均值较高 \((.+)\)$/, (m) => `has a high average WE (${m[1]})`],
+    [/^火力维度突出$/, () => 'has standout firepower'],
+    [/^狙击能力较强$/, () => 'has strong AWPing'],
+    [/^疑似 (\d+) 人组排$/, (m) => `likely has a ${m[1]}-stack`],
+    [/^Rating 偏低 \((.+)\)$/, (m) => `has a low Rating (${m[1]})`],
+    [/^地图胜率偏低 \((.+)\)$/, (m) => `has a low map win rate (${m[1]})`],
+    [/^近期胜率偏低 \((.+)\)$/, (m) => `has a low recent win rate (${m[1]})`],
+    [/^近期 Rating 偏低 \((.+)\)$/, (m) => `has a low recent Rating (${m[1]})`],
+    [/^多人地图样本偏少$/, () => 'has limited map samples for several players'],
+    [/^存在高分但近期低迷玩家$/, () => 'has a high-ELO player in poor recent form'],
+    [/^单排玩家较多 \((.+)\)$/, (m) => `has many solo queue players (${m[1]})`],
+    [/^倾向 (.+)$/, (m) => `leans toward ${Object.entries(RADAR_LABELS).find(([, zh]) => zh === m[1])?.[0] ? RADAR_LABELS_EN[Object.entries(RADAR_LABELS).find(([, zh]) => zh === m[1])![0]] : m[1]}`],
+  ];
+
+  for (const [pattern, format] of metrics) {
+    const match = detail.match(pattern);
+    if (match) return `${team} ${format(match)}`;
+  }
+  return text;
+}
+
+export { RADAR_LABELS, RADAR_LABELS_EN, TEAM_RADAR_DIMS };

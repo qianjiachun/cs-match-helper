@@ -6,6 +6,7 @@ import {
   shotBarSegments,
   shotFeedback,
 } from '@core/counter-strafing/types';
+import { currentLocale, localize as l } from '../../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -45,14 +46,14 @@ function tapFirstMarkerLayout(barBottom: number, blockW: number, blockH: number)
 
 const blocks = computed(() => props.records.slice(-props.maxPoints));
 const latest = computed(() => blocks.value.at(-1) ?? null);
-const latestFeedback = computed(() => (latest.value ? shotFeedback(latest.value) : null));
+const latestFeedback = computed(() => (latest.value ? shotFeedback(latest.value, currentLocale()) : null));
 
-const legendItems = [
-  { color: SHOT_BAR_COLORS.stable, label: '阈值内' },
-  { color: SHOT_BAR_COLORS.micro, label: '微动超阈' },
-  { color: SHOT_BAR_COLORS.run, label: '跑打/冲突' },
-  { color: SHOT_BAR_COLORS.crouchGrace, label: '蹲起宽限' },
-];
+const legendItems = computed(() => [
+  { color: SHOT_BAR_COLORS.stable, label: l('阈值内', 'Accurate') },
+  { color: SHOT_BAR_COLORS.micro, label: l('微动超阈', 'Slight movement') },
+  { color: SHOT_BAR_COLORS.run, label: l('跑打/冲突', 'Moving/conflict') },
+  { color: SHOT_BAR_COLORS.crouchGrace, label: l('蹲起宽限', 'Crouch grace') },
+]);
 
 const chart = computed(() => {
   const data = blocks.value;
@@ -151,7 +152,7 @@ const chart = computed(() => {
       class="w-full h-full instrument-chart"
       :style="{ opacity: chartOpacity }"
       role="img"
-      aria-label="射击稳定度直方图"
+      :aria-label="l('射击稳定度直方图', 'Shooting stability histogram')"
     >
       <defs>
         <filter id="instrument-glow" x="-60%" y="-60%" width="220%" height="220%">
@@ -240,7 +241,7 @@ const chart = computed(() => {
         <span class="inline-block h-2 w-2 rounded-full" :style="{ background: item.color }" />
         {{ item.label }}
       </span>
-      <span class="text-[9px] opacity-70">柱高=移动误差，自下而上堆叠</span>
+      <span class="text-[9px] opacity-70">{{ l('柱高=移动误差，自下而上堆叠', 'Bar height = movement error') }}</span>
     </div>
   </div>
 </template>

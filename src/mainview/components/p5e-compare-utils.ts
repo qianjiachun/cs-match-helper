@@ -17,6 +17,8 @@ export interface P5eRadarAxis {
   b: number;
 }
 
+type CompareLocale = 'zh-CN' | 'en-US';
+
 const P5E_RADAR_DIMS: Array<{ label: string; field: PlayerNumericKey; minSpan: number }> = [
   { label: 'ELO', field: 'score', minSpan: 100 },
   { label: 'Rating', field: 'seasonRating', minSpan: 0.24 },
@@ -56,7 +58,7 @@ export function avgPlayerStatOptional(
 }
 
 
-export function buildP5eTeamRadar(teamA: MatchTeam, teamB: MatchTeam): {
+export function buildP5eTeamRadar(teamA: MatchTeam, teamB: MatchTeam, locale: CompareLocale = 'zh-CN'): {
   axes: P5eRadarAxis[];
 } {
   const axes: P5eRadarAxis[] = [];
@@ -68,7 +70,7 @@ export function buildP5eTeamRadar(teamA: MatchTeam, teamB: MatchTeam): {
 
     const normalized = scaleRadarPair(rawA, rawB, def.minSpan);
     axes.push({
-      label: def.label,
+      label: locale === 'en-US' && def.field === 'hsRate' ? 'HS%' : def.label,
       a: normalized.a,
       b: normalized.b,
     });
@@ -77,7 +79,7 @@ export function buildP5eTeamRadar(teamA: MatchTeam, teamB: MatchTeam): {
   return { axes };
 }
 
-export function buildP5eCoreMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eCompareMetric[] {
+export function buildP5eCoreMetrics(teamA: MatchTeam, teamB: MatchTeam, locale: CompareLocale = 'zh-CN'): P5eCompareMetric[] {
   const defs: Array<{
     key: string;
     label: string;
@@ -95,10 +97,15 @@ export function buildP5eCoreMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eComp
     { key: 'recentWinRate', label: '近期胜率', shortLabel: '近期胜', field: 'recentWinRate', isPct: true, decimals: 0 },
   ];
 
+  const enLabels: Record<string, [string, string]> = {
+    elo: ['Average ELO', 'ELO'], rating: ['Average Rating', 'Rating'], adpr: ['Average ADR', 'ADR'],
+    rws: ['Average RWS', 'RWS'], mapWinRate: ['Map win rate', 'Map WR'],
+    seasonWinRate: ['Season win rate', 'Season WR'], recentWinRate: ['Recent win rate', 'Recent WR'],
+  };
   return defs.map((def) => ({
     key: def.key,
-    label: def.label,
-    shortLabel: def.shortLabel,
+    label: locale === 'en-US' ? enLabels[def.key][0] : def.label,
+    shortLabel: locale === 'en-US' ? enLabels[def.key][1] : def.shortLabel,
     a: avgPlayerStatOptional(teamA.players, def.field),
     b: avgPlayerStatOptional(teamB.players, def.field),
     isPct: def.isPct,
@@ -106,7 +113,7 @@ export function buildP5eCoreMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eComp
   }));
 }
 
-export function buildP5eFightMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eCompareMetric[] {
+export function buildP5eFightMetrics(teamA: MatchTeam, teamB: MatchTeam, locale: CompareLocale = 'zh-CN'): P5eCompareMetric[] {
   const defs: Array<{
     key: string;
     label: string;
@@ -121,11 +128,15 @@ export function buildP5eFightMetrics(teamA: MatchTeam, teamB: MatchTeam): P5eCom
     { key: 'eloChange', label: 'ELO 变化', shortLabel: 'ELO±', field: 'eloChange', isPct: false, decimals: 0 },
   ];
 
+  const enLabels: Record<string, [string, string]> = {
+    kd: ['Average K/D', 'K/D'], hsRate: ['Headshot rate', 'HS%'],
+    firstKill: ['Opening kill success', 'Opening kills'], eloChange: ['ELO change', 'ELO +/-'],
+  };
   return defs
     .map((def) => ({
       key: def.key,
-      label: def.label,
-      shortLabel: def.shortLabel,
+      label: locale === 'en-US' ? enLabels[def.key][0] : def.label,
+      shortLabel: locale === 'en-US' ? enLabels[def.key][1] : def.shortLabel,
       a: avgPlayerStatOptional(teamA.players, def.field),
       b: avgPlayerStatOptional(teamB.players, def.field),
       isPct: def.isPct,

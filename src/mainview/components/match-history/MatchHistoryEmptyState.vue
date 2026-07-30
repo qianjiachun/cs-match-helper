@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Archive } from 'lucide-vue-next';
+import { localize as l } from '../../i18n';
 </script>
 
 <template>
@@ -8,10 +9,10 @@ import { Archive } from 'lucide-vue-next';
       <Archive class="h-6 w-6 text-slate-400" />
     </div>
     <div class="text-[1rem] leading-6">
-      <h3 class="font-semibold text-slate-900">还没有历史对局</h3>
+      <h3 class="font-semibold text-slate-900">{{ l('还没有历史对局', 'No match history yet') }}</h3>
     </div>
     <p class="mt-1.5 max-w-sm text-[0.875rem] leading-5 text-slate-500">
-      匹配成功后会自动保存对局数据快照
+      {{ l('匹配成功后会自动保存对局数据快照', 'Match snapshots are saved automatically when a match is found.') }}
     </p>
   </div>
 </template>

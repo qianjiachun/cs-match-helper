@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { X } from 'lucide-vue-next';
 import { onMounted, onUnmounted, watch } from 'vue';
 import appIcon from '@app-icon';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
@@ -59,7 +62,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="close-confirm-dialog__backdrop absolute inset-0 cursor-default border-0 bg-transparent p-0 appearance-none"
-          aria-label="取消"
+          :aria-label="t('common.cancel')"
           @click="onBackdropClick"
         />
         <div
@@ -76,7 +79,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="absolute right-3 top-3 z-10 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
-              aria-label="取消"
+              :aria-label="t('common.cancel')"
               @click="emit('cancel')"
             >
               <X class="h-4 w-4" aria-hidden="true" />
@@ -92,7 +95,7 @@ onUnmounted(() => {
                 id="close-confirm-title"
                 class="mt-3 text-[17px] font-semibold tracking-tight text-fg-secondary"
               >
-                确定退出
+                {{ t('common.confirmExit') }}
               </h2>
             </div>
           </header>
@@ -105,14 +108,14 @@ onUnmounted(() => {
               class="cursor-pointer rounded-lg px-3.5 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
               @click="emit('cancel')"
             >
-              取消
+              {{ t('common.cancel') }}
             </button>
             <button
               type="button"
               class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-sm shadow-accent/20 transition-colors duration-200 hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               @click="emit('confirm')"
             >
-              退出
+              {{ t('common.exit') }}
             </button>
           </footer>
         </div>

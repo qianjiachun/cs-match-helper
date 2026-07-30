@@ -1,13 +1,13 @@
 import type { DebugLogEntry } from './types';
 
-function formatLogEntryBlock(entry: DebugLogEntry, index: number): string {
+function formatLogEntryBlock(entry: DebugLogEntry, index: number, locale: 'zh-CN' | 'en-US'): string {
   const headerParts = [
     `[${index + 1}]`,
     entry.receivedAt,
     entry.parsed.time,
     entry.parsed.level,
     entry.parsed.category,
-    entry.isMatchEvent ? '匹配事件' : '',
+    entry.isMatchEvent ? (locale === 'en-US' ? 'Match event' : '匹配事件') : '',
   ].filter(Boolean);
 
   const lines = [headerParts.join(' | '), entry.parsed.decoded];
@@ -20,19 +20,20 @@ function formatLogEntryBlock(entry: DebugLogEntry, index: number): string {
 /** 将调试日志条目格式化为可复制的纯文本（含完整 decoded，不截断）。 */
 export function formatDebugLogEntriesForCopy(
   entries: DebugLogEntry[],
-  options: { title: string; metaLines?: string[] },
+  options: { title: string; metaLines?: string[]; locale?: 'zh-CN' | 'en-US' },
 ): string {
-  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false });
+  const locale = options.locale ?? 'zh-CN';
+  const exportedAt = new Date().toLocaleString(locale, { hour12: false });
   const header = [
     options.title,
     ...(options.metaLines ?? []),
-    `共 ${entries.length} 条`,
-    `导出时间: ${exportedAt}`,
+    locale === 'en-US' ? `${entries.length} entries` : `共 ${entries.length} 条`,
+    locale === 'en-US' ? `Exported: ${exportedAt}` : `导出时间: ${exportedAt}`,
     '',
   ].join('\n');
 
   if (!entries.length) return header;
 
-  const body = entries.map((entry, index) => formatLogEntryBlock(entry, index)).join('\n\n');
+  const body = entries.map((entry, index) => formatLogEntryBlock(entry, index, locale)).join('\n\n');
   return `${header}${body}\n`;
 }

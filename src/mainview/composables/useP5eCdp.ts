@@ -30,6 +30,7 @@ import {
 } from '@core/platform/5e';
 import { onUnmounted, ref, shallowRef } from 'vue';
 import { debugEnabled } from './useDebugUnlock';
+import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
 
 const DISCONNECT_WARN_MS = 5_000;
 export const P5E_AUTO_RECOVER_MAX = 1;
@@ -50,15 +51,19 @@ interface MapBackfillState {
   delayMs: number;
 }
 
-const API_KIND_LABEL: Record<string, string> = {
-  userInfo: '用户信息',
-  eloInfo: 'Elo 批量',
-  mapExt: '地图扩展',
-  gateDebug: 'Gate 调试',
-  wsOpen: 'WS 打开',
-  wsFrame: 'WS 帧',
-  wsClose: 'WS 关闭',
-};
+function apiKindLabel(kind: string): string {
+  const labels: Record<string, [string, string]> = {
+    userInfo: ['用户信息', 'User info'],
+    eloInfo: ['Elo 批量', 'Elo batch'],
+    mapExt: ['地图扩展', 'Map extension'],
+    gateDebug: ['Gate 调试', 'Gate debug'],
+    wsOpen: ['WS 打开', 'WS open'],
+    wsFrame: ['WS 帧', 'WS frame'],
+    wsClose: ['WS 关闭', 'WS close'],
+  };
+  const label = labels[kind];
+  return label ? l(label[0], label[1]) : kind;
+}
 
 const MISSING_API_LABEL: Record<P5eApiKind, string> = {
   userInfo: 'user/info',
@@ -76,7 +81,7 @@ export function getP5eLaunchCollectError(launch: {
     return 'EXTERNAL_5E_RUNNING';
   }
   if (!launch.cdpReady) {
-    return launch.message || '未能连接 5E，请完全退出后重试';
+    return launch.message || l('未能连接 5E，请完全退出后重试', 'Could not connect to 5E. Fully exit the client and try again.');
   }
   return null;
 }
@@ -177,7 +182,7 @@ export function useP5eCdp(
   function pushStatusLog(category: string, message: string, level: 'INFO' | 'WARN' | 'ERROR' = 'INFO') {
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      receivedAt: new Date().toLocaleTimeString(currentLocale(), { hour12: false }),
       parsed: {
         level,
         category,
@@ -192,10 +197,10 @@ export function useP5eCdp(
   function pushWsLogEntry(event: P5eWsEvent) {
     const category =
       event.kind === 'ws_open'
-        ? API_KIND_LABEL.wsOpen
+        ? apiKindLabel('wsOpen')
         : event.kind === 'ws_close'
-          ? API_KIND_LABEL.wsClose
-          : API_KIND_LABEL.wsFrame;
+          ? apiKindLabel('wsClose')
+          : apiKindLabel('wsFrame');
 
     const decoded = wsDebugMode.value
       ? formatWsEventDetail(event)
@@ -203,7 +208,7 @@ export function useP5eCdp(
 
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      receivedAt: new Date().toLocaleTimeString(currentLocale(), { hour12: false }),
       parsed: {
         time: event.capturedAt,
         level: event.kind === 'ws_frame' && event.parseError ? 'WARN' : 'DEBUG',
@@ -219,11 +224,11 @@ export function useP5eCdp(
   function pushLogEntry(event: P5eHttpEvent, isMatchEvent = false) {
     const apiKind = classifyP5eUrl(event.url);
     const category = event.gateDebug
-      ? API_KIND_LABEL.gateDebug
+      ? apiKindLabel('gateDebug')
       : isP5eMatchingBatchUrl(event.url)
-        ? '匹配地图'
+        ? l('匹配地图', 'Match map')
         : apiKind
-          ? (API_KIND_LABEL[apiKind] ?? apiKind)
+          ? apiKindLabel(apiKind)
           : '5E HTTP';
 
     const decoded =
@@ -242,7 +247,7 @@ export function useP5eCdp(
 
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      receivedAt: new Date().toLocaleTimeString(currentLocale(), { hour12: false }),
       parsed: {
         time: event.capturedAt,
         level: 'DEBUG',
@@ -261,10 +266,10 @@ export function useP5eCdp(
       record.detail.unassigned.length;
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      receivedAt: new Date().toLocaleTimeString(currentLocale(), { hour12: false }),
       parsed: {
         level: 'INFO',
-        category: '匹配完成',
+        category: l('匹配完成', 'Match captured'),
         decoded: JSON.stringify(
           {
             id: record.id,
@@ -276,7 +281,7 @@ export function useP5eCdp(
           null,
           2,
         ),
-        raw: `[5e-match] ${record.summary.mapName ?? record.detail.mapName ?? '未知地图'} · ${playerCount} 人`,
+        raw: l(`[5e-match] ${record.summary.mapName ?? record.detail.mapName ?? '未知地图'} · ${playerCount} 人`, `[5e-match] ${record.summary.mapName ?? record.detail.mapName ?? 'Unknown map'} · ${playerCount} players`),
       },
       isMatchEvent: true,
     };
@@ -334,8 +339,8 @@ export function useP5eCdp(
     if (mapBackfill !== state || state.cancelled) return;
     if (Date.now() - state.startedAt >= P5E_MAP_BACKFILL_MAX_MS) {
       pushStatusLog(
-        '地图补全',
-        `超时未获取地图 · ${state.gameId.slice(0, 24)}…`,
+        l('地图补全', 'Map backfill'),
+        l(`超时未获取地图 · ${state.gameId.slice(0, 24)}…`, `Timed out waiting for map · ${state.gameId.slice(0, 24)}…`),
         'WARN',
       );
       cancelMapBackfill();
@@ -369,7 +374,7 @@ export function useP5eCdp(
     if (homeN < total) {
       const msg = enriched.homeEnrichError
         ? formatP5eHomeEnrichError(enriched.homeEnrichError)
-        : '部分玩家缺少主页数据';
+        : l('部分玩家缺少主页数据', 'Home-page data is missing for some players');
       console.warn(`[5e] player/home ${homeN}/${total}`, msg);
       pushStatusLog('player/home', msg, 'WARN');
     }
@@ -388,8 +393,8 @@ export function useP5eCdp(
           !bundle.mapExt ? MISSING_API_LABEL.mapExt : null,
         ].filter(Boolean);
         pushStatusLog(
-          '采集',
-          `接口不完整（${3 - missing.length}/3），仍尝试生成：缺 ${missing.join('、')}`,
+          l('采集', 'Capture'),
+          l(`接口不完整（${3 - missing.length}/3），仍尝试生成：缺 ${missing.join('、')}`, `API coverage incomplete (${3 - missing.length}/3); generating with missing: ${missing.join(', ')}`),
           'WARN',
         );
       }
@@ -416,8 +421,8 @@ export function useP5eCdp(
         cancelMapBackfillIfGame(key);
         if (prevMap === '' || meta?.source) {
           pushStatusLog(
-            '地图补全',
-            `来源 ${meta?.source ?? 'session'} · ${key.slice(0, 24)}… · ${mapName}`,
+            l('地图补全', 'Map backfill'),
+            l(`来源 ${meta?.source ?? 'session'} · ${key.slice(0, 24)}… · ${mapName}`, `Source ${meta?.source ?? 'session'} · ${key.slice(0, 24)}… · ${mapName}`),
             'INFO',
           );
         }
@@ -439,8 +444,8 @@ export function useP5eCdp(
       await task;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      pushStatusLog('匹配 enrich', formatP5eHomeEnrichError(message), 'ERROR');
-      lastError.value = formatP5eHomeEnrichError(message);
+      pushStatusLog(l('匹配 enrich', 'Match enrichment'), formatP5eHomeEnrichError(message), 'ERROR');
+      lastError.value = localizeErrorMessage(formatP5eHomeEnrichError(message));
     }
   }
 
@@ -462,8 +467,8 @@ export function useP5eCdp(
         if (covKey !== lastWsCovKey) {
           lastWsCovKey = covKey;
           pushStatusLog(
-            'WS 定锚',
-            `对局 ${progress.gameId.slice(0, 24)}… · 接受 ${progress.readyCount ?? 0}/${progress.playerTotal ?? 10} · user ${userCov?.covered ?? 0}/${userCov?.total ?? 10} · elo ${eloCov?.covered ?? 0}/${eloCov?.total ?? 10} · mapExt ${mapCov?.covered ?? 0}/${mapCov?.total ?? 10}`,
+            l('WS 定锚', 'WS anchor'),
+            l(`对局 ${progress.gameId.slice(0, 24)}… · 接受 ${progress.readyCount ?? 0}/${progress.playerTotal ?? 10} · user ${userCov?.covered ?? 0}/${userCov?.total ?? 10} · elo ${eloCov?.covered ?? 0}/${eloCov?.total ?? 10} · mapExt ${mapCov?.covered ?? 0}/${mapCov?.total ?? 10}`, `Match ${progress.gameId.slice(0, 24)}… · accepted ${progress.readyCount ?? 0}/${progress.playerTotal ?? 10} · user ${userCov?.covered ?? 0}/${userCov?.total ?? 10} · elo ${eloCov?.covered ?? 0}/${eloCov?.total ?? 10} · mapExt ${mapCov?.covered ?? 0}/${mapCov?.total ?? 10}`),
             'INFO',
           );
         }
@@ -471,8 +476,8 @@ export function useP5eCdp(
       if (progress.collected <= lastProgressCollected) return;
       lastProgressCollected = progress.collected;
       if (progress.missing.length) {
-        const labels = progress.missing.map((k) => MISSING_API_LABEL[k]).join('、');
-        pushStatusLog('采集', `已捕获 ${progress.collected}/${progress.total}，等待 ${labels}`, 'INFO');
+        const labels = progress.missing.map((k) => MISSING_API_LABEL[k]).join(', ');
+        pushStatusLog(l('采集', 'Capture'), l(`已捕获 ${progress.collected}/${progress.total}，等待 ${labels}`, `Captured ${progress.collected}/${progress.total}; waiting for ${labels}`), 'INFO');
       }
     },
   });
@@ -506,8 +511,8 @@ export function useP5eCdp(
       if (disconnectTimer === null) {
         disconnectTimer = setTimeout(() => {
           pushStatusLog(
-            '5E 连接',
-            '5E CDP 连接不稳定，若持续出现请重启 5E；已捕获的数据仍会尝试生成',
+            l('5E 连接', '5E connection'),
+            l('5E CDP 连接不稳定，若持续出现请重启 5E；已捕获的数据仍会尝试生成', 'The 5E CDP connection is unstable. Restart 5E if this continues; captured data will still be processed.'),
             'WARN',
           );
         }, DISCONNECT_WARN_MS);
@@ -523,8 +528,8 @@ export function useP5eCdp(
   async function recoverP5eAfterUpdate(clientRoot?: string) {
     autoRecovering.value = true;
     pushStatusLog(
-      '5E 连接',
-      '检测到 5E 可能已更新并重启，正在重新连接…',
+      l('5E 连接', '5E connection'),
+      l('检测到 5E 可能已更新并重启，正在重新连接…', '5E may have updated and restarted. Reconnecting…'),
       'WARN',
     );
     try {
@@ -540,14 +545,14 @@ export function useP5eCdp(
       autoRecoverAttempts += 1;
       appLaunchedSession = true;
       intentionalStop = false;
-      pushStatusLog('5E 连接', '已重新连接，继续等待对局', 'INFO');
+      pushStatusLog(l('5E 连接', '5E connection'), l('已重新连接，继续等待对局', 'Reconnected. Waiting for a match.'), 'INFO');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      lastError.value = message;
+      lastError.value = localizeErrorMessage(message);
       appLaunchedSession = false;
       pushStatusLog(
-        '5E 连接',
-        '5E 更新后调试连接已断开，请重新启动 5E',
+        l('5E 连接', '5E connection'),
+        l('5E 更新后调试连接已断开，请重新启动 5E', 'The debugging connection was lost after a 5E update. Relaunch 5E.'),
         'ERROR',
       );
       options?.onClientExit?.();
@@ -565,8 +570,8 @@ export function useP5eCdp(
     })) {
       manualRelaunchPrompted = true;
       pushStatusLog(
-        '5E 连接',
-        '5E 更新后调试连接已断开，请重新启动 5E',
+        l('5E 连接', '5E connection'),
+        l('5E 更新后调试连接已断开，请重新启动 5E', 'The debugging connection was lost after a 5E update. Relaunch 5E.'),
         'ERROR',
       );
       appLaunchedSession = false;
@@ -595,7 +600,7 @@ export function useP5eCdp(
     appLaunchedSession = false;
     captureProgress.value = null;
     cancelMapBackfill();
-    pushStatusLog('5E 连接', '5E 已关闭，请重新启动', 'WARN');
+    pushStatusLog(l('5E 连接', '5E connection'), l('5E 已关闭，请重新启动', '5E has closed. Relaunch it to continue.'), 'WARN');
     options?.onClientExit?.();
   }
 
@@ -640,7 +645,7 @@ export function useP5eCdp(
       status.value = next;
       gateDebugMode.value = Boolean(next.gateDebugMode);
     } catch (err) {
-      lastError.value = String(err);
+      lastError.value = localizeErrorMessage(err);
       throw err;
     }
   }
@@ -650,16 +655,16 @@ export function useP5eCdp(
       const next = await set5eCdpWsDebugMode(enabled);
       status.value = next;
       wsDebugMode.value = Boolean(next.wsDebugMode);
-      pushStatusLog('WS 调试', enabled ? '已开启 Comet WebSocket 采集' : '已关闭', 'INFO');
+      pushStatusLog(l('WS 调试', 'WS debug'), enabled ? l('已开启 Comet WebSocket 采集', 'Comet WebSocket capture enabled') : l('已关闭', 'Disabled'), 'INFO');
     } catch (err) {
-      lastError.value = String(err);
+      lastError.value = localizeErrorMessage(err);
       throw err;
     }
   }
 
   async function simulateFixture(mapName?: string) {
     if (!import.meta.env.DEV) {
-      lastError.value = '模拟数据仅在开发环境可用';
+      lastError.value = l('模拟数据仅在开发环境可用', 'Simulated data is only available in development builds');
       return null;
     }
 
@@ -669,7 +674,7 @@ export function useP5eCdp(
       const fixture = loadP5eDevFixture();
       const bundle = fixtureAggregator.ingestFixtureEvents(fixture.events);
       if (!bundle) {
-        lastError.value = 'fixture 数据不完整';
+        lastError.value = l('fixture 数据不完整', 'Fixture data is incomplete');
         return null;
       }
       if (typeof fixture.matchCode === 'string') bundle.matchCode = fixture.matchCode;
@@ -682,8 +687,8 @@ export function useP5eCdp(
       return record;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      lastError.value = formatP5eHomeEnrichError(message);
-      pushStatusLog('模拟匹配', lastError.value, 'ERROR');
+      lastError.value = localizeErrorMessage(formatP5eHomeEnrichError(message));
+      pushStatusLog(l('模拟匹配', 'Simulated match'), lastError.value, 'ERROR');
       return null;
     }
   }
@@ -701,7 +706,7 @@ export function useP5eCdp(
     try {
       status.value = await start5eCdpCollector(options);
     } catch (err) {
-      lastError.value = String(err);
+      lastError.value = localizeErrorMessage(err);
       throw err;
     }
   }
@@ -709,37 +714,37 @@ export function useP5eCdp(
   async function launchAndCollect(options?: { clientRoot?: string }) {
     const clientRoot = options?.clientRoot;
     const probe = await probe5eEnvironment({ clientRoot });
-    pushStatusLog('探测', probe.message, probe.externalRunning ? 'WARN' : 'INFO');
+    pushStatusLog(l('探测', 'Probe'), probe.message, probe.externalRunning ? 'WARN' : 'INFO');
     if (!probe.installed) {
       throw new Error('NOT_INSTALLED_5E');
     }
 
     lastError.value = null;
     const launch = await launch5eWithCdp({ clientRoot: probe.clientRoot ?? clientRoot });
-    pushStatusLog('启动', launch.message);
+    pushStatusLog(l('启动', 'Launch'), launch.message);
 
     const gateError = getP5eLaunchCollectError(launch);
     if (gateError) {
       if (gateError !== 'EXTERNAL_5E_RUNNING') {
-        pushStatusLog('启动', gateError, 'ERROR');
+        pushStatusLog(l('启动', 'Launch'), gateError, 'ERROR');
       }
       throw new Error(gateError);
     }
 
-    pushStatusLog('采集', `开始连接端口 ${launch.port}`);
+    pushStatusLog(l('采集', 'Capture'), l(`开始连接端口 ${launch.port}`, `Connecting to port ${launch.port}`));
     try {
       status.value = await start5eCdpCollector({
         port: launch.port,
         clientRoot: launch.clientRoot,
       });
-      pushStatusLog('采集', `采集器已启动，端口 ${launch.port}`);
+      pushStatusLog(l('采集', 'Capture'), l(`采集器已启动，端口 ${launch.port}`, `Collector started on port ${launch.port}`));
       appLaunchedSession = true;
       intentionalStop = false;
       autoRecoverAttempts = 0;
       manualRelaunchPrompted = false;
     } catch (err) {
       const msg = String(err);
-      pushStatusLog('采集', msg, 'ERROR');
+      pushStatusLog(l('采集', 'Capture'), msg, 'ERROR');
       throw err;
     }
     return launch;
@@ -752,7 +757,7 @@ export function useP5eCdp(
     try {
       status.value = await stop5eCdpCollector();
     } catch (err) {
-      lastError.value = String(err);
+      lastError.value = localizeErrorMessage(err);
     }
   }
 
@@ -780,7 +785,7 @@ export function useP5eCdp(
       handleNeedsRelaunch(s);
       handleClientExit(s);
       if (s.lastError && !s.clientExited) {
-        pushStatusLog('状态', s.lastError, 'ERROR');
+        pushStatusLog(l('状态', 'Status'), s.lastError, 'ERROR');
       }
     });
     await refreshStatus();

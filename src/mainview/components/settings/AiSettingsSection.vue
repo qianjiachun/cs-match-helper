@@ -23,6 +23,7 @@ import { useAiSettingsForm } from '../../composables/useAiSettingsForm';
 import { openExternalUrl } from '../../native';
 import SettingsCard from './SettingsCard.vue';
 import SettingsToggle from './SettingsToggle.vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   ai: ReturnType<typeof useAiAnalysis>;
@@ -76,17 +77,17 @@ function providerIconBoxClass(mode: AiProviderMode) {
 <template>
   <div class="space-y-5">
     <SettingsCard
-      title="AI 分析"
-      description="选择 DeepSeek 预设或 OpenAI 兼容服务，开启赛前智能预测"
+      :title="l('AI 分析', 'AI analysis')"
+      :description="l('选择 DeepSeek 预设或 OpenAI 兼容服务，开启赛前智能预测', 'Choose DeepSeek or an OpenAI-compatible provider for pre-match analysis.')"
       :icon="Sparkles"
     >
       <SettingsToggle
         v-model="analysisEnabled"
-        label="启用 AI 分析"
+        :label="l('启用 AI 分析', 'Enable AI analysis')"
         :description="
           hasConfiguredKey
-            ? '关闭后不会调用 API，也不会自动分析'
-            : '请先填写 API Key 后才能启用'
+            ? l('关闭后不会调用 API，也不会自动分析', 'When disabled, the app will not call the API or analyze matches automatically.')
+            : l('请先填写 API Key 后才能启用', 'Add an API key before enabling analysis.')
         "
         :disabled="!hasConfiguredKey"
       />
@@ -98,18 +99,18 @@ function providerIconBoxClass(mode: AiProviderMode) {
       >
         <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
         <p class="text-[12px] leading-relaxed text-amber-900">
-          <span class="font-semibold">API Key 未填写</span>
-          — 请先在下方的「{{ apiKeyLabel }}」输入框中粘贴 Key，才能启用 AI 分析。
+          <span class="font-semibold">{{ l('API Key 未填写', 'API key required') }}</span>
+          {{ l(`— 请先在下方的「${apiKeyLabel}」输入框中粘贴 Key，才能启用 AI 分析。`, `Add your key in the “${apiKeyLabel}” field below to enable AI analysis.`) }}
         </p>
       </div>
 
       <!-- 服务模式 -->
       <div class="space-y-2">
-        <p class="text-[12px] font-medium text-fg-secondary">服务模式</p>
+        <p class="text-[12px] font-medium text-fg-secondary">{{ l('服务模式', 'Provider') }}</p>
         <div
           class="grid gap-2 sm:grid-cols-2"
           role="radiogroup"
-          aria-label="AI 服务模式"
+          :aria-label="l('AI 服务模式', 'AI provider')"
         >
           <button
             v-for="opt in AI_PROVIDER_OPTIONS"
@@ -135,16 +136,16 @@ function providerIconBoxClass(mode: AiProviderMode) {
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
-                  <span class="text-[13px] font-semibold text-fg">{{ opt.label }}</span>
+                  <span class="text-[13px] font-semibold text-fg">{{ opt.value === 'deepseek' ? l('DeepSeek 预设', 'DeepSeek preset') : l('OpenAI 兼容', 'OpenAI-compatible') }}</span>
                   <span
                     v-if="opt.value === 'deepseek'"
                     class="rounded-full bg-[#5686FE]/10 px-2 py-0.5 text-[10px] font-medium text-[#5686FE]"
                   >
-                    推荐
+                    {{ l('推荐', 'Recommended') }}
                   </span>
                 </div>
                 <p class="mt-1 text-[11px] leading-relaxed text-fg-muted">
-                  {{ opt.description }}
+                  {{ opt.value === 'deepseek' ? l('官方 API，含模型选择与思考模式', 'Official API with model selection and reasoning mode') : l('自定义模型', 'Custom model and endpoint') }}
                 </p>
               </div>
               <Check
@@ -174,7 +175,7 @@ function providerIconBoxClass(mode: AiProviderMode) {
             class="inline-flex cursor-pointer items-center gap-1 text-[11px] text-accent transition-colors duration-200 hover:text-accent-hover hover:underline"
             @click.prevent="openExternalUrl(DEEPSEEK_API_KEYS_URL)"
           >
-            前往获取
+            {{ l('前往获取', 'Get a key') }}
             <ExternalLink class="h-3 w-3 shrink-0" aria-hidden="true" />
           </a>
         </div>
@@ -197,7 +198,7 @@ function providerIconBoxClass(mode: AiProviderMode) {
           <button
             type="button"
             class="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-1 text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
-            :aria-label="showKey ? '隐藏 API Key' : '显示 API Key'"
+            :aria-label="showKey ? l('隐藏 API Key', 'Hide API key') : l('显示 API Key', 'Show API key')"
             @click="showKey = !showKey"
           >
             <EyeOff v-if="showKey" class="h-4 w-4" />
@@ -221,11 +222,10 @@ function providerIconBoxClass(mode: AiProviderMode) {
           <div class="space-y-2">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
               <label class="text-[12px] font-medium text-fg-secondary" for="ai-model">
-                模型
+                {{ l('模型', 'Model') }}
               </label>
               <span v-if="selectedModelOption" class="text-[11px] text-fg-muted">
-                当前约 {{ selectedModelOption.durationSec }} 秒 ·
-                {{ selectedModelOption.costLabel }}/次
+                {{ l(`当前约 ${selectedModelOption.durationSec} 秒 · ${selectedModelOption.costLabel}/次`, `About ${selectedModelOption.durationSec}s · ${selectedModelOption.costLabel} per analysis`) }}
               </span>
             </div>
             <select
@@ -234,15 +234,15 @@ function providerIconBoxClass(mode: AiProviderMode) {
               class="w-full cursor-pointer rounded-lg border border-border bg-base px-3.5 py-2.5 text-[13px] text-fg outline-none transition-colors duration-200 focus:border-accent focus:ring-2 focus:ring-accent/15"
             >
               <option v-for="opt in AI_MODEL_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.label }} · {{ formatModelBudgetHint(opt) }}
+                {{ opt.value === 'deepseek-v4-flash' ? l('DeepSeek V4 Flash（推荐，快速）', 'DeepSeek V4 Flash (recommended, fast)') : l('DeepSeek V4 Pro（更准确，较慢）', 'DeepSeek V4 Pro (more accurate, slower)') }} · {{ l(formatModelBudgetHint(opt), `about ${opt.durationSec}s · ${opt.costLabel} per analysis`) }}
               </option>
             </select>
           </div>
 
           <SettingsToggle
             v-model="thinkingEnabled"
-            label="启用思考模式"
-            description="开启后模型会进行更深度的推理，耗时更长（仅 DeepSeek）"
+            :label="l('启用思考模式', 'Enable reasoning mode')"
+            :description="l('开启后模型会进行更深度的推理，耗时更长（仅 DeepSeek）', 'Uses deeper reasoning and takes longer. DeepSeek only.')"
           />
         </template>
 
@@ -253,7 +253,7 @@ function providerIconBoxClass(mode: AiProviderMode) {
           >
             <Zap class="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <p class="text-[11px] leading-relaxed text-fg-muted">
-              需兼容 OpenAI Chat Completions 接口（<code class="text-fg-secondary">/chat/completions</code>、Bearer Token、SSE 流式）。适用于 OpenAI、硅基流动、本地代理等。
+              {{ l('需兼容 OpenAI Chat Completions 接口、Bearer Token 和 SSE 流式。适用于 OpenAI、硅基流动、本地代理等。', 'Requires an OpenAI Chat Completions-compatible endpoint, Bearer token, and SSE streaming.') }}
             </p>
           </div>
 
@@ -273,7 +273,7 @@ function providerIconBoxClass(mode: AiProviderMode) {
 
           <div class="space-y-2">
             <label class="block text-[12px] font-medium text-fg-secondary" for="ai-custom-model">
-              模型名称
+              {{ l('模型名称', 'Model name') }}
             </label>
             <input
               id="ai-custom-model"
@@ -284,7 +284,7 @@ function providerIconBoxClass(mode: AiProviderMode) {
               spellcheck="false"
               @blur="flushSave"
             />
-            <p class="text-[11px] text-fg-muted">费用与耗时取决于你所选服务商</p>
+            <p class="text-[11px] text-fg-muted">{{ l('费用与耗时取决于你所选服务商', 'Cost and latency depend on your provider.') }}</p>
           </div>
         </template>
       </div>

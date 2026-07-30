@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { localize as l } from '../i18n';
 
 export type ToastVariant = 'success' | 'warning' | 'error';
 
@@ -58,7 +59,7 @@ export function useCopyFeedback() {
     const ok = await copyToClipboard(text);
     if (opts.showToast !== false) {
       showToast(
-        ok ? (opts.successMessage ?? '已复制') : '复制失败，请重试',
+        ok ? (opts.successMessage ?? l('已复制', 'Copied')) : l('复制失败，请重试', 'Could not copy. Try again.'),
         ok ? 'success' : 'error',
       );
     }
@@ -66,8 +67,8 @@ export function useCopyFeedback() {
   }
 
   async function copySteamId(steamId: string, nickname?: string) {
-    const label = nickname ? `${nickname} 的 Steam ID` : 'Steam ID';
-    return copyText(steamId, `已复制 ${label}`);
+    const label = nickname ? l(`${nickname} 的 Steam ID`, `${nickname}’s Steam ID`) : 'Steam ID';
+    return copyText(steamId, l(`已复制 ${label}`, `${label} copied`));
   }
 
   return {

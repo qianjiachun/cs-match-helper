@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { animate } from 'animejs/animation';
+import { localize as l } from '../i18n';
 
 export type RadarData = {
   firepower: number;
@@ -18,7 +19,10 @@ const props = defineProps<{
 }>();
 
 const RADAR_KEYS = ['firepower', 'entry', 'defense', 'clutch', 'utility'] as const;
-const RADAR_LABELS = ['火力', '突破', '防守', '残局', '道具'] as const;
+const RADAR_LABELS = computed(() => [
+  l('火力', 'Firepower'), l('突破', 'Entry'), l('防守', 'Trade fragging'),
+  l('残局', 'Clutch'), l('道具', 'Utility'),
+] as const);
 const RADIUS = 36;
 const CENTER = 50;
 

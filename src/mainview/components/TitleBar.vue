@@ -72,7 +72,7 @@ const showBackButton = computed(() => props.view === 'settings' || props.view ==
           aria-hidden="true"
         />
         <div class="flex min-w-0 items-baseline gap-2">
-          <p class="truncate text-[13px] font-semibold text-fg">{{ locale === 'en-US' ? 'CS Match Helper - by 小淳' : 'CS 对局助手 -By 小淳' }}</p>
+          <p class="truncate text-[13px] font-semibold text-fg">{{ locale === 'en-US' ? 'CS Match Helper - By 小淳' : 'CS 匹配助手 -By 小淳' }}</p>
           <span class="shrink-0 text-[11px] text-fg-muted">{{ version }}</span>
         </div>
       </div>

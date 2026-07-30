@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { localize as l } from '../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -9,13 +10,13 @@ const props = withDefaults(
     shape?: 'circle' | 'rounded';
   }>(),
   {
-    alt: '玩家头像',
     size: 'md',
     shape: 'circle',
   },
 );
 
 const loadFailed = ref(false);
+const resolvedAlt = computed(() => props.alt ?? l('玩家头像', 'Player avatar'));
 
 watch(
   () => props.src,
@@ -37,14 +38,14 @@ function onError() {
   loadFailed.value = true;
 }
 
-const fallbackText = () => (props.alt?.trim().charAt(0) || '?').toUpperCase();
+const fallbackText = () => (resolvedAlt.value.trim().charAt(0) || '?').toUpperCase();
 </script>
 
 <template>
   <img
     v-if="src && !loadFailed"
     :src="src"
-    :alt="alt"
+    :alt="resolvedAlt"
     :class="[sizeClass, shapeClass, 'bg-slate-200 object-cover']"
     referrerpolicy="no-referrer"
     @error="onError"
@@ -56,7 +57,7 @@ const fallbackText = () => (props.alt?.trim().charAt(0) || '?').toUpperCase();
       shapeClass,
       'flex items-center justify-center bg-slate-200 font-semibold text-slate-500',
     ]"
-    :aria-label="alt"
+    :aria-label="resolvedAlt"
   >
     {{ fallbackText() }}
   </div>

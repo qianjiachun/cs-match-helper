@@ -16,6 +16,8 @@ import {
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 import type { AssessmentChartType } from '@core/counter-strafing/types';
 import AssessmentChartStyleControls from './AssessmentChartStyleControls.vue';
+import { computed } from 'vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   cs: ReturnType<typeof useCounterStrafing>;
@@ -24,11 +26,11 @@ const props = defineProps<{
 
 const settings = props.cs.settings;
 
-const contentModeOptions: { value: HudContentMode; label: string }[] = [
-  { value: 'all', label: '全部' },
-  { value: 'chartOnly', label: '仅图表' },
-  { value: 'textOnly', label: '仅文字' },
-];
+const contentModeOptions = computed<{ value: HudContentMode; label: string }[]>(() => [
+  { value: 'all', label: l('全部', 'All') },
+  { value: 'chartOnly', label: l('仅图表', 'Chart') },
+  { value: 'textOnly', label: l('仅文字', 'Stats') },
+]);
 
 const sliderClass =
   'hud-display-slider w-full disabled:pointer-events-none disabled:opacity-50';
@@ -93,9 +95,9 @@ function pct(value: number, min: number, max: number): string {
         <Settings2 class="size-4" aria-hidden="true" />
       </span>
       <div class="min-w-0">
-        <p class="text-[13px] font-semibold text-fg">显示样式</p>
+        <p class="text-[13px] font-semibold text-fg">{{ l('显示样式', 'Display style') }}</p>
         <p class="mt-0.5 text-pretty text-[11px] leading-relaxed text-fg-muted">
-          同步作用于悬浮窗与 Game Bar 小组件
+          {{ l('同步作用于悬浮窗与 Game Bar 小组件', 'Applies to both HUDs and the Game Bar Widget.') }}
         </p>
       </div>
     </div>
@@ -103,11 +105,11 @@ function pct(value: number, min: number, max: number): string {
     <div class="divide-y divide-border-subtle rounded-lg bg-elevated/35 shadow-[inset_0_0_0_1px_var(--color-border-subtle)]">
       <div class="grid gap-3 px-3 py-2.5 sm:grid-cols-2 sm:gap-5">
         <div class="flex min-h-10 items-center justify-between gap-3">
-          <span class="text-[12px] font-medium text-fg-secondary">内容</span>
+          <span class="text-[12px] font-medium text-fg-secondary">{{ l('内容', 'Content') }}</span>
           <div
             class="inline-flex shrink-0 items-center rounded-lg bg-base p-1 shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
             role="group"
-            aria-label="显示内容"
+            :aria-label="l('显示内容', 'Visible content')"
           >
             <button
               v-for="option in contentModeOptions"
@@ -129,7 +131,7 @@ function pct(value: number, min: number, max: number): string {
         </div>
 
         <div class="flex min-h-10 items-center justify-between gap-3">
-          <span class="text-[12px] font-medium text-fg-secondary">急停图表</span>
+          <span class="text-[12px] font-medium text-fg-secondary">{{ l('急停图表', 'Counter-strafe chart') }}</span>
           <AssessmentChartStyleControls
             :chart-type="settings.assessmentChartType"
             :disabled="disabled"
@@ -142,8 +144,8 @@ function pct(value: number, min: number, max: number): string {
       <div class="grid sm:grid-cols-2 sm:divide-x sm:divide-border-subtle">
         <label class="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 py-2 transition-colors duration-150 hover:bg-elevated/45">
           <span class="min-w-0">
-            <span class="block text-[12px] font-medium text-fg-secondary">显示稳定柱</span>
-            <span class="block text-pretty text-[10px] leading-relaxed text-fg-muted">关闭后只突出失误采样</span>
+            <span class="block text-[12px] font-medium text-fg-secondary">{{ l('显示稳定柱', 'Show stable bars') }}</span>
+            <span class="block text-pretty text-[10px] leading-relaxed text-fg-muted">{{ l('关闭后只突出失误采样', 'Turn off to emphasize movement errors only.') }}</span>
           </span>
           <span class="relative inline-flex shrink-0 items-center">
             <input
@@ -151,7 +153,7 @@ function pct(value: number, min: number, max: number): string {
               class="peer sr-only"
               :checked="settings.hudShowStableBars"
               :disabled="disabled"
-              aria-label="显示绿色稳定柱"
+              :aria-label="l('显示绿色稳定柱', 'Show green stable bars')"
               @change="props.cs.applySettings({ hudShowStableBars: ($event.target as HTMLInputElement).checked })"
             />
             <span :class="switchTrackClass" aria-hidden="true" />
@@ -160,8 +162,8 @@ function pct(value: number, min: number, max: number): string {
 
         <label class="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 py-2 transition-colors duration-150 hover:bg-elevated/45">
           <span class="min-w-0">
-            <span class="block text-[12px] font-medium text-fg-secondary">显示首枪标记</span>
-            <span class="block text-pretty text-[10px] leading-relaxed text-fg-muted">白点标记每次按下的第一枪</span>
+            <span class="block text-[12px] font-medium text-fg-secondary">{{ l('显示首枪标记', 'Show first-shot markers') }}</span>
+            <span class="block text-pretty text-[10px] leading-relaxed text-fg-muted">{{ l('白点标记每次按下的第一枪', 'A white dot marks the first shot of each press.') }}</span>
           </span>
           <span class="relative inline-flex shrink-0 items-center">
             <input
@@ -169,7 +171,7 @@ function pct(value: number, min: number, max: number): string {
               class="peer sr-only"
               :checked="settings.hudShowTapMarkers"
               :disabled="disabled"
-              aria-label="显示首枪白点标记"
+              :aria-label="l('显示首枪白点标记', 'Show first-shot white markers')"
               @change="props.cs.applySettings({ hudShowTapMarkers: ($event.target as HTMLInputElement).checked })"
             />
             <span :class="switchTrackClass" aria-hidden="true" />
@@ -181,7 +183,7 @@ function pct(value: number, min: number, max: number): string {
     <div class="grid gap-x-6 gap-y-2 sm:grid-cols-2">
       <div>
         <div class="flex items-center justify-between gap-3 text-[12px]">
-          <span class="font-medium text-fg-secondary">统计文字大小</span>
+          <span class="font-medium text-fg-secondary">{{ l('统计文字大小', 'Stats text size') }}</span>
           <span class="tabular-nums text-fg-muted">{{ settings.hudStatTextScale.toFixed(2) }}×</span>
         </div>
         <input
@@ -193,7 +195,7 @@ function pct(value: number, min: number, max: number): string {
           :disabled="disabled"
           :value="settings.hudStatTextScale"
           :style="{ '--slider-pct': pct(settings.hudStatTextScale, HUD_STAT_TEXT_SCALE_MIN, HUD_STAT_TEXT_SCALE_MAX) }"
-          aria-label="统计文字大小"
+          :aria-label="l('统计文字大小', 'Stats text size')"
           @input="patchStatTextScale(($event.target as HTMLInputElement).value)"
           @change="patchStatTextScale(($event.target as HTMLInputElement).value)"
         />
@@ -204,7 +206,7 @@ function pct(value: number, min: number, max: number): string {
         :class="settings.assessmentChartType === 'line' ? '' : 'opacity-45'"
       >
         <div class="flex items-center justify-between gap-3 text-[12px]">
-          <span class="font-medium text-fg-secondary">折线宽度</span>
+          <span class="font-medium text-fg-secondary">{{ l('折线宽度', 'Line width') }}</span>
           <span class="tabular-nums text-fg-muted">{{ settings.hudLineStrokeWidth.toFixed(1) }}px</span>
         </div>
         <input
@@ -216,7 +218,7 @@ function pct(value: number, min: number, max: number): string {
           :disabled="disabled || settings.assessmentChartType !== 'line'"
           :value="settings.hudLineStrokeWidth"
           :style="{ '--slider-pct': pct(settings.hudLineStrokeWidth, HUD_LINE_STROKE_WIDTH_MIN, HUD_LINE_STROKE_WIDTH_MAX) }"
-          aria-label="急停评估折线宽度"
+          :aria-label="l('急停评估折线宽度', 'Counter-strafe line width')"
           @input="patchLineStrokeWidth(($event.target as HTMLInputElement).value)"
           @change="patchLineStrokeWidth(($event.target as HTMLInputElement).value)"
         />
@@ -224,7 +226,7 @@ function pct(value: number, min: number, max: number): string {
 
       <div>
         <div class="flex items-center justify-between gap-3 text-[12px]">
-          <span class="font-medium text-fg-secondary">急停评估透明度</span>
+          <span class="font-medium text-fg-secondary">{{ l('急停评估透明度', 'Counter-strafe opacity') }}</span>
           <span class="tabular-nums text-fg-muted">{{ Math.round(settings.hudAssessmentChartOpacity * 100) }}%</span>
         </div>
         <input
@@ -236,7 +238,7 @@ function pct(value: number, min: number, max: number): string {
           :disabled="disabled"
           :value="settings.hudAssessmentChartOpacity"
           :style="{ '--slider-pct': pct(settings.hudAssessmentChartOpacity, HUD_CHART_OPACITY_MIN, HUD_CHART_OPACITY_MAX) }"
-          aria-label="急停评估透明度（含统计文字与图表）"
+          :aria-label="l('急停评估透明度（含统计文字与图表）', 'Counter-strafe stats and chart opacity')"
           @input="patchAssessmentOpacity(($event.target as HTMLInputElement).value)"
           @change="patchAssessmentOpacity(($event.target as HTMLInputElement).value)"
         />
@@ -244,7 +246,7 @@ function pct(value: number, min: number, max: number): string {
 
       <div>
         <div class="flex items-center justify-between gap-3 text-[12px]">
-          <span class="font-medium text-fg-secondary">开枪稳定透明度</span>
+          <span class="font-medium text-fg-secondary">{{ l('开枪稳定透明度', 'Shooting stability opacity') }}</span>
           <span class="tabular-nums text-fg-muted">{{ Math.round(settings.hudShootingChartOpacity * 100) }}%</span>
         </div>
         <input
@@ -256,7 +258,7 @@ function pct(value: number, min: number, max: number): string {
           :disabled="disabled"
           :value="settings.hudShootingChartOpacity"
           :style="{ '--slider-pct': pct(settings.hudShootingChartOpacity, HUD_CHART_OPACITY_MIN, HUD_CHART_OPACITY_MAX) }"
-          aria-label="开枪稳定透明度（含统计文字与直方图）"
+          :aria-label="l('开枪稳定透明度（含统计文字与直方图）', 'Shooting stability stats and histogram opacity')"
           @input="patchShootingOpacity(($event.target as HTMLInputElement).value)"
           @change="patchShootingOpacity(($event.target as HTMLInputElement).value)"
         />

@@ -139,7 +139,7 @@ export function createP5eMatchRecord(
   logLine?: LogLine,
 ): MatchRecord {
   const line: LogLine = logLine ?? {
-    time: new Date(bundle.capturedAt).toLocaleString('zh-CN'),
+    time: new Date(bundle.capturedAt).toISOString(),
     level: 'INFO',
     category: '5e-cdp',
     decoded: bundle.platformGameId,

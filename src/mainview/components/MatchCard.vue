@@ -11,6 +11,8 @@ import {
 import { computed, ref, watch } from 'vue';
 import type { MatchRecord } from '@core/match/models';
 import { useMatchCountdown } from '../composables/useMatchCountdown';
+import { currentLocale, localize as l } from '../i18n';
+import { displayPlayerNickname } from '../utils/playerDisplay';
 import MatchInsightsPanel from './MatchInsightsPanel.vue';
 import TeamColumn from './TeamColumn.vue';
 
@@ -31,10 +33,14 @@ watch(
 );
 
 function formatTime(time?: string): string {
-  if (!time) return '刚刚';
+  if (!time) return l('刚刚', 'Just now');
   const date = new Date(time);
   if (Number.isNaN(date.getTime())) return time;
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return date.toLocaleTimeString(currentLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 const detail = computed(() => props.match.detail);
@@ -70,11 +76,14 @@ const fallbackPlayers = computed(() => {
     if (typeof p === 'string') return { name: p };
     if (p && typeof p === 'object') {
       const obj = p as Record<string, unknown>;
+      const rawName = obj.name ?? obj.nick_name ?? obj.nickname ?? obj.player_name;
       return {
-        name: String(obj.name ?? obj.nick_name ?? obj.nickname ?? obj.player_name ?? `玩家 ${i + 1}`),
+        name: rawName != null
+          ? displayPlayerNickname(String(rawName))
+          : l(`玩家 ${i + 1}`, `Player ${i + 1}`),
       };
     }
-    return { name: `玩家 ${i + 1}` };
+    return { name: l(`玩家 ${i + 1}`, `Player ${i + 1}`) };
   });
 });
 </script>
@@ -92,13 +101,13 @@ const fallbackPlayers = computed(() => {
       <div class="flex items-center gap-1.5">
         <Swords class="h-4 w-4 text-accent" />
         <span class="text-[13px] font-semibold text-fg">
-          {{ match.summary.mode ?? '匹配成功' }}
+          {{ match.summary.mode ?? l('匹配成功', 'Match found') }}
         </span>
         <span
           v-if="featured"
           class="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent"
         >
-          最新
+          {{ l('最新', 'Latest') }}
         </span>
       </div>
 
@@ -112,12 +121,12 @@ const fallbackPlayers = computed(() => {
         class="flex items-center gap-1.5 text-[12px] text-warning"
       >
         <Clock class="h-3.5 w-3.5" />
-        {{ countdownSec }}s 确认
+        {{ l(`${countdownSec}s 确认`, `${countdownSec}s to accept`) }}
       </div>
 
       <div class="flex items-center gap-1.5 text-[12px] text-fg-muted">
         <Users class="h-3.5 w-3.5" />
-        {{ match.summary.playerCount }} 人
+        {{ l(`${match.summary.playerCount} 人`, `${match.summary.playerCount} players`) }}
       </div>
 
       <div
@@ -136,7 +145,7 @@ const fallbackPlayers = computed(() => {
       class="flex items-start gap-2 border-b border-border bg-warning/5 px-4 py-2.5 text-[11px] text-fg-secondary"
     >
       <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-      <span>{{ detail.parseWarnings.join('；') }}</span>
+      <span>{{ detail.parseWarnings.join(l('；', '; ')) }}</span>
     </div>
 
     <!-- Featured：直接展示 VS 对阵 -->
@@ -181,11 +190,11 @@ const fallbackPlayers = computed(() => {
       <button
         v-if="hasTeams || fallbackPlayers.length > 0 || extraFields.length > 0"
         type="button"
-        class="flex w-full cursor-pointer items-center justify-center gap-1 border-t border-border py-2.5 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
+        class="flex min-h-10 w-full cursor-pointer items-center justify-center gap-1 border-t border-border py-2.5 text-[12px] text-fg-muted transition-[color,background-color,transform] duration-200 hover:bg-elevated hover:text-fg-secondary active:scale-[0.96]"
         :aria-expanded="expanded"
         @click="expanded = !expanded"
       >
-        <span>{{ expanded ? '收起详情' : '查看详情' }}</span>
+        <span>{{ expanded ? l('收起详情', 'Collapse details') : l('查看详情', 'View details') }}</span>
         <ChevronDown
           class="h-3.5 w-3.5 transition-transform duration-200"
           :class="expanded ? 'rotate-180' : ''"
@@ -210,7 +219,7 @@ const fallbackPlayers = computed(() => {
         </template>
 
         <div v-else-if="fallbackPlayers.length > 0">
-          <p class="mb-2 text-[11px] font-medium text-fg-muted">玩家列表（基础数据）</p>
+          <p class="mb-2 text-[11px] font-medium text-fg-muted">{{ l('玩家列表（基础数据）', 'Player list (basic data)') }}</p>
           <ul class="grid grid-cols-2 gap-1.5">
             <li
               v-for="(player, index) in fallbackPlayers"
@@ -223,7 +232,7 @@ const fallbackPlayers = computed(() => {
         </div>
 
         <div v-if="detail.unassigned.length > 0">
-          <p class="mb-2 text-[11px] font-medium text-fg-muted">未分队玩家</p>
+          <p class="mb-2 text-[11px] font-medium text-fg-muted">{{ l('未分队玩家', 'Unassigned players') }}</p>
           <ul class="space-y-1.5">
             <li
               v-for="p in detail.unassigned"
@@ -237,10 +246,10 @@ const fallbackPlayers = computed(() => {
 
         <button
           type="button"
-          class="cursor-pointer text-[11px] text-fg-muted underline-offset-2 transition-colors hover:text-fg-secondary hover:underline"
+          class="inline-flex min-h-10 cursor-pointer items-center text-[11px] text-fg-muted underline-offset-2 transition-[color,transform] hover:text-fg-secondary hover:underline active:scale-[0.96]"
           @click="showRaw = !showRaw"
         >
-          {{ showRaw ? '隐藏原始字段' : '查看原始字段' }}
+          {{ showRaw ? l('隐藏原始字段', 'Hide raw fields') : l('查看原始字段', 'View raw fields') }}
         </button>
 
         <dl v-if="showRaw && extraFields.length > 0" class="grid grid-cols-2 gap-2">

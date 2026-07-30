@@ -2,6 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Smile } from 'lucide-vue-next';
 import { COMMENT_EMOJI_GROUPS } from '@core/comments/emoji-groups';
+import { localize as l } from '../../i18n';
 
 const emit = defineEmits<{
   pick: [emoji: string];
@@ -120,8 +121,8 @@ onUnmounted(() => {
       :class="open ? 'bg-blue-50 text-blue-500' : ''"
       :aria-expanded="open"
       aria-haspopup="dialog"
-      aria-label="插入表情"
-      title="插入表情"
+      :aria-label="l('插入表情', 'Insert emoji')"
+      :title="l('插入表情', 'Insert emoji')"
       @click="toggle"
     >
       <Smile class="h-4 w-4" aria-hidden="true" />
@@ -136,7 +137,7 @@ onUnmounted(() => {
           :class="placement === 'top' ? 'emoji-picker-panel--top' : 'emoji-picker-panel--bottom'"
           :style="panelStyle"
           role="dialog"
-          aria-label="选择表情"
+          :aria-label="l('选择表情', 'Choose emoji')"
           @pointerdown.stop
         >
           <div
@@ -154,7 +155,7 @@ onUnmounted(() => {
                 type="button"
                 class="emoji-picker-cell inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-[17px] leading-none transition-[background-color,transform] duration-150 hover:bg-slate-100 active:scale-95"
                 :style="{ '--emoji-delay': `${groupIndex * 40 + emojiIndex * 18}ms` }"
-                :aria-label="`插入 ${emoji}`"
+                :aria-label="l(`插入 ${emoji}`, `Insert ${emoji}`)"
                 @click="onPick(emoji)"
               >
                 {{ emoji }}

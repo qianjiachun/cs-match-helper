@@ -1,4 +1,5 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { localize as l, localizeErrorMessage } from '../i18n';
 import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
 import {
   counterStrafingListening,
@@ -35,7 +36,6 @@ import {
   mergeCounterStrafingSnapshot,
 } from '@core/counter-strafing/mergeCounterStrafingSnapshot';
 import {
-  BINDING_ROLE_LABELS,
   DEFAULT_COUNTER_STRAFING_SETTINGS,
   MOVEMENT_MODEL_DEFAULTS,
   mergeCounterStrafingSettings,
@@ -134,7 +134,7 @@ export function useCounterStrafing() {
     successRate: 0,
     stdDevMs: 0,
     tendency: 'normal',
-    tendencyLabel: '正常',
+    tendencyLabel: '',
     lastRecord: null,
   });
   const settings = ref<CounterStrafingSettings>({ ...DEFAULT_COUNTER_STRAFING_SETTINGS });
@@ -145,6 +145,14 @@ export function useCounterStrafing() {
   const relaunchBusy = ref(false);
   const error = ref<string | null>(null);
   const inputListenNeedsAdmin = ref(false);
+  const bindingRoleLabels = computed<Record<BindingRole, string>>(() => ({
+    forward: l('前进', 'Forward'),
+    back: l('后退', 'Back'),
+    left: l('左移', 'Left'),
+    right: l('右移', 'Right'),
+    crouch: l('蹲', 'Crouch'),
+    fire: l('开火', 'Fire'),
+  }));
 
   let unlisteners: UnlistenFn[] = [];
   let unsubscribeSessionSnapshot: (() => void) | null = null;
@@ -264,7 +272,7 @@ export function useCounterStrafing() {
         settings.value.assessmentHudVisible = true;
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     } finally {
       opBusy.value = false;
     }
@@ -282,7 +290,7 @@ export function useCounterStrafing() {
         settings.value.hudVisible = true;
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     } finally {
       opBusy.value = false;
     }
@@ -307,7 +315,7 @@ export function useCounterStrafing() {
       snapshot.value = await clearCounterStrafingRecords();
       lastShot.value = null;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     } finally {
       opBusy.value = false;
     }
@@ -340,9 +348,9 @@ export function useCounterStrafing() {
       snapshot.value = await resetCounterStrafingSettings();
       settings.value = mergeCounterStrafingSettings(await loadCounterStrafingSettings());
       await refreshAssessment();
-      showToast('已恢复默认设置');
+      showToast(l('已恢复默认设置', 'Defaults restored'));
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     } finally {
       opBusy.value = false;
     }
@@ -353,7 +361,7 @@ export function useCounterStrafing() {
     try {
       await relaunchAsAdmin();
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
       relaunchBusy.value = false;
     }
   }
@@ -365,7 +373,7 @@ export function useCounterStrafing() {
       snapshot.value = await resetKeyMap();
       settings.value = mergeCounterStrafingSettings(await loadCounterStrafingSettings());
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     } finally {
       opBusy.value = false;
     }
@@ -439,7 +447,7 @@ export function useCounterStrafing() {
         }),
       ]);
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     }
   });
 
@@ -469,7 +477,7 @@ export function useCounterStrafing() {
     error,
     inputListenNeedsAdmin,
     bindingRoles: BINDING_ROLES,
-    bindingRoleLabels: BINDING_ROLE_LABELS,
+    bindingRoleLabels,
     refresh,
     refreshAssessment,
     loadSettings,

@@ -3,10 +3,11 @@ import { ChevronDown, ChevronUp, Columns3, GripVertical, RotateCcw, X } from 'lu
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useColumnListDrag } from '../composables/useColumnListDrag';
 import {
-  TEAM_TABLE_COLUMN_CATEGORIES,
+  getTeamTableColumnCategoryLabel,
   type TeamTableColumnDef,
   type TeamTableColumnKey,
 } from './team-table-columns';
+import { localize as l } from '../i18n';
 
 const props = defineProps<{
   open: boolean;
@@ -83,7 +84,7 @@ async function onReset() {
 }
 
 function categoryLabel(category: TeamTableColumnDef['category']) {
-  return TEAM_TABLE_COLUMN_CATEGORIES[category];
+  return getTeamTableColumnCategoryLabel(category);
 }
 
 function isVisible(key: TeamTableColumnKey) {
@@ -152,17 +153,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
                   <Columns3 class="h-4 w-4" aria-hidden="true" />
                 </span>
                 <h2 id="column-customizer-title" class="text-[16px] font-semibold text-slate-900">
-                  自定义列
+                  {{ l('自定义列', 'Customize columns') }}
                 </h2>
               </div>
               <p class="mt-1.5 text-[12px] leading-relaxed text-slate-500">
-                勾选要展示的列，拖拽或使用箭头调整顺序。设置将保存在本机。
+                {{ l('勾选要展示的列，拖拽或使用箭头调整顺序。设置将保存在本机。', 'Choose visible columns and drag or use arrows to reorder them. Settings are saved locally.') }}
               </p>
             </div>
             <button
               type="button"
               class="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-700"
-              aria-label="关闭"
+              :aria-label="l('关闭', 'Close')"
               @click="emit('close')"
             >
               <X class="h-4 w-4" />
@@ -171,7 +172,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 
           <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-2.5">
             <span class="text-[12px] text-slate-500">
-              已显示 <b class="font-semibold text-slate-800">{{ visibleCount }}</b> 列
+              {{ l('已显示', 'Showing') }} <b class="font-semibold text-slate-800">{{ visibleCount }}</b> {{ l('列', 'columns') }}
             </span>
             <button
               type="button"
@@ -179,7 +180,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
               @click="onReset"
             >
               <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-              恢复默认
+              {{ l('恢复默认', 'Restore defaults') }}
             </button>
           </div>
 
@@ -261,7 +262,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
                   <button
                     type="button"
                     class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors duration-200 hover:bg-white hover:text-slate-700"
-                    aria-label="上移"
+                    :aria-label="l('上移', 'Move up')"
                     @click="moveLocal(key, -1)"
                   >
                     <ChevronUp class="h-4 w-4" />
@@ -269,7 +270,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
                   <button
                     type="button"
                     class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors duration-200 hover:bg-white hover:text-slate-700"
-                    aria-label="下移"
+                    :aria-label="l('下移', 'Move down')"
                     @click="moveLocal(key, 1)"
                   >
                     <ChevronDown class="h-4 w-4" />
@@ -285,7 +286,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
               class="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-medium text-white transition-colors duration-200 hover:bg-blue-700"
               @click="emit('close')"
             >
-              完成
+              {{ l('完成', 'Done') }}
             </button>
           </footer>
         </div>

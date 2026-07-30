@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { animate } from 'animejs';
+import { MapPin, MousePointerClick } from 'lucide-vue-next';
 import type { PlatformId } from '@platforms/types';
 import { getPlatformLogo } from '../utils/platform-logos';
 
@@ -9,19 +11,20 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
+const { t, locale } = useI18n();
 
-const platforms: { id: PlatformId; name: string; desc: string }[] = [
+const platforms = computed<{ id: PlatformId; name: string; desc: string }[]>(() => [
   {
     id: 'perfect',
-    name: '完美世界对战平台',
-    desc: '自动检测对局数据，无需其他操作',
+    name: t('platform.perfect'),
+    desc: t('platform.perfectDesc'),
   },
   {
     id: '5e',
-    name: '5E 对战平台',
-    desc: '需通过本软件启动对战平台',
+    name: t('platform.fiveE'),
+    desc: t('platform.fiveEDesc'),
   },
-];
+]);
 
 function select(id: PlatformId) {
   emit('select', id);
@@ -31,11 +34,11 @@ onMounted(() => {
   const root = containerRef.value;
   if (!root) return;
 
-  const title = root.querySelector('.platform-select__title');
+  const heading = root.querySelector('.platform-select__heading');
   const cards = root.querySelectorAll('.platform-card');
 
-  if (title) {
-    animate(title, {
+  if (heading) {
+    animate(heading, {
       opacity: [0, 1],
       translateY: [-8, 0],
       duration: 700,
@@ -60,8 +63,8 @@ onMounted(() => {
     </div>
 
     <div class="relative z-10 w-full max-w-4xl">
-      <header class="mb-10 text-center">
-        <h1 class="platform-select__title text-2xl font-bold tracking-tight text-fg sm:text-3xl">选择对战平台</h1>
+      <header class="platform-select__heading mb-10 text-center">
+        <h1 class="text-2xl font-bold tracking-tight text-fg sm:text-3xl">{{ t('platform.title') }}</h1>
       </header>
 
       <div class="flex flex-col gap-5 sm:flex-row sm:justify-center" role="list">
@@ -79,6 +82,14 @@ onMounted(() => {
             class="absolute inset-0 opacity-0 mix-blend-screen transition-opacity duration-300 group-hover:opacity-100"
             :class="item.id === '5e' ? 'bg-[radial-gradient(circle_at_50%_0%,color-mix(in_srgb,var(--color-accent)_10%,transparent),transparent_60%)]' : 'bg-[radial-gradient(circle_at_50%_0%,color-mix(in_srgb,var(--color-team-b)_10%,transparent),transparent_60%)]'"
           ></div>
+
+          <span
+            v-if="locale === 'en-US'"
+            class="absolute right-4 top-4 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase text-fg-muted"
+          >
+            <MapPin class="h-3 w-3 text-accent" aria-hidden="true" />
+            {{ t('platform.regionLabel') }}
+          </span>
           
           <div class="relative flex h-16 w-16 items-center justify-center transition-transform duration-300 group-hover:scale-105">
             <img
@@ -95,6 +106,19 @@ onMounted(() => {
           </div>
         </button>
       </div>
+
+      <aside
+        v-if="locale === 'en-US'"
+        class="platform-select__context mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 px-3 text-center text-[13px] leading-5"
+        role="note"
+        aria-label="Counter Strafing HUD information"
+      >
+        <MousePointerClick class="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+        <p>
+          <span class="font-semibold text-fg">{{ t('platform.hudLabel') }}</span>
+          <span class="ml-1.5 text-fg-secondary">{{ t('platform.hudHint') }}</span>
+        </p>
+      </aside>
     </div>
   </div>
 </template>

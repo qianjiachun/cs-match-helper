@@ -11,9 +11,9 @@ export const P5E_LOG_FILTER_OPTIONS: { key: P5eLogFilterKey; label: string }[] =
   { key: 'match', label: '匹配' },
 ];
 
-const HTTP_CATEGORIES = new Set(['用户信息', 'Elo 批量', '地图扩展']);
-const WS_CATEGORIES = new Set(['WS 打开', 'WS 帧', 'WS 关闭']);
-const GATE_CATEGORIES = new Set(['Gate 调试']);
+const HTTP_CATEGORIES = new Set(['用户信息', 'Elo 批量', '地图扩展', 'User info', 'Elo batch', 'Map extension']);
+const WS_CATEGORIES = new Set(['WS 打开', 'WS 帧', 'WS 关闭', 'WS open', 'WS frame', 'WS close']);
+const GATE_CATEGORIES = new Set(['Gate 调试', 'Gate debug']);
 const STATUS_CATEGORIES = new Set([
   '采集',
   '5E 连接',
@@ -24,6 +24,14 @@ const STATUS_CATEGORIES = new Set([
   'player/home',
   '匹配 enrich',
   '模拟匹配',
+  'Capture',
+  '5E connection',
+  'Status',
+  'Launch',
+  'Probe',
+  'WS debug',
+  'Match enrichment',
+  'Simulated match',
 ]);
 
 function matchesCategory(filter: P5eLogFilterKey, entry: DebugLogEntry): boolean {

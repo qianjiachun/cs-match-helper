@@ -2,6 +2,7 @@
 import { marked } from 'marked';
 import { computed } from 'vue';
 import { openExternalUrl } from '../native';
+import { currentLocale } from '../i18n';
 
 const props = defineProps<{
   content: string;
@@ -13,9 +14,14 @@ marked.setOptions({
 });
 
 function normalizeReleaseNotes(content: string): string {
-  return content
+  const locale = currentLocale();
+  const sections = [...content.matchAll(/^##\s*(zh-CN|en-US)\s*$([\s\S]*?)(?=^##\s*(?:zh-CN|en-US)\s*$|(?![\s\S]))/gim)];
+  const localized = sections.find((match) => match[1]?.toLowerCase() === locale.toLowerCase())?.[2]
+    ?? sections.find((match) => match[1]?.toLowerCase() === 'en-us')?.[2]
+    ?? content;
+  return localized
     .trim()
-    .replace(/^#{1,2}\s*更新内容\s*\n+/i, '')
+    .replace(/^#{1,2}\s*(?:更新内容|what(?:'|’)s new|release notes)\s*\n+/i, '')
     .replace(/^---\s*\n+[\s\S]*$/m, '')
     .trim();
 }

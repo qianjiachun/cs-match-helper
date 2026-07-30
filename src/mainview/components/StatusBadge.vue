@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { WatcherStatus } from '@core/types';
+import { localize as l, localizeErrorMessage } from '../i18n';
 
 const props = defineProps<{
   status: WatcherStatus;
@@ -9,8 +10,10 @@ const props = defineProps<{
 const state = computed(() => {
   if (!props.status.running) {
     return {
-      label: '服务未就绪',
-      hint: props.status.lastError ?? '请重启应用后重试',
+      label: l('服务未就绪', 'Service not ready'),
+      hint: props.status.lastError
+        ? localizeErrorMessage(props.status.lastError)
+        : l('请重启应用后重试', 'Restart the app and try again'),
       tone: 'danger' as const,
       pulse: false,
     };
@@ -18,16 +21,22 @@ const state = computed(() => {
 
   if (!props.status.fileExists) {
     return {
-      label: '等待客户端',
-      hint: '启动完美对战平台后，将自动开始捕获匹配信息',
+      label: l('等待客户端', 'Waiting for client'),
+      hint: l(
+        '启动完美对战平台后，将自动开始捕获匹配信息',
+        'Launch Perfect World Arena to start capturing matchmaking data automatically',
+      ),
       tone: 'warning' as const,
       pulse: true,
     };
   }
 
   return {
-    label: '监听中',
-    hint: '正在后台捕获匹配事件，开始匹配即可',
+    label: l('监听中', 'Listening'),
+    hint: l(
+      '正在后台捕获匹配事件，开始匹配即可',
+      'Capturing matchmaking events in the background',
+    ),
     tone: 'success' as const,
     pulse: true,
   };

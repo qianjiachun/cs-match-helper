@@ -27,6 +27,7 @@ import {
 } from '../../composables/useCounterStrafingDisplayMode';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 import type { useGameBarWidget } from '../../composables/useGameBarWidget';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   cs: ReturnType<typeof useCounterStrafing>;
@@ -49,9 +50,9 @@ const recordSessionSummary = computed(() => {
   const shotCount = snapshot.value.shotRecords.length;
   if (!assessmentCount && !shotCount) return null;
   const parts: string[] = [];
-  if (assessmentCount) parts.push(`${assessmentCount} 次急停`);
-  if (shotCount) parts.push(`${shotCount} 次开枪`);
-  return `本次已记录 ${parts.join('、')}`;
+  if (assessmentCount) parts.push(l(`${assessmentCount} 次急停`, `${assessmentCount} counter-strafes`));
+  if (shotCount) parts.push(l(`${shotCount} 次开枪`, `${shotCount} shots`));
+  return l(`本次已记录 ${parts.join('、')}`, `Recorded ${parts.join(', ')} this session`);
 });
 
 const widgetStatus = props.widget.status;
@@ -89,7 +90,7 @@ function isModeOptionLocked(mode: CounterStrafingDisplayMode) {
 
 function selectMode(mode: CounterStrafingDisplayMode) {
   if (isModeOptionLocked(mode)) {
-    showToast('请先停止记录', 'warning');
+    showToast(l('请先停止记录', 'Stop recording first'), 'warning');
     return;
   }
   if (snapshot.value.listening) return;
@@ -100,28 +101,28 @@ function selectMode(mode: CounterStrafingDisplayMode) {
   }
 }
 
-const modeOptions: Array<{
+const modeOptions = computed<Array<{
   id: CounterStrafingDisplayMode;
   title: string;
   subtitle: string;
   hint: string;
   icon: typeof Monitor;
-}> = [
+}>>(() => [
   {
     id: 'widget',
-    title: '全屏模式',
-    subtitle: 'Game Bar 小组件',
-    hint: '全屏模式下使用小组件显示数据',
+    title: l('全屏模式', 'Exclusive fullscreen'),
+    subtitle: l('Game Bar 小组件', 'Game Bar Widget'),
+    hint: l('全屏模式下使用小组件显示数据', 'Use the Widget in exclusive fullscreen'),
     icon: LayoutPanelTop,
   },
   {
     id: 'hud',
-    title: '窗口 / 无边框全屏',
-    subtitle: '游戏内悬浮窗',
-    hint: '窗口化、全屏窗口化或无边框全屏',
+    title: l('窗口 / 无边框全屏', 'Windowed / borderless'),
+    subtitle: l('游戏内悬浮窗', 'In-game HUDs'),
+    hint: l('窗口化、全屏窗口化或无边框全屏', 'Windowed, fullscreen windowed, or borderless'),
     icon: AppWindow,
   },
-];
+]);
 
 async function openGameBarSettings() {
   await openExternalUrl('ms-settings:gaming-gamebar');
@@ -138,15 +139,15 @@ const showWidgetInstallReminder = computed(
 const widgetInstallReminderText = computed(() => {
   const status = widgetStatus.value;
   if (!status?.gameBarInstalled) {
-    return '全屏模式下需在下方安装 Game Bar 和小组件，才能在游戏里看到实时数据。';
+    return l('全屏模式下需在下方安装 Game Bar 和小组件，才能在游戏里看到实时数据。', 'Install Game Bar and the Widget below to view live data in exclusive fullscreen.');
   }
   if (!status.installed) {
-    return '全屏模式下建议在下方安装小组件，才能在游戏里看到实时数据。';
+    return l('全屏模式下建议在下方安装小组件，才能在游戏里看到实时数据。', 'Install the Widget below to view live data in exclusive fullscreen.');
   }
   if (!status.loopbackConfigured) {
-    return '小组件连接未就绪，建议在下方重新安装以在游戏中显示数据。';
+    return l('小组件连接未就绪，建议在下方重新安装以在游戏中显示数据。', 'The Widget connection is not ready. Reinstall it below.');
   }
-  return '建议在下方完成小组件安装，以便在游戏中查看数据。';
+  return l('建议在下方完成小组件安装，以便在游戏中查看数据。', 'Complete Widget setup below to view data in game.');
 });
 
 function scrollToWidgetInstall() {
@@ -224,12 +225,12 @@ const modePanelLayerClass =
               <Power class="h-4 w-4" aria-hidden="true" />
             </div>
             <div class="min-w-0">
-              <p class="text-[15px] font-semibold leading-snug text-fg">控制开关</p>
+              <p class="text-[15px] font-semibold leading-snug text-fg">{{ l('控制开关', 'Recording') }}</p>
               <p class="mt-0.5 text-[12px] leading-snug text-fg-muted">
                 {{
                   snapshot.listening
-                    ? '正在记录按键 · 也可在顶部快速停止'
-                    : '选好显示方式后开启记录；也可在顶部一键开始'
+                    ? l('正在记录按键 · 也可在顶部快速停止', 'Recording input · You can also stop from the title bar')
+                    : l('选好显示方式后开启记录；也可在顶部一键开始', 'Choose a display mode, then start recording')
                 }}
               </p>
               <div
@@ -263,7 +264,7 @@ const modePanelLayerClass =
               class="h-1.5 w-1.5 rounded-full"
               :class="snapshot.listening ? 'bg-emerald-500 animate-pulse' : 'bg-fg-muted/50'"
             />
-            {{ snapshot.listening ? '已开启' : '未开启' }}
+            {{ snapshot.listening ? l('已开启', 'On') : l('未开启', 'Off') }}
           </span>
         </div>
       </div>
@@ -282,7 +283,7 @@ const modePanelLayerClass =
             @click="cs.toggleListening()"
           >
             <component :is="snapshot.listening ? Square : Play" class="h-4 w-4" aria-hidden="true" />
-            {{ snapshot.listening ? '停止记录' : '开始记录' }}
+            {{ snapshot.listening ? l('停止记录', 'Stop recording') : l('开始记录', 'Start recording') }}
           </button>
           <div
             class="grid shrink-0 transition-[grid-template-columns] duration-200 ease-out"
@@ -299,7 +300,7 @@ const modePanelLayerClass =
                 @click="cs.clearAllRecords()"
               >
                 <RotateCcw class="h-4 w-4 shrink-0" aria-hidden="true" />
-                清空本次数据
+                {{ l('清空本次数据', 'Clear session data') }}
               </button>
             </div>
           </div>
@@ -320,7 +321,7 @@ const modePanelLayerClass =
               class="mt-1.5 cursor-pointer text-[12px] font-medium text-accent transition-colors duration-200 hover:text-accent-hover"
               @click="scrollToWidgetInstall()"
             >
-              前往安装
+              {{ l('前往安装', 'Open setup') }}
             </button>
           </div>
         </div>
@@ -332,12 +333,12 @@ const modePanelLayerClass =
         <div class="flex items-center gap-3">
           <Monitor class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
           <div>
-            <p class="text-[15px] font-semibold text-fg">游戏显示模式</p>
+            <p class="text-[15px] font-semibold text-fg">{{ l('游戏显示模式', 'In-game display mode') }}</p>
             <p class="mt-0.5 text-[12px] text-fg-muted">
               {{
                 snapshot.listening
-                  ? '记录进行中，请先停止记录再切换显示模式'
-                  : '请根据游戏的全屏方式，选择对应的显示方案'
+                  ? l('记录进行中，请先停止记录再切换显示模式', 'Stop recording before changing display mode')
+                  : l('请根据游戏的全屏方式，选择对应的显示方案', 'Choose the option that matches your CS2 display mode')
               }}
             </p>
           </div>
@@ -419,7 +420,7 @@ const modePanelLayerClass =
         >
           <CounterStrafingHudSettings :cs="cs" />
           <p class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/6 px-3.5 py-2.5 text-[11px] leading-relaxed text-fg-secondary">
-            如果游戏里看不到悬浮窗，请把 CS2 改成<strong class="font-medium text-fg">全屏窗口化</strong>或<strong class="font-medium text-fg">无边框全屏</strong>。独占全屏请改用上方「小组件」方式。
+            {{ l('如果游戏里看不到悬浮窗，请把 CS2 改成全屏窗口化或无边框全屏。独占全屏请改用上方「小组件」方式。', 'If the HUD is not visible, set CS2 to Fullscreen Windowed or Borderless. Use the Widget for exclusive fullscreen.') }}
           </p>
         </div>
 
@@ -439,8 +440,8 @@ const modePanelLayerClass =
             <div class="flex items-center gap-3">
               <ListChecks class="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
               <div>
-                <p class="text-[14px] font-semibold text-fg">小组件开启步骤</p>
-                <p class="text-[12px] text-fg-muted">按顺序完成，就能在全屏游戏里看到数据</p>
+                <p class="text-[14px] font-semibold text-fg">{{ l('小组件开启步骤', 'Widget setup') }}</p>
+                <p class="text-[12px] text-fg-muted">{{ l('按顺序完成，就能在全屏游戏里看到数据', 'Complete these steps to view data in exclusive fullscreen.') }}</p>
               </div>
             </div>
 
@@ -470,14 +471,14 @@ const modePanelLayerClass =
                       1
                     </span>
                     <div>
-                      <p class="text-[13px] font-semibold text-fg">安装 Game Bar</p>
+                      <p class="text-[13px] font-semibold text-fg">{{ l('安装 Game Bar', 'Install Game Bar') }}</p>
                       <p class="mt-1 text-[12px] leading-relaxed text-fg-muted">
                         {{
                           widgetDetecting
-                            ? '正在扫描本机是否已安装…'
+                            ? l('正在扫描本机是否已安装…', 'Checking whether Game Bar is installed…')
                             : widgetStatus?.gameBarInstalled
-                              ? '已检测到，可以继续下一步'
-                              : '微软自带的游戏工具，小组件运行基础'
+                              ? l('已检测到，可以继续下一步', 'Detected. Continue to the next step.')
+                              : l('微软自带的游戏工具，小组件运行基础', 'Microsoft’s gaming overlay required by the Widget')
                         }}
                       </p>
                     </div>
@@ -499,10 +500,10 @@ const modePanelLayerClass =
                     />
                     {{
                       widgetDetecting
-                        ? '检测中'
+                        ? l('检测中', 'Detecting')
                         : widgetStatus?.gameBarInstalled
-                          ? '已就绪'
-                          : '待安装'
+                          ? l('已就绪', 'Ready')
+                          : l('待安装', 'Install')
                     }}
                   </span>
                 </div>
@@ -513,14 +514,14 @@ const modePanelLayerClass =
                     @click="openGameBarSettings()"
                   >
                     <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-                    打开系统设置
+                    {{ l('打开系统设置', 'Open Settings') }}
                   </button>
                   <button
                     type="button"
                     class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated"
                     @click="openGameBarStore()"
                   >
-                    去微软商店安装
+                    {{ l('去微软商店安装', 'Install from Microsoft Store') }}
                   </button>
                 </div>
               </div>
@@ -542,48 +543,48 @@ const modePanelLayerClass =
                     3
                   </span>
                   <div class="min-w-0">
-                    <p class="text-[13px] font-semibold text-fg">进游戏后这样打开</p>
+                    <p class="text-[13px] font-semibold text-fg">{{ l('进游戏后这样打开', 'Open it in game') }}</p>
                     <ol class="mt-2 space-y-2 text-[12px] leading-relaxed text-fg-secondary">
-                      <li>回到这里，点<strong class="font-medium text-fg">开始记录</strong></li>
+                      <li>{{ l('回到这里，点击“开始记录”', 'Return here and select “Start recording”.') }}</li>
                       <li>
-                        进入 CS2，按
+                        {{ l('进入 CS2，按', 'In CS2, press') }}
                         <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" />
-                        打开 Game Bar
+                        {{ l('打开 Game Bar', 'to open Game Bar') }}
                       </li>
-                      <li>在「小组件」里找到 <strong class="font-medium text-fg">CS 对局助手</strong> 并固定</li>
+                      <li>{{ l('在“小组件”里找到“CS 匹配助手”并固定', 'Find “CS Match Helper” under Widgets and pin it.') }}</li>
                     </ol>
                     <p
                       v-if="snapshot.listening && widgetReady"
                       class="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-[11px] text-emerald-800"
                     >
-                      一切就绪：已开始记录，进游戏打开小组件即可
+                      {{ l('一切就绪：已开始记录，进游戏打开小组件即可', 'Ready: recording is active. Open the Widget in game.') }}
                     </p>
                     <p
                       v-else-if="widgetReady && !snapshot.listening"
                       class="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-[11px] text-amber-900"
                     >
-                      小组件已装好，请点击「开始记录」
+                      {{ l('小组件已装好，请点击「开始记录」', 'The Widget is installed. Select “Start recording”.') }}
                     </p>
                   </div>
                 </div>
               </div>
 
               <p class="rounded-xl border border-border-subtle bg-elevated/50 px-3 py-2.5 text-[11px] leading-relaxed text-fg-muted">
-                如果游戏内按
+                {{ l('如果游戏内按', 'If pressing') }}
                 <GameBarShortcutKbd :shortcut="gameBarOpenShortcut" size="sm" />
-                没有出现菜单，请到
+                {{ l('没有出现菜单，请到', 'does not open Game Bar, open') }}
                 <strong class="font-medium text-fg-secondary">cs2.exe</strong>
-                属性中取消勾选「禁用全屏优化」。若仍无法打开，可尝试将游戏改为全屏窗口化。
+                {{ l('属性中取消勾选“禁用全屏优化”。若仍无法打开，可尝试将游戏改为全屏窗口化。', 'Properties and clear “Disable fullscreen optimizations”. If needed, switch CS2 to Fullscreen Windowed.') }}
                 <span v-if="!gameBarOpenShortcutFromRegistry">
-                  若你已在系统里改过 Game Bar 快捷键，请以
+                  {{ l('若你已在系统里改过 Game Bar 快捷键，请以', 'If you changed the Game Bar shortcut, use the value shown in') }}
                   <button
                     type="button"
                     class="font-medium text-fg-secondary underline-offset-2 hover:underline"
                     @click="openGameBarSettings()"
                   >
-                    系统设置
+                    {{ l('系统设置', 'Windows Settings') }}
                   </button>
-                  为准。
+                  {{ l('为准。', '.') }}
                 </span>
               </p>
             </div>

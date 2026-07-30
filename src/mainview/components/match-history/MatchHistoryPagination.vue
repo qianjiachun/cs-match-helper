@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   totalCount: number;
@@ -73,23 +74,23 @@ function onPageInputKeydown(event: KeyboardEvent) {
     class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
   >
     <p class="text-[13px] leading-relaxed text-slate-500">
-      显示
+      {{ l('显示', 'Showing') }}
       <span class="font-semibold tabular-nums text-slate-700">{{ rangeLabel }}</span>
-      条，共
+      {{ l('条，共', 'of') }}
       <span class="font-semibold tabular-nums text-slate-700">{{ totalCount }}</span>
-      条
+      {{ l('条', 'matches') }}
     </p>
 
     <div
       class="inline-flex items-center gap-0.5 self-start rounded-xl bg-white p-1 ring-1 ring-slate-200/60 sm:self-auto"
       role="navigation"
-      aria-label="分页"
+      :aria-label="l('分页', 'Pagination')"
     >
       <button
         type="button"
         class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-[background-color,color,transform] duration-200 hover:bg-slate-50 hover:text-slate-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
         :disabled="currentPage <= 1"
-        aria-label="上一页"
+        :aria-label="l('上一页', 'Previous page')"
         @click="goTo(currentPage - 1)"
       >
         <ChevronLeft class="h-4 w-4" aria-hidden="true" />
@@ -103,7 +104,7 @@ function onPageInputKeydown(event: KeyboardEvent) {
           pattern="[0-9]*"
           class="h-6 cursor-text rounded bg-transparent px-0 text-center text-[12px] font-semibold tabular-nums text-slate-800 outline-none ring-1 ring-slate-200/70 transition-[background-color,box-shadow] duration-200 focus:bg-slate-50 focus:ring-2 focus:ring-accent/20"
           :class="pageInputWidthClass"
-          :aria-label="`第 ${currentPage} 页，共 ${totalPages} 页`"
+          :aria-label="l(`第 ${currentPage} 页，共 ${totalPages} 页`, `Page ${currentPage} of ${totalPages}`)"
           @keydown="onPageInputKeydown"
           @blur="commitPageInput"
         />
@@ -117,7 +118,7 @@ function onPageInputKeydown(event: KeyboardEvent) {
         type="button"
         class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-[background-color,color,transform] duration-200 hover:bg-slate-50 hover:text-slate-700 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
         :disabled="currentPage >= totalPages"
-        aria-label="下一页"
+        :aria-label="l('下一页', 'Next page')"
         @click="goTo(currentPage + 1)"
       >
         <ChevronRight class="h-4 w-4" aria-hidden="true" />

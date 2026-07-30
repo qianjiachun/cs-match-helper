@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Activity } from 'lucide-vue-next';
 import type { MatchPlayer } from '@core/match/models';
+import { localize as l } from '../i18n';
 
 defineProps<{
   player: MatchPlayer;
@@ -17,7 +18,7 @@ function resultClass(r: 'win' | 'lose' | 'draw'): string {
   <div v-if="player.recentResults.length > 0" class="space-y-1">
     <p class="flex items-center gap-1 text-[9px] font-medium text-fg-muted">
       <Activity class="h-2.5 w-2.5" />
-      近期战绩
+      {{ l('近期战绩', 'Recent form') }}
     </p>
     <div class="flex flex-wrap gap-0.5">
       <span
@@ -25,7 +26,7 @@ function resultClass(r: 'win' | 'lose' | 'draw'): string {
         :key="i"
         class="h-2 w-2 rounded-sm"
         :class="resultClass(r)"
-        :title="r === 'win' ? '胜' : r === 'draw' ? '平' : '负'"
+        :title="r === 'win' ? l('胜', 'Win') : r === 'draw' ? l('平', 'Draw') : l('负', 'Loss')"
       />
     </div>
     <p v-if="player.rating != null" class="text-[10px] text-fg-muted">

@@ -5,7 +5,7 @@ import type { P5eMatchBundle } from './types';
 
 function emptyLogLine(): LogLine {
   return {
-    time: new Date().toLocaleString('zh-CN'),
+    time: new Date().toISOString(),
     level: 'INFO',
     category: '5e',
     decoded: '',

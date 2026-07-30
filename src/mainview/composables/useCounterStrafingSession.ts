@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { localize as l } from '../i18n';
 import {
   startCounterStrafing,
   stopCounterStrafing,
@@ -7,7 +8,7 @@ import type { CounterStrafingSnapshot } from '@core/counter-strafing/types';
 import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
 import { showToast } from './useCopyFeedback';
 
-/** 急停助手是否正在记录（跨视图共享，供 TitleBar 等使用） */
+/** 急停 HUD 是否正在记录（跨视图共享，供 TitleBar 等使用） */
 export const counterStrafingListening = ref(false);
 
 /** 顶栏/控制台共用的开停记录忙碌态 */
@@ -42,7 +43,7 @@ export async function toggleCounterStrafingListening(options?: {
   toastOnError?: boolean;
 }): Promise<ToggleListeningResult> {
   if (counterStrafingSessionBusy.value) {
-    return { ok: false, error: '正在处理中，请稍候' };
+    return { ok: false, error: l('正在处理中，请稍候', 'A recording action is already in progress') };
   }
 
   const { displayMode } = useCounterStrafingDisplayMode();
@@ -55,7 +56,7 @@ export async function toggleCounterStrafingListening(options?: {
       const showHud = displayMode.value === 'hud';
       snapshot = await startCounterStrafing(showHud);
       if (!snapshot.listening) {
-        throw new Error('按键监听未成功启动，请重试');
+        throw new Error(l('按键监听未成功启动，请重试', 'Input capture did not start. Try again.'));
       }
     }
     emitSessionSnapshot(snapshot);

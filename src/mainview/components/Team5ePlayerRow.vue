@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import type { MatchPlayer } from '@core/match/models';
 import { isValidSteamId64 } from '@core/comments/steam-id';
+import { localize as l } from '../i18n';
+import { displayPlayerNickname } from '../utils/playerDisplay';
 import PlayerAvatar from './PlayerAvatar.vue';
 
 const props = defineProps<{
@@ -33,12 +35,12 @@ function formatElo(score?: number): string {
       type="button"
       class="group flex min-w-0 flex-col items-center transition-transform duration-200 hover:-translate-y-1"
       :class="isValidSteamId64(p.steamId) ? 'cursor-pointer' : 'cursor-default'"
-      :title="isValidSteamId64(p.steamId) ? `查看 ${p.nickname} 的评论` : p.steamId"
+      :title="isValidSteamId64(p.steamId) ? l(`查看 ${displayPlayerNickname(p.nickname)} 的评论`, `View comments for ${displayPlayerNickname(p.nickname)}`) : p.steamId"
       @click="emit('playerClick', p)"
     >
       <PlayerAvatar
         :src="p.avatar"
-        :alt="p.nickname"
+        :alt="displayPlayerNickname(p.nickname)"
         size="md"
         shape="rounded"
         class="shrink-0 ring-2 ring-transparent transition-all"
@@ -48,7 +50,7 @@ function formatElo(score?: number): string {
         class="mt-1.5 w-full max-w-[48px] truncate text-center text-[10px] text-slate-600 transition-colors"
         :class="hoverNameClass"
       >
-        {{ p.nickname }}
+        {{ displayPlayerNickname(p.nickname) }}
       </span>
       <span class="text-[11px] font-semibold text-slate-800">{{ formatElo(p.score) }}</span>
     </button>

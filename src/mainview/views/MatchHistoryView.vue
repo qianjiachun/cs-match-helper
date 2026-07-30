@@ -16,6 +16,7 @@ import {
   matchesPlatformFilter,
   sortHistoryItemsNewestFirst,
 } from '../utils/matchHistoryDisplay';
+import { localize as l } from '../i18n';
 
 const PAGE_SIZE = 20;
 
@@ -121,8 +122,8 @@ async function openEntry(item: MatchHistoryListItem) {
     const vm = await props.history.loadEntry(item.platformId, item.id);
     if (!vm || !vm.record) {
       detailError.value = vm?.unsupportedSections.includes('match')
-        ? '数据格式较新，请升级客户端后查看'
-        : '无法加载该对局详情';
+        ? l('数据格式较新，请升级客户端后查看', 'This data requires a newer app version.')
+        : l('无法加载该对局详情', 'Could not load match details');
       return;
     }
     detailVm.value = vm;
@@ -238,12 +239,12 @@ onMounted(() => {
           v-if="detailVm?.unsupportedSections.length"
           class="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] text-amber-700"
         >
-          部分数据格式较新，请升级客户端后查看完整内容
+          {{ l('部分数据格式较新，请升级客户端后查看完整内容', 'Some data requires a newer app version.') }}
         </div>
 
         <div class="min-h-0 flex-1 overflow-hidden">
           <div v-if="detailLoading" class="flex h-full items-center justify-center text-[13px] text-slate-500">
-            加载详情…
+            {{ l('加载详情…', 'Loading details…') }}
           </div>
           <div v-else-if="detailError" class="flex h-full items-center justify-center text-[13px] text-rose-600">
             {{ detailError }}
@@ -267,9 +268,9 @@ onMounted(() => {
       @click.self="deleteConfirmItem = null"
     >
       <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl ring-1 ring-black/5">
-        <h2 class="text-[15px] font-semibold text-slate-900">删除这条对局记录？</h2>
+        <h2 class="text-[15px] font-semibold text-slate-900">{{ l('删除这条对局记录？', 'Delete this match?') }}</h2>
         <p class="mt-1.5 text-[12px] leading-relaxed text-slate-500">
-          将删除「{{ historyPrimaryMapTitle(deleteConfirmItem) }}」的本地快照，此操作不可恢复。
+          {{ l(`将删除“${historyPrimaryMapTitle(deleteConfirmItem)}”的本地快照，此操作不可恢复。`, `The local snapshot for “${historyPrimaryMapTitle(deleteConfirmItem)}” will be permanently deleted.`) }}
         </p>
         <div class="mt-5 flex justify-end gap-2">
           <button
@@ -277,14 +278,14 @@ onMounted(() => {
             class="cursor-pointer rounded-lg px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-100"
             @click="deleteConfirmItem = null"
           >
-            取消
+            {{ l('取消', 'Cancel') }}
           </button>
           <button
             type="button"
             class="cursor-pointer rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-rose-700 active:scale-[0.96]"
             @click="confirmRemoveItem"
           >
-            确认删除
+            {{ l('确认删除', 'Delete') }}
           </button>
         </div>
       </div>

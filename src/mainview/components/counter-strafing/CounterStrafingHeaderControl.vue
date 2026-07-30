@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Gauge, Loader2, Play, Square } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   activePage: boolean;
@@ -15,14 +16,14 @@ const emit = defineEmits<{
 
 const openAriaLabel = computed(() => {
   if (props.activePage) {
-    return props.listening ? '急停助手（当前，记录中）' : '急停助手（当前）';
+    return props.listening ? l('急停 HUD（当前，记录中）', 'Counter Strafing HUD (current, recording)') : l('急停 HUD（当前）', 'Counter Strafing HUD (current)');
   }
-  return props.listening ? '打开急停助手（记录中）' : '打开急停助手';
+  return props.listening ? l('打开急停 HUD（记录中）', 'Open Counter Strafing HUD (recording)') : l('打开急停 HUD', 'Open Counter Strafing HUD');
 });
 
 const toggleAriaLabel = computed(() => {
-  if (props.busy) return '处理中';
-  return props.listening ? '停止记录' : '开始记录';
+  if (props.busy) return l('处理中', 'Working');
+  return props.listening ? l('停止记录', 'Stop recording') : l('开始记录', 'Start recording');
 });
 
 function onOpen() {
@@ -45,7 +46,7 @@ function onToggle() {
         : 'border-border bg-elevated/40 text-fg-muted hover:border-border hover:bg-elevated'
     "
     role="group"
-    aria-label="急停助手"
+    :aria-label="l('急停 HUD', 'Counter Strafing HUD')"
   >
     <button
       type="button"
@@ -73,7 +74,7 @@ function onToggle() {
         />
       </span>
       <span class="hidden min-w-0 items-center sm:inline-flex" :class="listening ? 'gap-1.5' : 'gap-0'">
-        <span class="shrink-0 whitespace-nowrap font-normal">急停助手</span>
+        <span class="shrink-0 whitespace-nowrap font-normal">{{ l('急停 HUD', 'Counter Strafing HUD') }}</span>
         <div
           class="grid min-w-0 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           :class="listening ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
@@ -88,7 +89,7 @@ function onToggle() {
                 class="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
                 aria-hidden="true"
               />
-              记录中
+              {{ l('记录中', 'Recording') }}
             </span>
           </div>
         </div>

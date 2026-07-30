@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MessageCircle } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { localize as l } from '../../i18n';
 import { isValidSteamId64 } from '@core/comments/steam-id';
 
 const props = defineProps<{
@@ -26,8 +27,8 @@ const countLabel = computed(() => {
 
 const label = computed(() =>
   hasComments.value
-    ? `查看 ${countLabel.value} 条评论`
-    : '查看或发表评论',
+    ? l(`查看 ${countLabel.value} 条评论`, `View ${countLabel.value} comments`)
+    : l('查看或发表评论', 'View or add comments'),
 );
 
 function onClick() {

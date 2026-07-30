@@ -1,10 +1,11 @@
 import type { MatchHistoryListItem } from '@core/match/history';
 import { resolveMapAsset } from '@core/match/history/map-assets';
+import { currentLocale, localize as l } from '../i18n';
 
 export function platformLabel(platformId: string): string {
-  if (platformId === 'perfect') return '完美';
+  if (platformId === 'perfect') return l('完美', 'Perfect World');
   if (platformId === '5e') return '5E';
-  return '未知平台';
+  return l('未知平台', 'Unknown platform');
 }
 
 export function formatMapDisplayName(raw?: string | null): string | null {
@@ -15,9 +16,10 @@ export function formatMapDisplayName(raw?: string | null): string | null {
 /** 列表主标题：中文优先 */
 export function historyPrimaryMapTitle(item: MatchHistoryListItem): string {
   const asset = resolveMapAsset(item.mapName);
+  if (currentLocale() === 'en-US' && asset?.en) return asset.en;
   if (asset?.zh) return asset.zh;
   if (asset?.en) return asset.en;
-  return '未知地图';
+  return l('未知地图', 'Unknown map');
 }
 
 /** 列表副行：英文名（主标题已是中文且不同时） */
@@ -39,7 +41,7 @@ export function formatHistoryTime(
 ): string {
   const short = options?.short ?? false;
   const date = resolveHistoryDate(savedAt, matchTime);
-  if (!date) return matchTime?.trim() || '时间未知';
+  if (!date) return matchTime?.trim() || l('时间未知', 'Unknown time');
 
   const now = new Date();
   const sameDay =
@@ -54,16 +56,16 @@ export function formatHistoryTime(
     date.getDate() === yesterday.getDate();
 
   const hm = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  if (sameDay) return short ? hm : `今天 ${hm}`;
-  if (isYesterday) return short ? `昨天 ${hm}` : `昨天 ${hm}`;
+  if (sameDay) return short ? hm : l(`今天 ${hm}`, `Today ${hm}`);
+  if (isYesterday) return l(`昨天 ${hm}`, `Yesterday ${hm}`);
   if (date.getFullYear() === now.getFullYear()) {
     return short
       ? `${date.getMonth() + 1}/${date.getDate()} ${hm}`
-      : `${date.getMonth() + 1}月${date.getDate()}日 ${hm}`;
+      : l(`${date.getMonth() + 1}月${date.getDate()}日 ${hm}`, new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date));
   }
   return short
     ? `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
-    : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hm}`;
+    : l(`${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hm}`, new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date));
 }
 
 function resolveHistoryDate(savedAt: number, matchTime?: string): Date | null {
@@ -105,8 +107,8 @@ export function sortHistoryItemsNewestFirst(items: MatchHistoryListItem[]): Matc
 
 export function historyFilterOptions() {
   return [
-    { id: 'all' as const, label: '全部' },
-    { id: 'perfect' as const, label: '完美' },
+    { id: 'all' as const, label: l('全部', 'All') },
+    { id: 'perfect' as const, label: l('完美', 'Perfect World') },
     { id: '5e' as const, label: '5E' },
   ];
 }

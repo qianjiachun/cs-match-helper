@@ -10,6 +10,7 @@ import {
   onUpdateProgress,
 } from '../native';
 import { showToast } from './useCopyFeedback';
+import { localize as l } from '../i18n';
 
 const state = reactive({
   currentVersion: '',
@@ -38,7 +39,7 @@ let autoDownloadStarted = false;
 async function ensurePreviousFailureListener() {
   if (previousFailureUnlisten) return;
   previousFailureUnlisten = await listen('update-previous-failed', () => {
-    showToast('上次自动更新未完成，请手动检查更新', 'warning');
+    showToast(l('上次自动更新未完成，请手动检查更新', 'The previous automatic update did not finish. Check for updates manually.'), 'warning');
   });
 }
 
@@ -160,7 +161,7 @@ export function useUpdateCheck() {
           void startDownload();
         }
       } else if (!silent) {
-        showToast('当前已是最新版本');
+        showToast(l('当前已是最新版本', 'You are up to date'));
       }
     } catch (error) {
       state.error = error instanceof Error ? error.message : String(error);
@@ -168,7 +169,7 @@ export function useUpdateCheck() {
       state.phase = 'idle';
       await ensureVersion();
       if (!silent) {
-        showToast(state.error || '检查更新失败，请稍后重试', 'error');
+        showToast(state.error || l('检查更新失败，请稍后重试', 'Could not check for updates. Try again later.'), 'error');
       }
     } finally {
       state.checking = false;

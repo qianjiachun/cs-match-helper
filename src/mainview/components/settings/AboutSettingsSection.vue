@@ -10,8 +10,9 @@ import { useCopySuccessAnimation } from '../../composables/useCopySuccessAnimati
 import { useUpdateCheck } from '../../composables/useUpdateCheck';
 import { openExternalUrl } from '../../native';
 import UpdateBadge from '../UpdateBadge.vue';
+import { localize as l } from '../../i18n';
 
-const appName = 'CS 对局助手';
+const appName = computed(() => l('CS 匹配助手', 'CS Match Helper'));
 const { state, formattedVersion, isBusy, checkManual, openDialog } = useUpdateCheck();
 const author = '小淳';
 const authorGithubUrl = 'https://github.com/qianjiachun/';
@@ -30,7 +31,7 @@ const { copyIconHighlighted, playCopySuccessAnimation } = useCopySuccessAnimatio
   copyCheckTemplateRef,
 });
 
-const updateActionLabel = computed(() => (state.checking ? '检查中…' : '检查更新'));
+const updateActionLabel = computed(() => (state.checking ? l('检查中…', 'Checking…') : l('检查更新', 'Check for updates')));
 
 function openRepo() {
   void openExternalUrl(repoUrl);
@@ -41,7 +42,7 @@ function openIssues() {
 }
 
 async function copyRepo() {
-  await copyText(repoUrl, '已复制开源地址');
+  await copyText(repoUrl, l('已复制开源地址', 'Repository URL copied'));
 }
 
 async function copyQqGroup() {
@@ -69,7 +70,7 @@ async function copyQqGroup() {
     </div>
 
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
-      <span class="shrink-0 text-[13px] text-fg-muted">版本</span>
+      <span class="shrink-0 text-[13px] text-fg-muted">{{ l('版本', 'Version') }}</span>
       <div class="min-w-0 text-right">
         <div class="flex items-center justify-end gap-2">
           <span class="text-[13px] font-semibold tabular-nums text-fg">{{ formattedVersion }}</span>
@@ -99,13 +100,13 @@ async function copyQqGroup() {
     </div>
 
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
-      <span class="text-[13px] text-fg-muted">作者</span>
+      <span class="text-[13px] text-fg-muted">{{ l('作者', 'Author') }}</span>
       <div class="flex items-center gap-2">
         <div class="flex items-center gap-0.5">
           <a
             href="#"
             class="group inline-flex cursor-pointer rounded-md p-1 transition-colors duration-200 hover:bg-elevated"
-            aria-label="作者 GitHub"
+            :aria-label="l('作者 GitHub', 'Author’s GitHub')"
             @click.prevent="openExternalUrl(authorGithubUrl)"
           >
             <img
@@ -118,7 +119,7 @@ async function copyQqGroup() {
           <a
             href="#"
             class="group inline-flex cursor-pointer rounded-md p-1 transition-colors duration-200 hover:bg-elevated"
-            aria-label="作者 Bilibili"
+            :aria-label="l('作者 Bilibili', 'Author’s Bilibili')"
             @click.prevent="openExternalUrl(authorBilibiliUrl)"
           >
             <img
@@ -134,12 +135,12 @@ async function copyQqGroup() {
     </div>
 
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
-      <span class="text-[13px] text-fg-muted">反馈</span>
+      <span class="text-[13px] text-fg-muted">{{ l('反馈', 'Feedback') }}</span>
       <div class="flex items-center gap-2">
         <button
           type="button"
           class="group inline-flex cursor-pointer rounded-md p-1 transition-colors duration-200 hover:bg-elevated"
-          aria-label="GitHub Issues 反馈"
+          :aria-label="l('GitHub Issues 反馈', 'Report an issue on GitHub')"
           :title="repoIssuesUrl"
           @click="openIssues"
         >
@@ -153,7 +154,7 @@ async function copyQqGroup() {
         <button
           type="button"
           class="group/copy relative inline-flex cursor-pointer items-center gap-1.5 overflow-visible rounded-md py-px transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-          title="点击复制 QQ 群号"
+          :title="l('点击复制 QQ 群号', 'Copy QQ group number')"
           @click="copyQqGroup"
         >
           <img
@@ -163,7 +164,7 @@ async function copyQqGroup() {
             aria-hidden="true"
           />
           <span class="text-[13px] font-medium text-accent transition-colors duration-200 group-hover/copy:text-accent-hover">
-            QQ群
+            {{ l('QQ群', 'QQ group') }}
           </span>
           <span ref="copyWrapRef" class="relative inline-flex shrink-0 overflow-visible">
             <span ref="copyIconRef" class="inline-flex origin-center">
@@ -182,7 +183,7 @@ async function copyQqGroup() {
     </div>
 
     <div class="flex items-center justify-between gap-4 px-5 py-4">
-      <span class="shrink-0 text-[13px] text-fg-muted">开源地址</span>
+      <span class="shrink-0 text-[13px] text-fg-muted">{{ l('开源地址', 'Source code') }}</span>
       <button
         type="button"
         class="group flex min-w-0 cursor-pointer items-center gap-1.5 text-right transition-colors duration-200"

@@ -7,6 +7,7 @@ import { homeDir } from '@tauri-apps/api/path';
 import { onUnmounted, ref, shallowRef } from 'vue';
 import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
 import { debugEnabled } from './useDebugUnlock';
+import { currentLocale } from '../i18n';
 
 export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (record: MatchRecord) => void }) {
   const autoInit = options?.autoInit ?? true;
@@ -28,7 +29,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     if (!debugEnabled.value) return;
     const entry: DebugLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      receivedAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      receivedAt: new Date().toLocaleTimeString(currentLocale(), { hour12: false }),
       parsed,
       isMatchEvent,
     };
@@ -41,7 +42,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
 
   function pushMatchRecord(data: Record<string, unknown>, source: 'log' | 'debug', logLine?: LogLine) {
     const line: LogLine = logLine ?? {
-      time: new Date().toLocaleString('zh-CN'),
+      time: new Date().toLocaleString(currentLocale()),
       level: 'DEBUG',
       category: source === 'debug' ? 'manual' : 'log',
       decoded: JSON.stringify(data),

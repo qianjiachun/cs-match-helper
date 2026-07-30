@@ -8,11 +8,11 @@ export interface ChangelogReleaseDetail extends ChangelogReleaseSummary {
   body?: string;
 }
 
-export function formatChangelogDate(isoDate?: string): string {
+export function formatChangelogDate(isoDate?: string, locale = 'zh-CN'): string {
   if (!isoDate?.trim()) return '';
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return isoDate;
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

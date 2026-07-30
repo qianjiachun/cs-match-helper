@@ -4,6 +4,8 @@ import type { MatchPlayer } from '@core/match/models';
 import PlayerAvatar from './PlayerAvatar.vue';
 import RadarMiniBars from './RadarMiniBars.vue';
 import RecentTrend from './RecentTrend.vue';
+import { localize as l } from '../i18n';
+import { displayPlayerNickname } from '../utils/playerDisplay';
 
 defineProps<{
   player: MatchPlayer;
@@ -33,13 +35,13 @@ function pct(n?: number): string {
         class="relative shrink-0 ring-2 ring-white"
         :class="teamSide === 'A' ? 'ring-blue-100' : teamSide === 'B' ? 'ring-orange-100' : 'ring-border'"
       >
-        <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="lg" />
+        <PlayerAvatar :src="player.avatar" :alt="displayPlayerNickname(player.nickname)" size="lg" />
       </div>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
-            <h4 class="truncate text-[13px] font-semibold text-fg">{{ player.nickname }}</h4>
+            <h4 class="truncate text-[13px] font-semibold text-fg">{{ displayPlayerNickname(player.nickname) }}</h4>
             <p class="truncate text-[10px] text-fg-muted">{{ player.steamId }}</p>
           </div>
           <div class="shrink-0 text-right">
@@ -59,13 +61,13 @@ function pct(n?: number): string {
             v-if="player.isSingle"
             class="rounded bg-base px-1.5 py-0.5 text-[9px] text-fg-secondary"
           >
-            单排
+            {{ l('单排', 'Solo queue') }}
           </span>
           <span
             v-if="player.isGreen"
             class="rounded bg-success/10 px-1.5 py-0.5 text-[9px] text-success"
           >
-            绿色
+            {{ l('绿色', 'Green-trusted') }}
           </span>
           <span
             v-if="player.isVip"
@@ -85,22 +87,22 @@ function pct(n?: number): string {
             class="flex items-center gap-0.5 rounded bg-warning/10 px-1.5 py-0.5 text-[9px] text-warning"
           >
             <MapPin class="h-2.5 w-2.5" />
-            样本少
+            {{ l('样本少', 'Low sample') }}
           </span>
         </div>
 
         <dl v-if="!compact" class="mt-2 grid grid-cols-3 gap-1">
           <div class="rounded-md bg-base px-1.5 py-1 text-center">
-            <dt class="text-[9px] text-fg-muted">近期</dt>
-            <dd class="text-[11px] font-medium text-fg">{{ pct(player.recentWinRate) }}</dd>
+            <dt class="text-[9px] text-fg-muted">{{ l('近期', 'Recent') }}</dt>
+            <dd class="text-[11px] font-medium tabular-nums text-fg">{{ pct(player.recentWinRate) }}</dd>
           </div>
           <div class="rounded-md bg-base px-1.5 py-1 text-center">
-            <dt class="text-[9px] text-fg-muted">赛季</dt>
-            <dd class="text-[11px] font-medium text-fg">{{ pct(player.seasonWinRate) }}</dd>
+            <dt class="text-[9px] text-fg-muted">{{ l('赛季', 'Season') }}</dt>
+            <dd class="text-[11px] font-medium tabular-nums text-fg">{{ pct(player.seasonWinRate) }}</dd>
           </div>
           <div class="rounded-md bg-base px-1.5 py-1 text-center">
-            <dt class="text-[9px] text-fg-muted">地图</dt>
-            <dd class="text-[11px] font-medium text-fg">{{ pct(player.mapWinRate) }}</dd>
+            <dt class="text-[9px] text-fg-muted">{{ l('地图', 'Map') }}</dt>
+            <dd class="text-[11px] font-medium tabular-nums text-fg">{{ pct(player.mapWinRate) }}</dd>
           </div>
         </dl>
 

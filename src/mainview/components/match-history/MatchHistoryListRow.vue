@@ -11,6 +11,7 @@ import {
   historyPrimaryMapTitle,
   platformLabel,
 } from '../../utils/matchHistoryDisplay';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   item: MatchHistoryListItem;
@@ -35,7 +36,7 @@ const asset = computed(() => resolveMapAsset(props.item.mapName));
 const imageUrl = computed(() => (imgFailed.value ? null : asset.value?.imageUrl ?? null));
 const showMapPlaceholder = computed(() => !imageUrl.value);
 const mapPlaceholderLabel = computed(() =>
-  props.item.mapName?.trim() && asset.value ? '暂无预览' : '未知地图',
+  props.item.mapName?.trim() && asset.value ? l('暂无预览', 'No preview') : l('未知地图', 'Unknown map'),
 );
 const title = computed(() => historyPrimaryMapTitle(props.item));
 const enCaption = computed(() => historyMapEnCaption(props.item));
@@ -173,7 +174,7 @@ function onImgError() {
     <button
       type="button"
       class="absolute -right-2 -top-2 flex h-7 w-7 scale-90 items-center justify-center rounded-full bg-white text-slate-400 opacity-0 shadow-md ring-1 ring-slate-200/80 transition-[opacity,transform,color,box-shadow] duration-200 hover:text-rose-500 hover:ring-rose-200 group-hover:scale-100 group-hover:opacity-100 focus-visible:scale-100 focus-visible:opacity-100"
-      aria-label="删除该对局"
+      :aria-label="l('删除该对局', 'Delete match')"
       @click.stop="emit('remove', $event)"
     >
       <X class="h-3.5 w-3.5" />

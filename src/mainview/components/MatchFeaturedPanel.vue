@@ -15,6 +15,8 @@ import { useTeamTableColumns } from '../composables/useTeamTableColumns';
 import AiAnalysisPanel from './AiAnalysisPanel.vue';
 import TeamDataBoard from './TeamDataBoard.vue';
 import TeamCompareBoard from './TeamCompareBoard.vue';
+import { currentLocale, localize as l } from '../i18n';
+import { resolveMapAsset } from '@core/match/history/map-assets';
 
 const props = defineProps<{
   match: MatchRecord;
@@ -48,7 +50,12 @@ const {
 
 const columnCustomizerOpen = ref(false);
 
-const mapName = computed(() => detail.value.mapName || props.match.summary.mapName || '未知地图');
+const mapName = computed(() => {
+  const raw = detail.value.mapName || props.match.summary.mapName;
+  if (!raw) return l('未知地图', 'Unknown map');
+  const asset = resolveMapAsset(raw);
+  return currentLocale() === 'en-US' ? (asset?.en ?? raw) : (asset?.zh ?? raw);
+});
 
 const teamA = computed(() => teams.value.find((t) => t.side === 'A'));
 const teamB = computed(() => teams.value.find((t) => t.side === 'B'));
@@ -85,7 +92,7 @@ const teamRatingCompare = computed(() => {
   const a = teamA.value.avgRating;
   const b = teamB.value.avgRating;
   if (a == null || b == null) return null;
-  return { a, b, label: '近期Rating' };
+  return { a, b, label: l('近期 Rating', 'recent Rating') };
 });
 
 const teamMapWinCompare = computed(() => {
@@ -123,26 +130,26 @@ const aiStatusCapsule = computed(() => {
   if (isHistory.value) {
     const s = props.ai.status.value;
     const r = props.ai.result.value;
-    if (isAiLoading.value) return { text: 'AI 分析中', tone: 'loading' as const };
+    if (isAiLoading.value) return { text: l('AI 分析中', 'AI analyzing'), tone: 'loading' as const };
     if (s === 'done' && r) {
       return {
-        text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability),
+        text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale()),
         tone: 'done' as const,
       };
     }
-    if (s === 'error') return { text: 'AI 失败', tone: 'warn' as const };
-    if (s === 'no-key') return { text: '缺少 Key', tone: 'warn' as const };
+    if (s === 'error') return { text: l('AI 失败', 'AI failed'), tone: 'warn' as const };
+    if (s === 'no-key') return { text: l('缺少 Key', 'API key required'), tone: 'warn' as const };
     return null;
   }
   if (!isAiAnalysisActive(props.ai.settings.value)) return null;
   const s = props.ai.status.value;
   const r = props.ai.result.value;
-  if (isAiLoading.value) return { text: 'AI 分析中', tone: 'loading' as const };
-  if (s === 'no-key') return { text: '缺少 Key', tone: 'warn' as const };
-  if (s === 'error') return { text: 'AI 失败', tone: 'warn' as const };
+  if (isAiLoading.value) return { text: l('AI 分析中', 'AI analyzing'), tone: 'loading' as const };
+  if (s === 'no-key') return { text: l('缺少 Key', 'API key required'), tone: 'warn' as const };
+  if (s === 'error') return { text: l('AI 失败', 'AI failed'), tone: 'warn' as const };
   if (s === 'done' && r) {
     return {
-      text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability),
+      text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale()),
       tone: 'done' as const,
     };
   }
@@ -229,10 +236,10 @@ const { hideEloDiff, hideRecentWin } = useMatchHeaderMetaCompaction(metaRowRef, 
 function eloCompareTitle(
   compare: NonNullable<typeof teamEloCompare.value>,
 ): string {
-  const diffPart = `差 ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`;
+  const diffPart = l(`差 ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`, `difference ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`);
   return hideEloDiff.value
-    ? `两队平均匹配分，${diffPart}`
-    : '两队平均匹配分';
+    ? l(`两队平均匹配分，${diffPart}`, `Team average rating, ${diffPart}`)
+    : l('两队平均匹配分', 'Team average rating');
 }
 </script>
 
@@ -286,7 +293,7 @@ function eloCompareTitle(
               {{ formatTime(timeLeft) }}
             </span>
             <span v-if="isCountdownUrgent" class="text-[11px] font-semibold text-rose-500">
-              即将截止
+              {{ l('即将截止', 'Closing soon') }}
             </span>
           </div>
         </template>
@@ -302,7 +309,7 @@ function eloCompareTitle(
             <span class="text-[9px] font-semibold uppercase text-slate-400">vs</span>
             <span class="font-semibold text-orange-500">B {{ teamEloCompare.b }}</span>
             <span v-if="!hideEloDiff" class="ml-1 text-slate-500">
-              差
+              {{ l('差', 'Diff') }}
               <b :class="teamEloCompare.leader === 'A' ? 'text-blue-600' : teamEloCompare.leader === 'B' ? 'text-orange-500' : 'text-slate-700'">
                 {{ teamEloCompare.diff }}
               </b>
@@ -315,7 +322,7 @@ function eloCompareTitle(
 
         <template v-if="teamRatingCompare">
           <span class="text-slate-200">|</span>
-          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="`两队${teamRatingCompare.label}均值`">
+          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="l(`两队${teamRatingCompare.label}均值`, `Team average ${teamRatingCompare.label}`)">
             {{ teamRatingCompare.label }}
             <b class="text-blue-600">{{ teamRatingCompare.a.toFixed(2) }}</b>
             <span class="text-slate-300"> vs </span>
@@ -325,8 +332,8 @@ function eloCompareTitle(
 
         <template v-if="teamMapWinCompare">
           <span class="text-slate-200">|</span>
-          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="`${mapName} 赛季地图胜率`">
-            地图胜
+          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="l(`${mapName} 赛季地图胜率`, `${mapName} season map win rate`)">
+            {{ l('地图胜', 'Map WR') }}
             <b class="text-blue-600">{{ formatPct(teamMapWinCompare.a) }}</b>
             <span class="text-slate-300"> vs </span>
             <b class="text-orange-500">{{ formatPct(teamMapWinCompare.b) }}</b>
@@ -335,8 +342,8 @@ function eloCompareTitle(
 
         <template v-if="teamRecentWinCompare && !hideRecentWin">
           <span class="text-slate-200">|</span>
-          <span data-match-reveal="meta" class="shrink-0 text-slate-500" title="两队近10场胜率">
-            近期胜
+          <span data-match-reveal="meta" class="shrink-0 text-slate-500" :title="l('两队近10场胜率', 'Win rate over the last 10 matches')">
+            {{ l('近期胜', 'Recent WR') }}
             <b class="text-blue-600">{{ formatPct(teamRecentWinCompare.a) }}</b>
             <span class="text-slate-300"> vs </span>
             <b class="text-orange-500">{{ formatPct(teamRecentWinCompare.b) }}</b>
@@ -357,7 +364,7 @@ function eloCompareTitle(
               ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100/80'
               : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100/80'
         "
-        :title="aiStatusCapsule.tone === 'done' ? '查看 AI 分析结果' : '前往 AI 分析'"
+        :title="aiStatusCapsule.tone === 'done' ? l('查看 AI 分析结果', 'View AI analysis') : l('前往 AI 分析', 'Open AI analysis')"
         @click="activeTab = 'ai'"
       >
         <AiSparklesIcon size="xs" :loading="aiStatusCapsule.tone === 'loading'" />
@@ -370,12 +377,12 @@ function eloCompareTitle(
           type="button"
           data-match-reveal="tabs"
           class="relative inline-flex h-[30px] cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-600 shadow-sm transition-colors duration-200 hover:border-blue-200 hover:bg-blue-50/60 hover:text-blue-700"
-          title="自定义列"
-          aria-label="自定义列"
+          :title="l('自定义列', 'Customize columns')"
+          :aria-label="l('自定义列', 'Customize columns')"
           @click="columnCustomizerOpen = true"
         >
           <Columns3 class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span class="hidden sm:inline">列</span>
+          <span class="hidden sm:inline">{{ l('列', 'Columns') }}</span>
           <span
             class="inline-flex min-w-[16px] items-center justify-center rounded bg-slate-100 px-1 text-[10px] font-semibold leading-none text-slate-500"
           >
@@ -401,7 +408,7 @@ function eloCompareTitle(
           @click="activeTab = 'team-data'"
         >
           <Table2 class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          队伍数据
+          {{ l('队伍数据', 'Team data') }}
         </button>
         <button
           type="button"
@@ -416,7 +423,7 @@ function eloCompareTitle(
           @click="activeTab = 'compare'"
         >
           <GitCompareArrows class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          对比分析
+          {{ l('对比分析', 'Comparison') }}
         </button>
         <button
           type="button"
@@ -434,7 +441,7 @@ function eloCompareTitle(
           @click="activeTab = 'ai'"
         >
           <AiSparklesIcon size="sm" :loading="isAiLoading" />
-          {{ isAiLoading ? '分析中' : 'AI 分析' }}
+          {{ isAiLoading ? l('分析中', 'Analyzing') : l('AI 分析', 'AI analysis') }}
         </button>
         </div>
       </div>

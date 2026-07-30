@@ -1,4 +1,5 @@
 /** 队伍数据表列定义（与 docs/response.md 字段对应） */
+import { currentLocale, i18n } from '../i18n';
 
 export type TeamTableColumnKey =
   | 'nickname'
@@ -68,6 +69,39 @@ export const TEAM_TABLE_COLUMN_CATEGORIES: Record<TeamTableColumnCategory, strin
   radar: '雷达',
   other: '其他',
 };
+
+const EN_CATEGORY_LABELS: Record<TeamTableColumnCategory, string> = {
+  basic: 'Core', recent: 'Recent form', season: 'Season', combat: 'Combat', radar: 'Radar', other: 'Other',
+};
+
+const EN_COLUMN_LABELS: Partial<Record<TeamTableColumnKey, string>> = {
+  nickname: 'Player', score: 'ELO', recentWins: 'Recent W/L', adpr: 'ADR', rating: 'Recent rating',
+  seasonRating: 'Season rating', kd: 'K/D', hsRate: 'HS%', firstKillSuccessRate: 'Opening kill %',
+  rapidStopSuccessRate: 'Counter-strafe %', reactionTime: 'Reaction time', weRaw: 'WE', weAvg: 'Recent WE',
+  recentWinRate: 'Recent win %', recentDrawCount: 'Recent draws', latest10WinNum: 'Last 10 wins',
+  latest10TotalNum: 'Last 10 matches', seasonWinRate: 'Season win %', seasonWinNum: 'Season wins',
+  seasonTotalNum: 'Season matches', mapWinRate: 'Map win %', mapWinNum: 'Map wins', mapTotalNum: 'Map matches',
+  continuedWins: 'Win streak', eloChange: 'ELO change', clutchWinRate: 'Clutch win %', perfectPower: 'Perfect power',
+  rankDesc: 'Regional rank', rankLevel: 'Rank', rankNum: 'Leaderboard', isVip: 'VIP', radar_fire_power: 'Firepower',
+  radar_marksmanship: 'Aim', radar_follow_up_shot: 'Trade fragging', radar_first: 'Entry fragging',
+  radar_item: 'Utility', radar_1vn: 'Clutch', radar_sniper: 'AWP',
+};
+
+const EN_DESCRIPTION_BY_ZH: Record<string, string> = {
+  '赛季 Rating Pro 均值': 'Average season Rating Pro',
+  '近 10 场 Rating 均值': 'Average rating over the last 10 matches',
+  '近 5 场 W/L/D': 'W/L/D over the last 5 matches',
+  '近 10 场 WE 均值': 'Average WE over the last 10 matches',
+  '当前地图胜率（map-ext）': 'Win rate on the current map (map-ext)',
+  'level_info.level_name 或赛季 Lv': 'level_info.level_name or season level',
+  'sts.rank / elo.rank': 'sts.rank / elo.rank',
+  '本场 ELO 变化（sts.change_elo）': 'ELO change for this match (sts.change_elo)',
+};
+
+export function getTeamTableColumnCategoryLabel(category: TeamTableColumnCategory): string {
+  void i18n.global.locale.value;
+  return currentLocale() === 'en-US' ? EN_CATEGORY_LABELS[category] : TEAM_TABLE_COLUMN_CATEGORIES[category];
+}
 
 export const PERFECT_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
   {
@@ -539,7 +573,14 @@ export const TEAM_TABLE_COLUMN_DEFS = PERFECT_TEAM_TABLE_COLUMN_DEFS;
 export type TeamTablePlatformId = 'perfect' | '5e';
 
 export function getTeamTableColumnDefs(platformId: TeamTablePlatformId = 'perfect'): TeamTableColumnDef[] {
-  return platformId === '5e' ? P5E_TEAM_TABLE_COLUMN_DEFS : PERFECT_TEAM_TABLE_COLUMN_DEFS;
+  void i18n.global.locale.value;
+  const definitions = platformId === '5e' ? P5E_TEAM_TABLE_COLUMN_DEFS : PERFECT_TEAM_TABLE_COLUMN_DEFS;
+  if (currentLocale() !== 'en-US') return definitions;
+  return definitions.map((definition) => ({
+    ...definition,
+    label: EN_COLUMN_LABELS[definition.key] ?? definition.label,
+    description: definition.description ? EN_DESCRIPTION_BY_ZH[definition.description] ?? definition.description : undefined,
+  }));
 }
 
 export function getTeamTableColumnMap(platformId: TeamTablePlatformId = 'perfect'): Map<TeamTableColumnKey, TeamTableColumnDef> {

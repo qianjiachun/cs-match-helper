@@ -22,6 +22,8 @@ import {
   type SortDir,
   type TeamTableColumnKey,
 } from './team-table-shared';
+import { localize as l } from '../i18n';
+import { displayPlayerNickname } from '../utils/playerDisplay';
 
 const props = defineProps<{
   team: MatchTeam;
@@ -103,7 +105,7 @@ const accent = props.team.side === 'A'
     <header class="mb-2 flex items-center gap-1.5 px-0.5">
       <span class="h-2 w-2 shrink-0 rounded-full" :class="accent.dot" />
       <h3 class="text-[14px] font-bold leading-none" :class="accent.title">
-        队伍 {{ team.side }}
+        {{ l(`队伍 ${team.side}`, `Team ${team.side}`) }}
       </h3>
     </header>
 
@@ -177,19 +179,19 @@ const accent = props.team.side === 'A'
                   v-if="partyBarByPlayer.get(player.steamId)?.show"
                   :color="partyBarByPlayer.get(player.steamId)!.color!"
                   :position="partyBarByPlayer.get(player.steamId)!.position"
-                  title="组排"
+                  :title="l('组排', 'Party')"
                 />
                 <div class="flex min-w-0 items-center gap-1">
                   <button
                     type="button"
                     class="group/name flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent p-0 text-left outline-none focus-visible:outline-none"
                     :class="isValidSteamId64(player.steamId) ? '' : 'cursor-default'"
-                    :title="isValidSteamId64(player.steamId) ? `查看 ${player.nickname} 的评论` : player.steamId"
+                    :title="isValidSteamId64(player.steamId) ? l(`查看 ${displayPlayerNickname(player.nickname)} 的评论`, `View comments for ${displayPlayerNickname(player.nickname)}`) : player.steamId"
                     @click="onPlayerClick(player)"
                   >
-                    <PlayerAvatar :src="player.avatar" :alt="player.nickname" size="sm" shape="rounded" />
+                    <PlayerAvatar :src="player.avatar" :alt="displayPlayerNickname(player.nickname)" size="sm" shape="rounded" />
                     <span class="truncate font-medium text-slate-800 transition-colors group-hover/name:text-blue-600">
-                      {{ player.nickname }}
+                      {{ displayPlayerNickname(player.nickname) }}
                     </span>
                     <PlayerGreenBadge :show="player.isGreen" />
                   </button>

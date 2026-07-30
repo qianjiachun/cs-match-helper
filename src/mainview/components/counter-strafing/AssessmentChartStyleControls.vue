@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ChartScatter, LineChart } from 'lucide-vue-next';
 import type { AssessmentChartType } from '@core/counter-strafing/types';
+import { localize as l } from '../../i18n';
+import { computed } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -18,10 +20,10 @@ const emit = defineEmits<{
   'update:chartType': [value: AssessmentChartType];
 }>();
 
-const chartTypeOptions = [
-  { value: 'line' as const, label: '折线', icon: LineChart },
-  { value: 'scatter' as const, label: '散点', icon: ChartScatter },
-];
+const chartTypeOptions = computed(() => [
+  { value: 'line' as const, label: l('折线', 'Line'), icon: LineChart },
+  { value: 'scatter' as const, label: l('散点', 'Scatter'), icon: ChartScatter },
+]);
 
 function setChartType(value: AssessmentChartType) {
   if (!props.disabled && value !== props.chartType) emit('update:chartType', value);
@@ -30,12 +32,12 @@ function setChartType(value: AssessmentChartType) {
 
 <template>
   <div :class="compact ? 'flex items-center justify-end' : 'flex items-center justify-between gap-3'">
-    <span v-if="!compact" class="text-[12px] font-medium text-fg-secondary">急停评估图表</span>
+    <span v-if="!compact" class="text-[12px] font-medium text-fg-secondary">{{ l('急停评估图表', 'Counter-strafe chart') }}</span>
 
     <div
       class="inline-flex shrink-0 items-center rounded-lg bg-base p-1 shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
       role="group"
-      aria-label="急停评估图表类型"
+      :aria-label="l('急停评估图表类型', 'Counter-strafe chart type')"
     >
       <button
         v-for="option in chartTypeOptions"
@@ -48,7 +50,7 @@ function setChartType(value: AssessmentChartType) {
             : 'text-fg-muted hover:bg-surface/70 hover:text-fg-secondary'
         "
         :disabled="disabled"
-        :aria-label="`${option.label}图`"
+        :aria-label="l(`${option.label}图`, `${option.label} chart`)"
         :aria-pressed="chartType === option.value"
         @click="setChartType(option.value)"
       >

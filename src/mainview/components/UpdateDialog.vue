@@ -17,6 +17,7 @@ import { formatAppVersion, formatBytes } from '../composables/useUpdateCheck';
 import { showToast } from '../composables/useCopyFeedback';
 import { openExternalUrl } from '../native';
 import ReleaseNotesContent from './ReleaseNotesContent.vue';
+import { currentLocale, localize as l } from '../i18n';
 
 const props = defineProps<{
   open: boolean;
@@ -46,7 +47,7 @@ const publishedLabel = computed(() => {
   if (!props.publishedAt) return '';
   const date = new Date(props.publishedAt);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(currentLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -56,7 +57,7 @@ const publishedLabel = computed(() => {
 /** 不向用户展示 CDN / Lunaris 等内部来源信息 */
 const displayDownloadError = computed(() => {
   const raw = props.downloadError?.trim();
-  if (!raw) return '自动下载失败，可使用 GitHub 手动下载';
+  if (!raw) return l('自动下载失败，可使用 GitHub 手动下载', 'Automatic download failed. Download it from GitHub instead.');
   const sanitized = raw
     .replace(/https?:\/\/\S+/gi, '')
     .replace(/lunaris/gi, '')
@@ -66,7 +67,7 @@ const displayDownloadError = computed(() => {
     .replace(/\s{2,}/g, ' ')
     .trim();
   if (!sanitized || /^下载更新失败[:：]?\s*HTTP/i.test(sanitized)) {
-    return '自动下载失败，请稍后重试或使用 GitHub 手动下载';
+    return l('自动下载失败，请稍后重试或使用 GitHub 手动下载', 'Automatic download failed. Try again later or download it from GitHub.');
   }
   return sanitized;
 });
@@ -74,19 +75,19 @@ const displayDownloadError = computed(() => {
 const statusTitle = computed(() => {
   switch (props.phase) {
     case 'checking':
-      return '正在检查更新…';
+      return l('正在检查更新…', 'Checking for updates…');
     case 'downloading':
-      return '正在下载更新';
+      return l('正在下载更新', 'Downloading update');
     case 'verifying':
-      return '正在校验文件';
+      return l('正在校验文件', 'Verifying download');
     case 'installing':
-      return '准备重启并应用更新';
+      return l('准备重启并应用更新', 'Preparing to restart and update');
     case 'failed':
-      return '自动更新失败';
+      return l('自动更新失败', 'Automatic update failed');
     case 'ready':
-      return '即将开始下载';
+      return l('即将开始下载', 'Preparing download');
     default:
-      return `发现新版本 ${formattedLatestVersion.value}`;
+      return l(`发现新版本 ${formattedLatestVersion.value}`, `Version ${formattedLatestVersion.value} is available`);
   }
 });
 
@@ -94,19 +95,19 @@ const statusDescription = computed(() => {
   switch (props.phase) {
     case 'downloading':
       if (props.totalBytes > 0) {
-        return `已下载 ${formatBytes(props.downloadedBytes)} / ${formatBytes(props.totalBytes)}`;
+        return l(`已下载 ${formatBytes(props.downloadedBytes)} / ${formatBytes(props.totalBytes)}`, `Downloaded ${formatBytes(props.downloadedBytes)} / ${formatBytes(props.totalBytes)}`);
       }
-      return `已下载 ${formatBytes(props.downloadedBytes)}`;
+      return l(`已下载 ${formatBytes(props.downloadedBytes)}`, `Downloaded ${formatBytes(props.downloadedBytes)}`);
     case 'verifying':
-      return '正在验证文件完整性，请稍候…';
+      return l('正在验证文件完整性，请稍候…', 'Verifying file integrity…');
     case 'installing':
-      return '应用将自动关闭并重启到新版本';
+      return l('应用将自动关闭并重启到新版本', 'The app will close and restart on the new version.');
     case 'failed':
       return displayDownloadError.value;
     case 'ready':
-      return '正在准备下载，请稍候…';
+      return l('正在准备下载，请稍候…', 'Preparing the download…');
     default:
-      return '新版本已就绪，将自动完成下载与安装';
+      return l('新版本已就绪，将自动完成下载与安装', 'The update is ready and will install automatically.');
   }
 });
 
@@ -130,7 +131,7 @@ const manualDownloadUrl = computed(
 );
 
 const copyDownloadLabel = computed(() =>
-  props.downloadUrl?.trim() ? '复制下载地址' : '复制发布页链接',
+  props.downloadUrl?.trim() ? l('复制下载地址', 'Copy download URL') : l('复制发布页链接', 'Copy release URL'),
 );
 
 function onBackdropClick(event: MouseEvent) {
@@ -154,16 +155,16 @@ function openReleasePage() {
 async function copyDownloadUrl() {
   const url = manualDownloadUrl.value;
   if (!url) {
-    showToast('暂时无法获取下载链接', 'error');
+    showToast(l('暂时无法获取下载链接', 'No download URL is available'), 'error');
     return;
   }
   try {
     await navigator.clipboard.writeText(url);
     showToast(
-      props.downloadUrl?.trim() ? '已复制下载链接，可在浏览器中打开' : '已复制 GitHub 发布页链接',
+      props.downloadUrl?.trim() ? l('已复制下载链接，可在浏览器中打开', 'Download URL copied') : l('已复制 GitHub 发布页链接', 'GitHub release URL copied'),
     );
   } catch {
-    showToast('复制失败，请重试', 'error');
+    showToast(l('复制失败，请重试', 'Could not copy. Try again.'), 'error');
   }
 }
 
@@ -216,7 +217,7 @@ onUnmounted(() => {
                 </div>
                 <div class="min-w-0">
                   <p class="text-[11px] font-semibold tracking-wide text-accent">
-                    {{ phase === 'failed' ? '更新未完成' : '新版本可用' }}
+                    {{ phase === 'failed' ? l('更新未完成', 'Update incomplete') : l('新版本可用', 'Update available') }}
                   </p>
                   <h2 id="update-dialog-title" class="mt-0.5 text-[17px] font-semibold tracking-tight text-fg">
                     {{ statusTitle }}
@@ -225,7 +226,7 @@ onUnmounted(() => {
                     <span
                       class="inline-flex items-center rounded-full border border-border bg-elevated/80 px-2.5 py-0.5 text-[11px] font-medium text-fg-muted"
                     >
-                      当前 {{ formattedCurrentVersion }}
+                      {{ l('当前', 'Current') }} {{ formattedCurrentVersion }}
                     </span>
                     <ArrowRight class="h-3.5 w-3.5 shrink-0 text-fg-muted/80" aria-hidden="true" />
                     <span
@@ -235,14 +236,14 @@ onUnmounted(() => {
                     </span>
                   </div>
                   <p v-if="publishedLabel" class="mt-2 text-[11px] text-fg-muted">
-                    发布于 {{ publishedLabel }}
+                    {{ l('发布于', 'Released') }} {{ publishedLabel }}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 class="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="关闭"
+                :aria-label="l('关闭', 'Close')"
                 :disabled="!canClose"
                 @click="emit('close')"
               >
@@ -284,7 +285,7 @@ onUnmounted(() => {
                 {{ statusDescription }}
               </p>
               <p class="mt-1.5 text-[11px] text-fg-muted">
-                已自动切换为 GitHub 手动下载方案，不影响当前版本继续使用。
+                {{ l('已自动切换为 GitHub 手动下载方案，不影响当前版本继续使用。', 'Use the GitHub download instead. You can keep using the current version.') }}
               </p>
             </div>
           </div>
@@ -296,15 +297,15 @@ onUnmounted(() => {
               >
                 <FileText class="h-3.5 w-3.5" aria-hidden="true" />
               </span>
-              <p class="text-[12px] font-semibold text-fg">更新内容</p>
+              <p class="text-[12px] font-semibold text-fg">{{ l('更新内容', 'What’s new') }}</p>
             </div>
             <ReleaseNotesContent v-if="releaseNotes.trim()" :content="releaseNotes" />
             <div
               v-else
               class="rounded-xl border border-dashed border-border bg-elevated/50 px-4 py-8 text-center"
             >
-              <p class="text-[13px] text-fg-muted">暂无详细更新说明</p>
-              <p class="mt-1 text-[12px] text-fg-muted/80">可前往 Release 页面查看完整 changelog</p>
+              <p class="text-[13px] text-fg-muted">{{ l('暂无详细更新说明', 'No detailed release notes') }}</p>
+              <p class="mt-1 text-[12px] text-fg-muted/80">{{ l('可前往 Release 页面查看完整 changelog', 'Open the release page for the full changelog.') }}</p>
             </div>
           </div>
 
@@ -316,7 +317,7 @@ onUnmounted(() => {
               @click="emit('retry')"
             >
               <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-              重试自动下载
+              {{ l('重试自动下载', 'Retry download') }}
             </button>
             <button
               v-if="manualDownloadUrl"
@@ -333,7 +334,7 @@ onUnmounted(() => {
               class="cursor-pointer rounded-lg px-3.5 py-2 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated hover:text-fg"
               @click="emit('close')"
             >
-              {{ phase === 'failed' ? '稍后' : '后台继续' }}
+              {{ phase === 'failed' ? l('稍后', 'Later') : l('后台继续', 'Continue in background') }}
             </button>
             <button
               v-if="phase === 'failed'"
@@ -343,14 +344,14 @@ onUnmounted(() => {
               @click="openReleasePage"
             >
               <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-              打开 GitHub 下载
+              {{ l('打开 GitHub 下载', 'Download from GitHub') }}
             </button>
             <div
               v-else-if="busy"
               class="inline-flex items-center gap-1.5 rounded-lg bg-accent/15 px-3.5 py-2.5 text-[13px] font-semibold text-accent"
             >
               <Download class="h-3.5 w-3.5" aria-hidden="true" />
-              自动更新中…
+              {{ l('自动更新中…', 'Updating automatically…') }}
             </div>
           </footer>
         </div>

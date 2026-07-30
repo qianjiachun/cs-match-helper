@@ -3,6 +3,7 @@ import {
   RADAR_COLUMN_DIM,
   type TeamTableColumnKey,
 } from './team-table-columns';
+import { currentLocale } from '../i18n';
 
 export type { TeamTableColumnKey } from './team-table-columns';
 export type TeamTableSortKey = TeamTableColumnKey;
@@ -287,9 +288,9 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
     case 'rankLevel':
       return player[key]?.trim() || '—';
     case 'rankNum':
-      return player.rankNum != null ? `#${player.rankNum.toLocaleString('zh-CN')}` : '—';
+      return player.rankNum != null ? `#${player.rankNum.toLocaleString(currentLocale())}` : '—';
     case 'isVip':
-      return player.isVip ? '是' : '—';
+      return player.isVip ? (currentLocale() === 'en-US' ? 'Yes' : '是') : '—';
     default: {
       const score = getRadarScore(player, key);
       return score != null ? formatInteger(score) : '—';

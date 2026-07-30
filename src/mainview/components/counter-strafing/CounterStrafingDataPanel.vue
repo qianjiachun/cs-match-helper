@@ -23,6 +23,7 @@ import type {
   ShootingErrorRecord,
   AssessmentChartType,
 } from '@core/counter-strafing/types';
+import { currentLocale, localize as l } from '../../i18n';
 import {
   assessmentRecordColor,
   assessmentStdDevColor,
@@ -33,6 +34,7 @@ import {
   formatErrorValue,
   formatSpeedRatio,
   sampleStateColor,
+  sampleState,
   shotFeedback,
   timingColor,
 } from '@core/counter-strafing/types';
@@ -50,8 +52,21 @@ const emit = defineEmits<{
 }>();
 
 const lastShotFeedback = computed(() =>
-  props.lastShot ? shotFeedback(props.lastShot) : null,
+  props.lastShot ? shotFeedback(props.lastShot, currentLocale()) : null,
 );
+
+function assessmentTimingLabel(record: CounterStrafingAssessmentRecord): string {
+  if (record.isPerfect || record.timing === 'perfect') return l('完美', 'Perfect');
+  if (record.isSuccess) return l('优秀', 'Good');
+  return record.timing === 'early' ? l('偏早', 'Early') : l('偏晚', 'Late');
+}
+
+function shootingStateLabel(record: ShootingErrorRecord): string {
+  const state = sampleState(record);
+  if (state === 'stable') return l('稳定', 'Stable');
+  if (state === 'micro') return l('微动', 'Slight movement');
+  return l('跑打', 'Running accuracy');
+}
 
 const isRecording = computed(
   () => props.assessmentSnapshot.listening || props.snapshot.listening,
@@ -96,49 +111,49 @@ const assessmentKpis = computed(() => {
   return [
     {
       id: 'avg',
-      label: '平均快慢',
+      label: l('平均快慢', 'Avg. timing'),
       value: formatDiffMs(snap.avgDiffMs),
-      hint: '相对理想时机的偏差',
+      hint: l('相对理想时机的偏差', 'Offset from ideal timing'),
       icon: Gauge,
       color: hasData ? diffMsColor(snap.avgDiffMs) : undefined,
     },
     {
       id: 'success',
-      label: '表现不错',
+      label: l('表现不错', 'Good rate'),
       value: `${snap.successRate.toFixed(1)}%`,
-      hint: '判定为成功的占比',
+      hint: l('判定为成功的占比', 'Share graded Perfect or Good'),
       icon: Target,
       color: hasData ? assessmentSuccessRateColor(snap.successRate) : undefined,
     },
     {
       id: 'std',
-      label: '波动',
+      label: l('波动', 'Variation'),
       value: `${snap.stdDevMs.toFixed(1)} ms`,
-      hint: '样本离散程度',
+      hint: l('样本离散程度', 'Timing consistency'),
       icon: Waves,
       color: hasData ? assessmentStdDevColor(snap.stdDevMs) : undefined,
     },
     {
       id: 'min',
-      label: '最快',
+      label: l('最快', 'Earliest'),
       value: extremes.min !== null ? formatDiffMs(extremes.min) : '—',
-      hint: '本次最佳一次',
+      hint: l('本次最佳一次', 'Best timing this session'),
       icon: Minus,
       color: extremes.min !== null ? diffMsColor(extremes.min) : undefined,
     },
     {
       id: 'max',
-      label: '最慢',
+      label: l('最慢', 'Latest'),
       value: extremes.max !== null ? formatDiffMs(extremes.max) : '—',
-      hint: '本次最慢一次',
+      hint: l('本次最慢一次', 'Latest timing this session'),
       icon: Plus,
       color: extremes.max !== null ? diffMsColor(extremes.max) : undefined,
     },
     {
       id: 'tendency',
-      label: '整体习惯',
-      value: snap.tendencyLabel,
-      hint: '长期偏向早按或晚按',
+      label: l('整体习惯', 'Tendency'),
+      value: snap.tendency === 'early' ? l('偏早', 'Early') : snap.tendency === 'late' ? l('偏晚', 'Late') : l('正常', 'Neutral'),
+      hint: l('长期偏向早按或晚按', 'Long-term timing bias'),
       icon: TrendingUp,
       color: hasData ? assessmentTendencyColor(snap.tendency) : undefined,
     },
@@ -148,24 +163,24 @@ const assessmentKpis = computed(() => {
 const shootingKpis = computed(() => [
   {
     id: 'avg-error',
-    label: '平均误差',
+    label: l('平均误差', 'Avg. error'),
     value: formatErrorValue(props.snapshot.avgError),
-    hint: '停稳后再开枪的偏移',
+    hint: l('停稳后再开枪的偏移', 'Movement error at shot time'),
     icon: Crosshair,
   },
   {
     id: 'stable',
-    label: '稳定占比',
+    label: l('稳定占比', 'Stable rate'),
     value: `${props.snapshot.stableRate.toFixed(1)}%`,
-    hint: '判定为稳定的开枪',
+    hint: l('判定为稳定的开枪', 'Shots fired within the accuracy threshold'),
     icon: Target,
     tone: rateTone(props.snapshot.stableRate),
   },
   {
     id: 'count',
-    label: '本局开枪',
+    label: l('本局开枪', 'Shots'),
     value: String(shotCount.value),
-    hint: '本次记录的开火次数',
+    hint: l('本次记录的开火次数', 'Shots recorded this session'),
     icon: ChartColumn,
   },
 ]);
@@ -176,7 +191,7 @@ const shootingKpis = computed(() => [
     <!-- 会话概览 -->
     <section
       class="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm"
-      aria-label="本次记录概览"
+      :aria-label="l('本次记录概览', 'Session overview')"
     >
       <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
         <div class="flex min-w-0 items-center gap-3">
@@ -195,13 +210,13 @@ const shootingKpis = computed(() => [
           </span>
           <div class="min-w-0">
             <p class="text-[14px] font-semibold text-fg">
-              {{ isRecording ? '正在记录' : '未在记录' }}
+              {{ isRecording ? l('正在记录', 'Recording') : l('未在记录', 'Not recording') }}
             </p>
             <p class="mt-0.5 text-[12px] text-fg-muted">
               {{
                 isRecording
-                  ? '数据实时更新'
-                  : '在控制台开启记录后，此处将展示统计与趋势'
+                  ? l('数据实时更新', 'Stats update in real time')
+                  : l('在控制台开启记录后，此处将展示统计与趋势', 'Start recording in Console to see stats and trends.')
               }}
             </p>
           </div>
@@ -212,7 +227,7 @@ const shootingKpis = computed(() => [
             class="min-w-22 rounded-xl border border-border-subtle bg-elevated/70 px-3.5 py-2.5 text-center"
           >
             <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
-              急停样本
+              {{ l('急停样本', 'Counter-strafes') }}
             </p>
             <p class="mt-0.5 text-[20px] font-bold tabular-nums leading-none text-fg">
               {{ assessmentCount }}
@@ -222,7 +237,7 @@ const shootingKpis = computed(() => [
             class="min-w-22 rounded-xl border border-border-subtle bg-elevated/70 px-3.5 py-2.5 text-center"
           >
             <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
-              开枪样本
+              {{ l('开枪样本', 'Shots') }}
             </p>
             <p class="mt-0.5 text-[20px] font-bold tabular-nums leading-none text-fg">
               {{ shotCount }}
@@ -244,16 +259,16 @@ const shootingKpis = computed(() => [
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-[15px] font-semibold text-fg">急停评估</h3>
+            <h3 class="text-[15px] font-semibold text-fg">{{ l('急停评估', 'Counter-strafe assessment') }}</h3>
             <span
               v-if="hasAssessmentData"
               class="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-600"
             >
-              {{ assessmentCount }} 次
+              {{ l(`${assessmentCount} 次`, `${assessmentCount} samples`) }}
             </span>
           </div>
           <p class="mt-0.5 text-[12px] text-fg-muted">
-            左右、前后切换时，按键时机与理想停稳点的偏差
+            {{ l('左右、前后切换时，按键时机与理想停稳点的偏差', 'Timing offset from the ideal stop when switching movement direction.') }}
           </p>
         </div>
       </header>
@@ -265,7 +280,7 @@ const shootingKpis = computed(() => [
           :class="lastAssessmentRecord ? 'min-h-18' : 'min-h-22'"
         >
           <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
-            最近一次
+            {{ l('最近一次', 'Latest') }}
           </p>
 
           <template v-if="lastAssessmentRecord">
@@ -296,7 +311,7 @@ const shootingKpis = computed(() => [
                     ),
                   }"
                 >
-                  {{ lastAssessmentRecord.timingLabel }}
+                  {{ assessmentTimingLabel(lastAssessmentRecord) }}
                 </p>
               </div>
             </div>
@@ -310,9 +325,9 @@ const shootingKpis = computed(() => [
               <LineChart class="h-4 w-4" />
             </div>
             <div>
-              <p class="text-[12px] font-medium text-fg-secondary">暂无急停数据</p>
+              <p class="text-[12px] font-medium text-fg-secondary">{{ l('暂无急停数据', 'No counter-strafe data') }}</p>
               <p class="mt-0.5 text-[11px] text-fg-muted">
-                开始记录后，每次方向切换的评估会显示在这里
+                {{ l('开始记录后，每次方向切换的评估会显示在这里', 'Start recording to assess each direction switch.') }}
               </p>
             </div>
           </div>
@@ -347,8 +362,8 @@ const shootingKpis = computed(() => [
       <div class="mx-5 mb-5 rounded-xl border border-border-subtle bg-[#0f172a]/3 px-4 py-3.5">
         <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
-            <p class="text-[11px] font-medium text-fg-muted">近 32 次趋势</p>
-            <p v-if="!hasAssessmentData" class="text-[11px] text-fg-muted">等待样本…</p>
+            <p class="text-[11px] font-medium text-fg-muted">{{ l('近 32 次趋势', 'Last 32 counter-strafes') }}</p>
+            <p v-if="!hasAssessmentData" class="text-[11px] text-fg-muted">{{ l('等待样本…', 'Waiting for samples…') }}</p>
           </div>
           <AssessmentChartStyleControls
             :chart-type="assessmentChartType"
@@ -378,16 +393,16 @@ const shootingKpis = computed(() => [
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-[15px] font-semibold text-fg">开枪稳定</h3>
+            <h3 class="text-[15px] font-semibold text-fg">{{ l('开枪稳定', 'Shooting stability') }}</h3>
             <span
               v-if="hasShotData"
               class="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
             >
-              {{ shotCount }} 次
+              {{ l(`${shotCount} 次`, `${shotCount} shots`) }}
             </span>
           </div>
           <p class="mt-0.5 text-[12px] text-fg-muted">
-            停稳后再开枪时，移动速度与理想停稳状态的偏差
+            {{ l('停稳后再开枪时，移动速度与理想停稳状态的偏差', 'Movement error relative to a fully accurate stop when firing.') }}
           </p>
         </div>
       </header>
@@ -398,7 +413,7 @@ const shootingKpis = computed(() => [
           :class="lastShot && lastShotFeedback ? 'min-h-18' : 'min-h-22'"
         >
           <p class="text-[10px] font-medium uppercase tracking-wide text-fg-muted">
-            最近一次
+            {{ l('最近一次', 'Latest') }}
           </p>
 
           <template v-if="lastShot && lastShotFeedback">
@@ -421,7 +436,7 @@ const shootingKpis = computed(() => [
                   {{ lastShotFeedback.shortLabel }}
                 </p>
                 <p class="text-[11px] leading-none text-fg-muted">
-                  {{ lastShot.scoreLabel }}
+                  {{ shootingStateLabel(lastShot) }}
                 </p>
               </div>
             </div>
@@ -435,9 +450,9 @@ const shootingKpis = computed(() => [
               <ChartColumn class="h-4 w-4" />
             </div>
             <div>
-              <p class="text-[12px] font-medium text-fg-secondary">暂无开枪数据</p>
+              <p class="text-[12px] font-medium text-fg-secondary">{{ l('暂无开枪数据', 'No shooting data') }}</p>
               <p class="mt-0.5 text-[11px] text-fg-muted">
-                记录期间每次开火都会计入稳定度分析
+                {{ l('记录期间每次开火都会计入稳定度分析', 'Every shot fired while recording is included.') }}
               </p>
             </div>
           </div>
@@ -466,8 +481,8 @@ const shootingKpis = computed(() => [
 
       <div class="mx-5 mb-5 rounded-xl border border-border-subtle bg-[#0f172a]/3 px-4 py-3.5">
         <div class="mb-2 flex items-center justify-between gap-2">
-          <p class="text-[11px] font-medium text-fg-muted">近 32 发分布</p>
-          <p v-if="!hasShotData" class="text-[11px] text-fg-muted">等待样本…</p>
+          <p class="text-[11px] font-medium text-fg-muted">{{ l('近 32 发分布', 'Last 32 shots') }}</p>
+          <p v-if="!hasShotData" class="text-[11px] text-fg-muted">{{ l('等待样本…', 'Waiting for samples…') }}</p>
         </div>
         <ShootingErrorBars
           :records="snapshot.shotRecords"

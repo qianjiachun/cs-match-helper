@@ -1,6 +1,7 @@
 import type { ChangelogReleaseDetail, ChangelogReleaseSummary } from '@core/update/changelog';
 import { getChangelogRelease, listChangelogReleases } from '../native';
 import { ref, shallowRef } from 'vue';
+import { localizeErrorMessage } from '../i18n';
 
 export type ChangelogDetailState =
   | { status: 'idle' }
@@ -22,7 +23,7 @@ export function useChangelog() {
     try {
       releases.value = await listChangelogReleases();
     } catch (err) {
-      listError.value = err instanceof Error ? err.message : String(err);
+      listError.value = localizeErrorMessage(err);
       releases.value = [];
     } finally {
       listLoading.value = false;
@@ -58,7 +59,7 @@ export function useChangelog() {
           [key]: { status: 'ready', body: detail.body?.trim() ?? '' },
         };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = localizeErrorMessage(err);
         details.value = { ...details.value, [key]: { status: 'error', message } };
       } finally {
         detailInflight.delete(key);

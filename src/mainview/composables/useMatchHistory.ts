@@ -24,6 +24,7 @@ import {
 } from '@core/match/history/native';
 import { sortHistoryItemsNewestFirst } from '../utils/matchHistoryDisplay';
 import { shallowRef } from 'vue';
+import { localizeErrorMessage } from '../i18n';
 
 function platformOf(record: MatchRecord): string {
   return record.platformId ?? record.detail.platformId ?? 'unknown';
@@ -84,7 +85,7 @@ export function useMatchHistory() {
       };
       return listItems.value;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
       return null;
     } finally {
       loading.value = false;
@@ -124,6 +125,7 @@ export function useMatchHistory() {
       model?: string;
       providerMode?: AiProviderMode | string;
       analyzedAt?: number;
+      locale?: 'zh-CN' | 'en-US';
       fallbackRecord?: MatchRecord | null;
     },
   ) {
@@ -137,6 +139,7 @@ export function useMatchHistory() {
         model: input.model,
         providerMode: input.providerMode,
         analyzedAt: input.analyzedAt,
+        locale: input.locale,
       });
 
       try {

@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { localize as l, localizeErrorMessage } from '../i18n';
 import type { MatchPlatformId, MatchPlayer } from '@core/match/models';
 import {
   addComment,
@@ -34,6 +35,7 @@ import { isValidSteamId64 } from '@core/comments/steam-id';
 import { isCommentEditable } from '@core/comments/edit-policy';
 import { generateColorFromClientKey } from '@core/comments/comment-identity';
 import { getCommentClientKey } from '../native';
+import { displayPlayerNickname } from '../utils/playerDisplay';
 import {
   MOCK_COMMENT_ITEMS,
   MOCK_COMMENT_PLAYER,
@@ -77,15 +79,15 @@ async function resolveSelfCommentColor(): Promise<string | null> {
 }
 
 function formatCommentError(err: unknown): string {
-  if (err instanceof CommentApiError) return err.message;
-  if (err instanceof Error) return err.message;
-  return '操作失败，请稍后重试';
+  if (err instanceof CommentApiError) return localizeErrorMessage(err.message);
+  if (err instanceof Error) return localizeErrorMessage(err.message);
+  return l('操作失败，请稍后重试', 'The action failed. Try again later.');
 }
 
 function toPlayerTarget(player: MatchPlayer): CommentPlayerTarget {
   return {
     steamId: player.steamId,
-    nickname: player.nickname,
+    nickname: displayPlayerNickname(player.nickname),
     avatar: player.avatar,
     platformBoardId: player.platformBoardId,
   };
@@ -697,7 +699,7 @@ export function useComments(options?: { autoInit?: boolean }) {
       findInternalComment(commentId) ??
       historyList.value.find((item) => item.id === commentId);
     if (target && !isCommentEditable(target.createTime)) {
-      submitError.value = '评论超过30天不可编辑';
+      submitError.value = l('评论超过30天不可编辑', 'Comments older than 30 days cannot be edited');
       return false;
     }
     if (target?.readOnly || (target?.source && target.source !== 'internal')) {

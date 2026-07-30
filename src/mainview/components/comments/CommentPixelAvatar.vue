@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue';
 import { User } from 'lucide-vue-next';
 import { drawPixelAvatar, generateAvatarFromColor } from '@core/comments/pixel-avatar';
+import { localize as l } from '../../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -48,7 +49,7 @@ onMounted(paint);
     class="comment-pixel-avatar relative shrink-0 overflow-hidden rounded-md bg-slate-100 ring-1 ring-slate-200/70"
     :style="{ width: `${size}px`, height: `${size}px` }"
     role="img"
-    aria-label="匿名评论者头像"
+    :aria-label="l('匿名评论者头像', 'Anonymous commenter avatar')"
   >
     <canvas
       ref="canvasRef"

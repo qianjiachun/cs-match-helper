@@ -15,6 +15,8 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { currentLocale } from '../i18n';
 import CounterStrafingConsole from '../components/counter-strafing/CounterStrafingConsole.vue';
 import CounterStrafingDataPanel from '../components/counter-strafing/CounterStrafingDataPanel.vue';
 import CounterStrafingDataGuide from '../components/counter-strafing/CounterStrafingDataGuide.vue';
@@ -22,6 +24,8 @@ import SettingsCard from '../components/settings/SettingsCard.vue';
 import { useCounterStrafing } from '../composables/useCounterStrafing';
 import { useGameBarWidget } from '../composables/useGameBarWidget';
 import type { BindingRole } from '@core/counter-strafing/types';
+
+const { t } = useI18n();
 
 defineProps<{
   visible?: boolean;
@@ -31,21 +35,18 @@ type CounterStrafingTab = 'console' | 'data' | 'guide' | 'keys' | 'advanced';
 
 const activeTab = ref<CounterStrafingTab>('console');
 
-const navItems = [
-  { id: 'console' as const, label: '控制台', icon: LayoutDashboard },
-  { id: 'data' as const, label: '数据', icon: BarChart3 },
-  { id: 'keys' as const, label: '键位', icon: Keyboard },
-  { id: 'advanced' as const, label: '高级设置', icon: SlidersHorizontal },
-  { id: 'guide' as const, label: '说明', icon: BookOpen },
-];
+const navItems = computed(() => [
+  { id: 'console' as const, label: t('counter.console'), icon: LayoutDashboard },
+  { id: 'data' as const, label: t('counter.data'), icon: BarChart3 },
+  { id: 'keys' as const, label: t('counter.keys'), icon: Keyboard },
+  { id: 'advanced' as const, label: t('counter.advanced'), icon: SlidersHorizontal },
+  { id: 'guide' as const, label: t('counter.guide'), icon: BookOpen },
+]);
 
-const contentDesc: Record<CounterStrafingTab, string> = {
-  console: '选择显示模式、开启记录并完成准备',
-  data: '急停时机与开枪稳定的汇总统计、趋势与最近一次表现',
-  guide: '开枪稳定与急停评估的功能说明与指标释义',
-  keys: '自定义方向键、蹲键与开火键',
-  advanced: '移速模型、采样校准与判定参数',
-};
+const contentDesc = computed<Record<CounterStrafingTab, string>>(() => ({
+  console: t('counter.consoleDesc'), data: t('counter.dataDesc'), guide: t('counter.guideDesc'),
+  keys: t('counter.keysDesc'), advanced: t('counter.advancedDesc'),
+}));
 
 const cs = useCounterStrafing();
 const widget = useGameBarWidget({ autoInit: false });
@@ -78,10 +79,23 @@ onMounted(() => {
   widget.ensureSessionUpdateCheck();
 });
 
-const activeMeta = computed(() => navItems.find((item) => item.id === activeTab.value)!);
+const activeMeta = computed(() => navItems.value.find((item) => item.id === activeTab.value)!);
 
 function bindingLabel(role: BindingRole): string {
-  return settings.value.keyMap[role].label;
+  const label = settings.value.keyMap[role].label;
+  const mouseLabels: Record<string, string> = {
+    鼠标左键: 'Mouse 1',
+    鼠标右键: 'Mouse 2',
+    鼠标中键: 'Mouse 3',
+    鼠标侧键1: 'Mouse 4',
+    鼠标侧键2: 'Mouse 5',
+  };
+  if (currentLocale() === 'en-US') {
+    if (mouseLabels[label]) return mouseLabels[label];
+    const match = label.match(/^鼠标键 (\d+)$/);
+    if (match) return `Mouse ${Number(match[1]) + 1}`;
+  }
+  return label;
 }
 
 function isCapturing(role: BindingRole): boolean {
@@ -139,14 +153,14 @@ function applyUpcomingTabWidth() {
   <div class="flex h-full min-h-0 bg-base">
     <aside
       class="flex w-[220px] shrink-0 flex-col border-r border-border bg-surface"
-      aria-label="急停助手导航"
+      :aria-label="t('counter.nav')"
     >
       <div class="border-b border-border px-4 py-4">
         <div class="flex items-center gap-2.5">
           <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent">
             <Gauge class="h-4 w-4" aria-hidden="true" />
           </div>
-          <h1 class="text-[14px] font-semibold text-fg">急停助手</h1>
+          <h1 class="text-[14px] font-semibold text-fg">{{ t('counter.title') }}</h1>
         </div>
       </div>
 
@@ -189,10 +203,10 @@ function applyUpcomingTabWidth() {
           </span>
           <span class="min-w-0 flex-1">
             <span class="block text-[13px] font-medium text-fg-secondary transition-colors duration-200 group-hover:text-fg">
-              恢复默认设置
+              {{ t('counter.reset') }}
             </span>
             <span class="mt-0.5 block text-[11px] leading-snug text-fg-muted">
-              键位、悬浮窗与高级参数
+              {{ t('counter.resetDesc') }}
             </span>
           </span>
         </button>
@@ -237,10 +251,10 @@ function applyUpcomingTabWidth() {
                 v-if="inputListenNeedsAdmin"
                 class="mt-3 list-decimal space-y-1.5 pl-4 text-[12px] leading-relaxed text-fg-secondary"
               >
-                <li>完全退出 CS 对局助手</li>
-                <li>在桌面或开始菜单找到程序图标</li>
-                <li>右键 → 以管理员身份运行</li>
-                <li>返回急停助手，再次点击「开始记录」</li>
+                <li>{{ t('counter.restartSteps1') }}</li>
+                <li>{{ t('counter.restartSteps2') }}</li>
+                <li>{{ t('counter.restartSteps3') }}</li>
+                <li>{{ t('counter.restartSteps4') }}</li>
               </ol>
               <button
                 v-if="inputListenNeedsAdmin"
@@ -249,7 +263,7 @@ function applyUpcomingTabWidth() {
                 :disabled="relaunchBusy"
                 @click="restartAsAdmin()"
               >
-                {{ relaunchBusy ? '正在重启…' : '以管理员身份重启' }}
+                {{ relaunchBusy ? t('counter.restarting') : t('counter.restartAdmin') }}
               </button>
             </div>
           </div>
@@ -290,7 +304,7 @@ function applyUpcomingTabWidth() {
 
           <!-- 键位 -->
           <div v-else-if="activeTab === 'keys'" key="keys" class="space-y-5">
-            <SettingsCard title="按键映射" description="方向键、蹲键、开火键均可自定义" :icon="Keyboard">
+            <SettingsCard :title="t('counter.keyMap')" :description="t('counter.keyMapDesc')" :icon="Keyboard">
               <div class="grid gap-3 sm:grid-cols-2">
                 <button
                   v-for="role in bindingRoles"
@@ -307,7 +321,7 @@ function applyUpcomingTabWidth() {
                 >
                   <span class="text-[12px] font-medium">{{ bindingRoleLabels[role] }}</span>
                   <span class="rounded-lg bg-elevated px-2 py-1 text-[12px] font-semibold tabular-nums text-fg">
-                    {{ isCapturing(role) ? '按下新键…' : bindingLabel(role) }}
+                    {{ isCapturing(role) ? t('counter.pressKey') : bindingLabel(role) }}
                   </span>
                 </button>
               </div>
@@ -317,14 +331,14 @@ function applyUpcomingTabWidth() {
                 :disabled="busy"
                 @click="restoreDefaultKeyMap()"
               >
-                恢复默认 WASD / Ctrl / 鼠标左键
+                {{ t('counter.resetKeys') }}
               </button>
             </SettingsCard>
           </div>
 
           <!-- 高级设置 -->
           <div v-else key="advanced" class="space-y-5">
-            <SettingsCard title="判定与显示" description="调整稳定判定、急停评估与统计窗口" :icon="SlidersHorizontal">
+            <SettingsCard :title="t('counter.judgement')" :description="t('counter.judgementDesc')" :icon="SlidersHorizontal">
               <div class="space-y-4">
                 <div
                   class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-accent/20 bg-accent/4 px-4 py-3.5"
@@ -336,9 +350,9 @@ function applyUpcomingTabWidth() {
                       <Gauge class="h-4 w-4" aria-hidden="true" />
                     </div>
                     <div class="min-w-0">
-                      <p class="text-[13px] font-semibold text-fg">统计数据条数</p>
+                      <p class="text-[13px] font-semibold text-fg">{{ t('counter.historyCount') }}</p>
                       <p class="mt-0.5 text-[11px] leading-relaxed text-fg-muted">
-                        开枪直方图与急停图表共用，影响平均误差、稳定率、标准差等统计
+                        {{ t('counter.historyCountDesc') }}
                       </p>
                     </div>
                   </div>
@@ -349,12 +363,12 @@ function applyUpcomingTabWidth() {
                       min="20"
                       max="500"
                       step="10"
-                      aria-label="统计数据条数"
+                      :aria-label="t('counter.historyCount')"
                       :class="compactNumberInputClass"
                       @input="patchStatisticsHistoryLimit(($event.target as HTMLInputElement).value)"
                       @change="patchStatisticsHistoryLimit(($event.target as HTMLInputElement).value, 0)"
                     />
-                    <span :class="settingUnitClass">条</span>
+                    <span :class="settingUnitClass">{{ t('counter.recordsUnit') }}</span>
                   </div>
                 </div>
 
@@ -367,8 +381,8 @@ function applyUpcomingTabWidth() {
                         <LineChart class="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[13px] font-semibold text-fg">急停评估</p>
-                        <p class="text-[11px] text-fg-muted">反向切换时机与分级</p>
+                        <p class="text-[13px] font-semibold text-fg">{{ t('counter.assessment') }}</p>
+                        <p class="text-[11px] text-fg-muted">{{ t('counter.assessmentDesc') }}</p>
                       </div>
                     </div>
                     <div class="divide-y divide-border-subtle border-b border-border-subtle">
@@ -376,7 +390,7 @@ function applyUpcomingTabWidth() {
                         class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/40"
                       >
                         <span class="text-[12px] font-medium text-fg-secondary">
-                          横向急停
+                          {{ t('counter.horizontal') }}
                           <span class="ml-1 font-normal text-fg-muted">A / D</span>
                         </span>
                         <span class="relative inline-flex shrink-0 items-center">
@@ -384,7 +398,7 @@ function applyUpcomingTabWidth() {
                             type="checkbox"
                             class="peer sr-only"
                             :checked="settings.assessmentHorizontalEnabled"
-                            aria-label="横向急停 A / D"
+                            :aria-label="`${t('counter.horizontal')} A / D`"
                             @change="
                               applySettings({
                                 assessmentHorizontalEnabled: ($event.target as HTMLInputElement).checked,
@@ -398,7 +412,7 @@ function applyUpcomingTabWidth() {
                         class="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-200 hover:bg-elevated/40"
                       >
                         <span class="text-[12px] font-medium text-fg-secondary">
-                          纵向急停
+                          {{ t('counter.vertical') }}
                           <span class="ml-1 font-normal text-fg-muted">W / S</span>
                         </span>
                         <span class="relative inline-flex shrink-0 items-center">
@@ -406,7 +420,7 @@ function applyUpcomingTabWidth() {
                             type="checkbox"
                             class="peer sr-only"
                             :checked="settings.assessmentVerticalEnabled"
-                            aria-label="纵向急停 W / S"
+                            :aria-label="`${t('counter.vertical')} W / S`"
                             @change="
                               applySettings({
                                 assessmentVerticalEnabled: ($event.target as HTMLInputElement).checked,
@@ -424,7 +438,7 @@ function applyUpcomingTabWidth() {
                             class="h-2 w-2 shrink-0 rounded-full bg-violet-500"
                             aria-hidden="true"
                           />
-                          <span class="text-[12px] font-medium text-fg-secondary">完美</span>
+                          <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.perfect') }}</span>
                         </div>
                         <div :class="settingValueColumnClass">
                           <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
@@ -434,7 +448,7 @@ function applyUpcomingTabWidth() {
                             min="0"
                             max="20"
                             step="0.5"
-                            aria-label="完美阈值"
+                            :aria-label="t('counter.perfect')"
                             :class="compactNumberInputClass"
                             @input="
                               patchNumberSetting('assessmentPerfectThresholdMs', ($event.target as HTMLInputElement).value)
@@ -452,7 +466,7 @@ function applyUpcomingTabWidth() {
                             class="h-2 w-2 shrink-0 rounded-full bg-sky-500"
                             aria-hidden="true"
                           />
-                          <span class="text-[12px] font-medium text-fg-secondary">优秀</span>
+                          <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.good') }}</span>
                         </div>
                         <div :class="settingValueColumnClass">
                           <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
@@ -462,7 +476,7 @@ function applyUpcomingTabWidth() {
                             min="1"
                             max="50"
                             step="0.5"
-                            aria-label="优秀阈值"
+                            :aria-label="t('counter.good')"
                             :class="compactNumberInputClass"
                             @input="
                               patchNumberSetting('assessmentSuccessThresholdMs', ($event.target as HTMLInputElement).value)
@@ -480,7 +494,7 @@ function applyUpcomingTabWidth() {
                             class="h-2 w-2 shrink-0 rounded-full bg-amber-500"
                             aria-hidden="true"
                           />
-                          <span class="text-[12px] font-medium text-fg-secondary">有效窗口</span>
+                          <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.validWindow') }}</span>
                         </div>
                         <div :class="settingValueColumnClass">
                           <span class="w-3 shrink-0 text-center text-[11px] text-fg-muted">≤</span>
@@ -490,7 +504,7 @@ function applyUpcomingTabWidth() {
                             min="50"
                             max="500"
                             step="10"
-                            aria-label="有效切换窗口"
+                            :aria-label="t('counter.validWindow')"
                             :class="compactNumberInputClass"
                             @input="patchNumberSetting('assessmentMaxDiffMs', ($event.target as HTMLInputElement).value)"
                             @change="patchNumberSetting('assessmentMaxDiffMs', ($event.target as HTMLInputElement).value, 0)"
@@ -500,7 +514,7 @@ function applyUpcomingTabWidth() {
                       </label>
                     </div>
                     <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
-                      偏差分级自上而下收紧；超出有效窗口的切换不计入评估
+                      {{ t('counter.assessmentHelp') }}
                     </p>
                   </div>
 
@@ -512,13 +526,13 @@ function applyUpcomingTabWidth() {
                         <ChartColumn class="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div class="min-w-0">
-                        <p class="text-[13px] font-semibold text-fg">开枪稳定</p>
-                        <p class="text-[11px] text-fg-muted">速度达标与误差判定</p>
+                        <p class="text-[13px] font-semibold text-fg">{{ t('counter.shooting') }}</p>
+                        <p class="text-[11px] text-fg-muted">{{ t('counter.shootingDesc') }}</p>
                       </div>
                     </div>
                     <div class="divide-y divide-border-subtle">
                       <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
-                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">起步低速窗口</span>
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">{{ t('counter.lowSpeedWindow') }}</span>
                         <div :class="settingValueColumnClass">
                           <input
                             :value="settings.lowSpeedMovementWindowMs"
@@ -526,7 +540,7 @@ function applyUpcomingTabWidth() {
                             min="60"
                             max="400"
                             step="10"
-                            aria-label="起步低速窗口"
+                            :aria-label="t('counter.lowSpeedWindow')"
                             :class="compactNumberInputClass"
                             @input="
                               patchNumberSetting('lowSpeedMovementWindowMs', ($event.target as HTMLInputElement).value)
@@ -539,7 +553,7 @@ function applyUpcomingTabWidth() {
                         </div>
                       </label>
                       <label class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
-                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">稳定误差阈值</span>
+                        <span class="min-w-0 text-[12px] font-medium text-fg-secondary">{{ t('counter.stableThreshold') }}</span>
                         <div :class="settingValueColumnClass">
                           <input
                             :value="settings.successErrorThreshold"
@@ -547,7 +561,7 @@ function applyUpcomingTabWidth() {
                             min="0"
                             max="1"
                             step="0.05"
-                            aria-label="稳定误差阈值"
+                            :aria-label="t('counter.stableThreshold')"
                             :class="compactNumberInputClass"
                             @input="
                               patchNumberSetting('successErrorThreshold', ($event.target as HTMLInputElement).value)
@@ -561,17 +575,17 @@ function applyUpcomingTabWidth() {
                       </label>
                     </div>
                     <p class="border-t border-border-subtle px-4 py-2.5 text-[10px] leading-relaxed text-fg-muted">
-                      低速窗口默认 180ms；误差阈值默认 0.35，越低越难判绿
+                      {{ t('counter.shootingHelp') }}
                     </p>
                   </div>
                 </div>
               </div>
             </SettingsCard>
 
-            <SettingsCard title="移速模型" description="调整加速度、急停制动与自然减速" :icon="Zap">
+            <SettingsCard :title="t('counter.movementModel')" :description="t('counter.movementModelDesc')" :icon="Zap">
               <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">最大移速</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.maxSpeed') }}</span>
                   <input
                     :value="settings.maxMoveSpeed"
                     type="number"
@@ -583,11 +597,11 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('maxMoveSpeed', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 1.0。人物最快能跑多快。整体偏大时，模型会觉得你跑得更快，更容易出现红柱。
+                    {{ t('counter.maxSpeedHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">起步加速度 (/s)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.acceleration') }}</span>
                   <input
                     :value="settings.accelPerSec"
                     type="number"
@@ -599,11 +613,11 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('accelPerSec', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 5.5。按住方向键后，速度多快能加上去。偏大=刚起步就容易被判在动；偏小=起步偏慢，容易偏绿。
+                    {{ t('counter.accelerationHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">急停制动 (/s)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.counterBrake') }}</span>
                   <input
                     :value="settings.counterStrafeAccelPerSec"
                     type="number"
@@ -619,11 +633,11 @@ function applyUpcomingTabWidth() {
                     "
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 14。按反向键时，速度多快能刹到 0。AD 急停主要靠它；偏大=停得更狠、更容易绿；偏小=刹不住、容易红。
+                    {{ t('counter.counterBrakeHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">自然减速 (/s)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.naturalDecel') }}</span>
                   <input
                     :value="settings.naturalDecelPerSec"
                     type="number"
@@ -635,11 +649,11 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('naturalDecelPerSec', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 2.5。松开方向键后，惯性滑行多快能停下来。偏小=松键后还在滑，容易红。
+                    {{ t('counter.naturalDecelHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5 sm:col-span-2">
-                  <span class="text-[12px] font-medium text-fg-secondary">准确速度比例</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.accurateRatio') }}</span>
                   <input
                     :value="settings.cleanShotSpeedRatio"
                     type="number"
@@ -655,7 +669,7 @@ function applyUpcomingTabWidth() {
                     "
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 0.34（CS2 约 34% 满速可准）。速度低于「最大移速 × 该比例」就算准。偏大=更宽松、容易绿；偏小=更严格、容易红。
+                    {{ t('counter.accurateRatioHelp') }}
                   </span>
                 </label>
               </div>
@@ -666,14 +680,14 @@ function applyUpcomingTabWidth() {
                 @click="restoreMovementModelDefaults()"
               >
                 <RotateCcw class="h-3.5 w-3.5" />
-                恢复移速模型默认值
+                {{ t('counter.resetMovement') }}
               </button>
             </SettingsCard>
 
-            <SettingsCard title="开火采样校准" description="对齐 CS2 射击判定" :icon="Target">
+            <SettingsCard :title="t('counter.fireSampling')" :description="t('counter.fireSamplingDesc')" :icon="Target">
               <div class="grid gap-4 sm:grid-cols-3">
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">首发延迟 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.firstShotDelay') }}</span>
                   <input
                     :value="settings.fireSampleDelayMs"
                     type="number"
@@ -685,11 +699,11 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('fireSampleDelayMs', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 18ms。按下鼠标后，过这么久才去量速度。软件比游戏判得早→加大；判得晚→减小。
+                    {{ t('counter.firstShotHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">短按窗口 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.tapWindow') }}</span>
                   <input
                     :value="settings.tapMaxHoldMs"
                     type="number"
@@ -701,11 +715,11 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('tapMaxHoldMs', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 90ms。点射按住不超过这么久，只记一发。偏短=连点各算一发；偏长=长按才开始连发采样。
+                    {{ t('counter.tapHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">连发间隔 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.autoFireInterval') }}</span>
                   <input
                     :value="settings.autoFireIntervalMs"
                     type="number"
@@ -717,16 +731,16 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('autoFireIntervalMs', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 100ms。按住连发时，每隔多久记一根柱子。只影响连发记录频率，不影响单点判定。
+                    {{ t('counter.autoFireHelp') }}
                   </span>
                 </label>
               </div>
             </SettingsCard>
 
-            <SettingsCard title="蹲起窗口" description="松蹲后的稳定宽限与误差恢复" :icon="ArrowDownUp">
+            <SettingsCard :title="t('counter.crouchWindow')" :description="t('counter.crouchWindowDesc')" :icon="ArrowDownUp">
               <div class="grid gap-4 sm:grid-cols-2">
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">蹲起宽限 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.crouchGrace') }}</span>
                   <input
                     :value="settings.crouchReleaseGraceMs"
                     type="number"
@@ -742,11 +756,11 @@ function applyUpcomingTabWidth() {
                     "
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 45ms。松蹲后这段时间内开枪，仍按稳定算。蹲起打法可酌情调大。
+                    {{ t('counter.crouchGraceHelp') }}
                   </span>
                 </label>
                 <label class="block space-y-1.5">
-                  <span class="text-[12px] font-medium text-fg-secondary">蹲起恢复 (ms)</span>
+                  <span class="text-[12px] font-medium text-fg-secondary">{{ t('counter.crouchRecovery') }}</span>
                   <input
                     :value="settings.crouchExitRampMs"
                     type="number"
@@ -758,7 +772,7 @@ function applyUpcomingTabWidth() {
                     @change="patchNumberSetting('crouchExitRampMs', ($event.target as HTMLInputElement).value, 0)"
                   />
                   <span class="text-[10px] leading-relaxed text-fg-muted">
-                    默认 90ms。蹲起宽限过后，误差慢慢恢复正常的过渡时间。偏长=蹲后更久仍偏宽容。
+                    {{ t('counter.crouchRecoveryHelp') }}
                   </span>
                 </label>
               </div>

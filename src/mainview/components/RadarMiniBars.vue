@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RADAR_LABELS } from '@core/match/insights';
+import { RADAR_LABELS, RADAR_LABELS_EN } from '@core/match/insights';
 import type { MatchPlayer } from '@core/match/models';
+import { currentLocale } from '../i18n';
 
 const props = defineProps<{
   player: MatchPlayer;
@@ -12,7 +13,7 @@ const dimensions = computed(() =>
     .map(([key, label]) => {
       const dim = props.player.radar[key];
       if (!dim) return null;
-      return { key, label, score: dim.score, level: dim.level };
+      return { key, label: currentLocale() === 'en-US' ? RADAR_LABELS_EN[key] ?? label : label, score: dim.score, level: dim.level };
     })
     .filter((d): d is NonNullable<typeof d> => d != null),
 );

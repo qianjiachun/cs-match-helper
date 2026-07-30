@@ -2,6 +2,8 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { fetchProxiedImageDataUrl } from '@core/comments/platform-board';
 import { PERFECT_MEDIA_REFERER } from '@core/comments/platform-board/perfect-board';
+import { computed } from 'vue';
+import { localize as l } from '../../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -10,10 +12,10 @@ const props = withDefaults(
     source?: 'perfect' | '5e' | 'internal';
     imgClass?: string;
   }>(),
-  {
-    alt: '图片',
-  },
+  {},
 );
+
+const resolvedAlt = computed(() => props.alt ?? l('图片', 'Image'));
 
 const resolvedSrc = ref('');
 const failed = ref(false);
@@ -60,7 +62,7 @@ onBeforeUnmount(() => {
   <img
     v-if="resolvedSrc && !failed"
     :src="resolvedSrc"
-    :alt="alt"
+    :alt="resolvedAlt"
     :class="imgClass"
     class="object-cover"
     loading="lazy"
