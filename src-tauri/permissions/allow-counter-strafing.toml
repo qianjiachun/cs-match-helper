@@ -19,6 +19,21 @@ description = "允许获取急停快照"
 commands.allow = ["get_counter_strafing_snapshot"]
 
 [[permission]]
+identifier = "allow-get-counter-strafing-gsi-status"
+description = "允许获取急停助手 GSI 状态"
+commands.allow = ["get_counter_strafing_gsi_status"]
+
+[[permission]]
+identifier = "allow-install-or-repair-counter-strafing-gsi"
+description = "允许安装或修复急停助手 GSI 配置"
+commands.allow = ["install_or_repair_counter_strafing_gsi"]
+
+[[permission]]
+identifier = "allow-remove-counter-strafing-gsi-config"
+description = "允许移除急停助手 GSI 配置"
+commands.allow = ["remove_counter_strafing_gsi_config"]
+
+[[permission]]
 identifier = "allow-clear-counter-strafing-records"
 description = "允许清空急停记录"
 commands.allow = ["clear_counter_strafing_records"]

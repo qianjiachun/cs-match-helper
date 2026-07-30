@@ -238,6 +238,7 @@ pub fn run() {
             }
 
             update::startup_update_maintenance(app.handle());
+            app.state::<CounterStrafingRuntime>().initialize(app.handle());
 
             Ok(())
         })
@@ -286,6 +287,9 @@ pub fn run() {
             counter_strafing::runtime::save_counter_strafing_settings_cmd,
             counter_strafing::runtime::reset_counter_strafing_settings_cmd,
             counter_strafing::runtime::get_counter_strafing_snapshot,
+            counter_strafing::runtime::get_counter_strafing_gsi_status,
+            counter_strafing::runtime::install_or_repair_counter_strafing_gsi,
+            counter_strafing::runtime::remove_counter_strafing_gsi_config,
             counter_strafing::runtime::clear_counter_strafing_records,
             counter_strafing::runtime::start_counter_strafing,
             counter_strafing::runtime::stop_counter_strafing,

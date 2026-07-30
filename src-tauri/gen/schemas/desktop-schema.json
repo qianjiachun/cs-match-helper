@@ -459,6 +459,12 @@
           "markdownDescription": "允许获取急停评估快照"
         },
         {
+          "description": "允许获取急停助手 GSI 状态",
+          "type": "string",
+          "const": "allow-get-counter-strafing-gsi-status",
+          "markdownDescription": "允许获取急停助手 GSI 状态"
+        },
+        {
           "description": "允许获取急停快照",
           "type": "string",
           "const": "allow-get-counter-strafing-snapshot",
@@ -499,6 +505,12 @@
           "type": "string",
           "const": "allow-install-gamebar-widget-from-local",
           "markdownDescription": "允许从本地 zip 安装 Game Bar Widget"
+        },
+        {
+          "description": "允许安装或修复急停助手 GSI 配置",
+          "type": "string",
+          "const": "allow-install-or-repair-counter-strafing-gsi",
+          "markdownDescription": "允许安装或修复急停助手 GSI 配置"
         },
         {
           "description": "允许从 CDN 安装或更新 Game Bar Widget",
@@ -571,6 +583,12 @@
           "type": "string",
           "const": "allow-relaunch-as-admin",
           "markdownDescription": "允许以管理员身份重启应用"
+        },
+        {
+          "description": "允许移除急停助手 GSI 配置",
+          "type": "string",
+          "const": "allow-remove-counter-strafing-gsi-config",
+          "markdownDescription": "允许移除急停助手 GSI 配置"
         },
         {
           "description": "允许恢复急停默认设置",

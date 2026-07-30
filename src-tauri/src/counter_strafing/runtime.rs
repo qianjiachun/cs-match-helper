@@ -1,12 +1,14 @@
 use crate::counter_strafing::assessment_engine::CounterStrafingAssessmentEngine;
 use crate::counter_strafing::engine::{mouse_label, vk_label, CounterStrafingEngine};
+use crate::counter_strafing::gsi::{GsiDecision, GsiIgnoreReason, GsiService};
 use crate::counter_strafing::ipc_server;
 use super::hud_window;
 use crate::counter_strafing::settings::{load_counter_strafing_settings, save_counter_strafing_settings};
 use crate::counter_strafing::types::{
     BindingRole, CounterStrafingAssessmentRecord, CounterStrafingAssessmentSnapshot,
     CounterStrafingSettings, CounterStrafingSnapshot, GameBarIpcSnapshot,
-    HudAnchor, InputBinding, InputEvent, InputSource, ShootingErrorRecord, ShootingHudIpcSnapshot,
+    GsiStatus, HudAnchor, InputBinding, InputEvent, InputSource, SampleContextMode,
+    ShootingErrorRecord, ShootingHudIpcSnapshot,
     clamp_gamebar_assessment_ratio, normalize_gamebar_layout, apply_hud_display_to_assessment_snapshot,
     apply_hud_display_to_snapshot, gamebar_layout_from_settings,
 };
@@ -27,9 +29,11 @@ const ASSESSMENT_HUD_WIDTH: f64 = HUD_WIDTH;
 const ASSESSMENT_HUD_HEIGHT: f64 = HUD_HEIGHT;
 const HUD_MARGIN: i32 = 12;
 const HUD_STACK_GAP: i32 = 4;
-const SNAPSHOT_EMIT_INTERVAL: Duration = Duration::from_millis(100);
+const SNAPSHOT_EMIT_INTERVAL: Duration = Duration::from_millis(200);
 const SNAPSHOT_STATS_COALESCE: Duration = Duration::from_millis(16);
 const MAX_EVENT_BATCH: usize = 8;
+const GSI_CONFIRM_DELAY: Duration = Duration::from_millis(80);
+const REALTIME_RECORD_TAIL: usize = 64;
 
 fn clamp_hud_width(width: f64) -> f64 {
     width.clamp(1.0, HUD_MAX_WIDTH)
@@ -134,9 +138,22 @@ struct RuntimeInner {
     capture_only_input: bool,
     ipc_server: Option<ipc_server::IpcServer>,
     snapshot_signal: Option<ipc_server::SnapshotSignal>,
+    gsi: GsiService,
+    context_mode: SampleContextMode,
+    context_generation: u64,
 }
 
 impl CounterStrafingRuntime {
+    pub fn initialize(&self, app: &AppHandle) {
+        let settings = load_counter_strafing_settings().unwrap_or_default();
+        let mut inner = self.inner.lock().unwrap();
+        inner.settings = settings.clone();
+        inner.gsi.initialize(app, settings.gsi_enhancement_enabled);
+        if settings.gsi_enhancement_enabled && !inner.gsi.status().configured {
+            let _ = inner.gsi.install_or_repair(app, None);
+        }
+    }
+
     pub fn set_locale(&self, app: &AppHandle, locale: &str) {
         let locale = if locale.eq_ignore_ascii_case("en-US") {
             "en-US"
@@ -296,6 +313,7 @@ impl CounterStrafingRuntime {
 
         let (consumer, input, ipc) = {
             let mut inner = self.inner.lock().unwrap();
+            inner.gsi.shutdown();
             inner.hud_visible = false;
             inner.assessment_hud_visible = false;
             inner.active = false;
@@ -397,6 +415,7 @@ impl CounterStrafingRuntime {
         if let Some(engine) = inner.engine.as_mut() {
             engine.clear_records();
         }
+        inner.gsi.clear_ignored();
         let snap = build_snapshot(&inner);
         drop(inner);
         let _ = app.emit("counter-strafing-snapshot", snap.clone());
@@ -416,6 +435,18 @@ impl CounterStrafingRuntime {
         };
         normalize_gamebar_layout(&mut settings);
         save_counter_strafing_settings(&settings)?;
+
+        if previous_settings.gsi_enhancement_enabled != settings.gsi_enhancement_enabled {
+            let mut inner = self.inner.lock().unwrap();
+            inner
+                .gsi
+                .set_enabled(app, settings.gsi_enhancement_enabled)?;
+            if settings.gsi_enhancement_enabled {
+                let _ = inner.gsi.install_or_repair(app, None);
+            }
+            inner.context_mode = SampleContextMode::Basic;
+            reset_input_context(&mut inner, win_input::qpc_secs());
+        }
 
         let shooting_bounds_changed =
             shooting_hud_bounds_layout_changed(&previous_settings, &settings);
@@ -495,6 +526,23 @@ impl CounterStrafingRuntime {
 
         let _ = app.emit("counter-strafing-snapshot", snap.clone());
         Ok(snap)
+    }
+
+    pub fn gsi_status(&self) -> GsiStatus {
+        self.inner.lock().unwrap().gsi.status()
+    }
+
+    pub fn install_or_repair_gsi(
+        &self,
+        app: &AppHandle,
+        cs2_path: Option<String>,
+    ) -> Result<GsiStatus, String> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.gsi.install_or_repair(app, cs2_path.as_deref())
+    }
+
+    pub fn remove_gsi_config(&self, app: &AppHandle) -> Result<GsiStatus, String> {
+        self.inner.lock().unwrap().gsi.remove_config(app)
     }
 
     pub fn update_gamebar_assessment_ratio(&self, ratio: f64) -> Result<(), String> {
@@ -677,7 +725,15 @@ impl CounterStrafingRuntime {
 
         let snap = {
             let mut inner = self.inner.lock().unwrap();
+            inner
+                .gsi
+                .set_enabled(app, defaults.gsi_enhancement_enabled)?;
+            if defaults.gsi_enhancement_enabled {
+                let _ = inner.gsi.install_or_repair(app, None);
+            }
             inner.settings = defaults.clone();
+            inner.context_mode = SampleContextMode::Basic;
+            reset_input_context(&mut inner, win_input::qpc_secs());
             if let Some(engine) = inner.engine.as_mut() {
                 engine.update_settings(defaults.clone());
             }
@@ -751,6 +807,12 @@ struct ConsumerShared {
     last_stats_emit: Option<Instant>,
 }
 
+struct PendingShot {
+    record: ShootingErrorRecord,
+    ready_at: Instant,
+    context_generation: u64,
+}
+
 fn emit_shooting_record_now(
     app: &AppHandle,
     shared: &Arc<Mutex<ConsumerShared>>,
@@ -804,8 +866,8 @@ fn emit_stats_snapshots_coalesced(app: &AppHandle, shared: &Arc<Mutex<ConsumerSh
         let runtime = app.state::<CounterStrafingRuntime>();
         let inner = runtime.inner.lock().unwrap();
         (
-            build_snapshot(&inner),
-            build_assessment_snapshot(&inner),
+            build_realtime_snapshot(&inner),
+            build_realtime_assessment_snapshot(&inner),
         )
     };
     let _ = app.emit("counter-strafing-snapshot", shooting_snap);
@@ -833,17 +895,48 @@ fn process_single_event_locked(
 ) {
     let binding = event_to_binding(event);
     let role = inner.settings.key_map.role_for_binding(&binding);
+    if let Some(role) = role {
+        let shooting = role == BindingRole::Fire;
+        let decision = inner.gsi.decision(shooting);
+        sync_context_mode(inner, decision.mode, event.time_secs);
+        let needs_last_shot_confirmation = shooting
+            && decision.mode == SampleContextMode::Enhanced
+            && decision.reason == Some(GsiIgnoreReason::EmptyMagazine);
+        if !decision.allowed && !needs_last_shot_confirmation {
+            let should_count = if shooting {
+                event.is_down
+            } else {
+                !event.is_down
+            };
+            if should_count {
+                if let Some(reason) = decision.reason {
+                    inner.gsi.record_ignored(reason);
+                }
+            }
+            reset_input_context(inner, event.time_secs);
+            return (None, None);
+        }
+    }
+
     let mut assessment_record = None;
     if let Some(role) = role {
         if matches!(
             role,
             BindingRole::Left | BindingRole::Right | BindingRole::Forward | BindingRole::Back
         ) {
+            let decision = inner.gsi.decision(false);
             assessment_record = inner.assessment_engine.as_mut().and_then(|engine| {
                 engine.handle_movement(role, event.is_down, event.time_secs)
             });
+            if let Some(record) = assessment_record.as_mut() {
+                record.context_mode = decision.mode;
+                if let Some(engine) = inner.assessment_engine.as_mut() {
+                    engine.update_last_record_context(record, decision.mode);
+                }
+            }
         }
     }
+
     let shot_record = inner
         .engine
         .as_mut()
@@ -851,13 +944,137 @@ fn process_single_event_locked(
     (shot_record, assessment_record)
 }
 
+fn sync_context_mode(inner: &mut RuntimeInner, mode: SampleContextMode, _time: f64) {
+    if inner.context_mode != mode {
+        inner.context_mode = mode;
+        inner.context_generation = inner.context_generation.wrapping_add(1);
+        // A healthy GSI reconnect must not erase the velocity accumulated from valid
+        // in-game movement. Invalid contexts are reset separately at the rejection site.
+        if let Some(engine) = inner.assessment_engine.as_mut() {
+            engine.reset_input_state();
+        }
+    }
+}
+
+fn reset_input_context(inner: &mut RuntimeInner, time: f64) {
+    inner.context_generation = inner.context_generation.wrapping_add(1);
+    if let Some(engine) = inner.engine.as_mut() {
+        engine.reset_input_context(time);
+    }
+    if let Some(engine) = inner.assessment_engine.as_mut() {
+        engine.reset_input_state();
+    }
+}
+
+fn finalize_shot(
+    inner: &mut RuntimeInner,
+    mut record: ShootingErrorRecord,
+    time: f64,
+) -> Option<ShootingErrorRecord> {
+    let GsiDecision {
+        mode,
+        allowed,
+        reason,
+        weapon_name,
+        shot_confirmed,
+    } = inner.gsi.decision(true);
+    sync_context_mode(inner, mode, time);
+    if !allowed {
+        if let Some(engine) = inner.engine.as_mut() {
+            engine.discard_record(&record);
+        }
+        if let Some(reason) = reason {
+            inner.gsi.record_ignored(reason);
+        }
+        return None;
+    }
+    record.context_mode = mode;
+    record.weapon_name = weapon_name.clone();
+    record.shot_confirmed = shot_confirmed;
+    if shot_confirmed {
+        if let Some(weapon_name) = weapon_name.as_deref() {
+            inner.gsi.claim_shot_confirmation(weapon_name);
+        }
+    }
+    if let Some(engine) = inner.engine.as_mut() {
+        engine.update_last_record_context(&record, mode, weapon_name, shot_confirmed);
+    }
+    Some(record)
+}
+
+fn stage_shot(
+    inner: &mut RuntimeInner,
+    record: ShootingErrorRecord,
+    time: f64,
+    pending: &mut Vec<PendingShot>,
+    ready: &mut Vec<ShootingErrorRecord>,
+) {
+    let decision = inner.gsi.decision(true);
+    sync_context_mode(inner, decision.mode, time);
+    let needs_last_shot_confirmation = decision.mode == SampleContextMode::Enhanced
+        && !decision.allowed
+        && decision.reason == Some(GsiIgnoreReason::EmptyMagazine);
+    if needs_last_shot_confirmation {
+        if let Some(engine) = inner.engine.as_mut() {
+            engine.discard_record(&record);
+        }
+        pending.push(PendingShot {
+            record,
+            ready_at: Instant::now() + GSI_CONFIRM_DELAY,
+            context_generation: inner.context_generation,
+        });
+    } else if let Some(record) = finalize_shot(inner, record, time) {
+        ready.push(record);
+    }
+}
+
+fn flush_confirmed_shots(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    pending: &mut Vec<PendingShot>,
+) -> bool {
+    let now = Instant::now();
+    let split_at = pending.partition_point(|shot| shot.ready_at <= now);
+    if split_at == 0 {
+        return false;
+    }
+    let due: Vec<_> = pending.drain(..split_at).collect();
+    let mut ready = Vec::new();
+    {
+        let runtime = app.state::<CounterStrafingRuntime>();
+        let mut inner = runtime.inner.lock().unwrap();
+        let current_mode = inner.gsi.decision(true).mode;
+        sync_context_mode(&mut inner, current_mode, win_input::qpc_secs());
+        for shot in due {
+            if shot.context_generation != inner.context_generation {
+                continue;
+            }
+            if let Some(engine) = inner.engine.as_mut() {
+                engine.restore_record(shot.record.clone());
+            }
+            if let Some(record) = finalize_shot(&mut inner, shot.record, win_input::qpc_secs()) {
+                ready.push(record);
+            }
+        }
+    }
+    for record in ready {
+        emit_shooting_record_now(app, shared, record);
+    }
+    true
+}
+
 fn drain_engine_shots_locked(
     inner: &mut RuntimeInner,
     now: f64,
+    pending: &mut Vec<PendingShot>,
     out: &mut Vec<ShootingErrorRecord>,
 ) {
+    let mut raw = Vec::new();
     if let Some(engine) = inner.engine.as_mut() {
-        engine.drain_due_samples(now, out);
+        engine.drain_due_samples(now, &mut raw);
+    }
+    for record in raw {
+        stage_shot(inner, record, now, pending, out);
     }
 }
 
@@ -874,6 +1091,7 @@ fn dispatch_consumer_events(
     app: &AppHandle,
     shared: &Arc<Mutex<ConsumerShared>>,
     events: Vec<InputEvent>,
+    pending_shots: &mut Vec<PendingShot>,
 ) {
     if events.is_empty() {
         return;
@@ -884,28 +1102,38 @@ fn dispatch_consumer_events(
 
     for (idx, event) in events.iter().enumerate() {
         let mut drained_shots = Vec::new();
-        let (shot, assessment) = {
+        let (assessment, ready_shots) = {
             let runtime = app.state::<CounterStrafingRuntime>();
             let mut inner = runtime.inner.lock().unwrap();
-            let result = process_single_event_locked(&mut inner, event);
+            let (shot, assessment) = process_single_event_locked(&mut inner, event);
+            if let Some(record) = shot {
+                stage_shot(
+                    &mut inner,
+                    record,
+                    event.time_secs,
+                    pending_shots,
+                    &mut drained_shots,
+                );
+            }
             let should_drain = event_triggers_intermediate_drain(event, &inner)
                 || (idx + 1) % MAX_EVENT_BATCH == 0;
             if should_drain {
                 let sample_now = event.time_secs.max(now);
-                drain_engine_shots_locked(&mut inner, sample_now, &mut drained_shots);
+                drain_engine_shots_locked(
+                    &mut inner,
+                    sample_now,
+                    pending_shots,
+                    &mut drained_shots,
+                );
             }
-            result
+            (assessment, drained_shots)
         };
 
-        if let Some(record) = shot {
-            emit_shooting_record_now(app, shared, record);
-            had_any_record = true;
-        }
         if let Some(record) = assessment {
             emit_assessment_record_now(app, shared, record);
             had_any_record = true;
         }
-        for record in drained_shots {
+        for record in ready_shots {
             emit_shooting_record_now(app, shared, record);
             had_any_record = true;
         }
@@ -919,7 +1147,12 @@ fn dispatch_consumer_events(
             .iter()
             .map(|event| event.time_secs)
             .fold(now, f64::max);
-        drain_engine_shots_locked(&mut inner, logical_now, &mut final_shots);
+        drain_engine_shots_locked(
+            &mut inner,
+            logical_now,
+            pending_shots,
+            &mut final_shots,
+        );
     }
     for record in final_shots {
         emit_shooting_record_now(app, shared, record);
@@ -938,7 +1171,12 @@ fn dispatch_consumer_events(
     }
 }
 
-fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, now: f64) {
+fn reconcile_stuck_inputs(
+    app: &AppHandle,
+    shared: &Arc<Mutex<ConsumerShared>>,
+    now: f64,
+    pending_shots: &mut Vec<PendingShot>,
+) {
     let stuck_events = {
         let runtime = app.state::<CounterStrafingRuntime>();
         let inner = runtime.inner.lock().unwrap();
@@ -962,12 +1200,21 @@ fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, 
     };
 
     if !stuck_events.is_empty() {
-        dispatch_consumer_events(app, shared, stuck_events);
+        dispatch_consumer_events(app, shared, stuck_events, pending_shots);
     }
 
     let assessment_records = {
         let runtime = app.state::<CounterStrafingRuntime>();
         let mut inner = runtime.inner.lock().unwrap();
+        let decision = inner.gsi.decision(false);
+        sync_context_mode(&mut inner, decision.mode, now);
+        if !decision.allowed {
+            if let Some(reason) = decision.reason {
+                inner.gsi.record_ignored(reason);
+            }
+            reset_input_context(&mut inner, now);
+            Vec::new()
+        } else {
         let key_map = inner.settings.key_map.clone();
         let Some(assessment) = inner.assessment_engine.as_mut() else {
             return;
@@ -987,7 +1234,12 @@ fn reconcile_stuck_inputs(app: &AppHandle, shared: &Arc<Mutex<ConsumerShared>>, 
                 }
             }
         }
+        for record in &mut records {
+            record.context_mode = decision.mode;
+            assessment.update_last_record_context(record, decision.mode);
+        }
         records
+        }
     };
 
     let mut had_assessment = false;
@@ -1005,6 +1257,7 @@ fn consumer_loop(
     rx: crossbeam_channel::Receiver<InputEvent>,
     shared: Arc<Mutex<ConsumerShared>>,
 ) {
+    let mut pending_shots = Vec::new();
     while !shared.lock().unwrap().stop_flag.load(Ordering::SeqCst) {
         let timeout = {
             let runtime = app.state::<CounterStrafingRuntime>();
@@ -1068,18 +1321,26 @@ fn consumer_loop(
                         break;
                     }
                 }
-                dispatch_consumer_events(&app, &shared, batch);
+                dispatch_consumer_events(&app, &shared, batch, &mut pending_shots);
+                if flush_confirmed_shots(&app, &shared, &mut pending_shots) {
+                    emit_stats_snapshots_coalesced(&app, &shared);
+                }
             }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                 let now = win_input::qpc_secs();
-                reconcile_stuck_inputs(&app, &shared, now);
+                reconcile_stuck_inputs(&app, &shared, now, &mut pending_shots);
 
                 let mut tick_shots = Vec::new();
                 {
                     let runtime = app.state::<CounterStrafingRuntime>();
                     let mut inner = runtime.inner.lock().unwrap();
                     if inner.capturing_binding.is_none() {
-                        drain_engine_shots_locked(&mut inner, now, &mut tick_shots);
+                        drain_engine_shots_locked(
+                            &mut inner,
+                            now,
+                            &mut pending_shots,
+                            &mut tick_shots,
+                        );
                     }
                 }
 
@@ -1088,7 +1349,10 @@ fn consumer_loop(
                     emit_shooting_record_now(&app, &shared, record);
                 }
 
-                if had_tick_shots {
+                let had_confirmed_shots =
+                    flush_confirmed_shots(&app, &shared, &mut pending_shots);
+
+                if had_tick_shots || had_confirmed_shots {
                     emit_stats_snapshots_coalesced(&app, &shared);
                 } else {
                     let runtime = app.state::<CounterStrafingRuntime>();
@@ -1126,7 +1390,7 @@ fn collect_periodic_emissions(inner: &mut RuntimeInner) -> PeriodicEmissions {
         .unwrap_or(true);
     if should_emit_snapshot {
         inner.last_snapshot_emit = Some(Instant::now());
-        pending.snapshot = Some(build_snapshot(inner));
+        pending.snapshot = Some(build_realtime_snapshot(inner));
     }
 
     let should_emit_assessment = inner
@@ -1135,7 +1399,7 @@ fn collect_periodic_emissions(inner: &mut RuntimeInner) -> PeriodicEmissions {
         .unwrap_or(true);
     if should_emit_assessment {
         inner.last_assessment_snapshot_emit = Some(Instant::now());
-        pending.assessment_snapshot = Some(build_assessment_snapshot(inner));
+        pending.assessment_snapshot = Some(build_realtime_assessment_snapshot(inner));
     }
 
     if pending.snapshot.is_some() || pending.assessment_snapshot.is_some() {
@@ -1182,6 +1446,7 @@ fn build_snapshot(inner: &RuntimeInner) -> CounterStrafingSnapshot {
     snap.hud_show_tap_markers = inner.settings.hud_show_tap_markers;
     snap.assessment_hud_visible = inner.assessment_hud_visible;
     snap.assessment_hud_locked = inner.settings.assessment_hud_locked;
+    snap.gsi_status = inner.gsi.status();
     apply_hud_display_to_snapshot(&mut snap, &inner.settings);
     snap
 }
@@ -1205,6 +1470,20 @@ fn build_assessment_snapshot(inner: &RuntimeInner) -> CounterStrafingAssessmentS
     snap.hud_locked = inner.settings.assessment_hud_locked;
     apply_hud_display_to_assessment_snapshot(&mut snap, &inner.settings);
     snap
+}
+
+fn build_realtime_snapshot(inner: &RuntimeInner) -> CounterStrafingSnapshot {
+    let mut snapshot = build_snapshot(inner);
+    snapshot.shot_records = tail_records(snapshot.shot_records, REALTIME_RECORD_TAIL);
+    snapshot
+}
+
+fn build_realtime_assessment_snapshot(
+    inner: &RuntimeInner,
+) -> CounterStrafingAssessmentSnapshot {
+    let mut snapshot = build_assessment_snapshot(inner);
+    snapshot.records = tail_records(snapshot.records, REALTIME_RECORD_TAIL);
+    snapshot
 }
 
 fn normalized_locale(locale: &str) -> &'static str {
@@ -1653,6 +1932,30 @@ pub fn reset_counter_strafing_settings_cmd(
 #[tauri::command]
 pub fn get_counter_strafing_snapshot(state: State<'_, CounterStrafingRuntime>) -> CounterStrafingSnapshot {
     state.snapshot()
+}
+
+#[tauri::command]
+pub fn get_counter_strafing_gsi_status(
+    state: State<'_, CounterStrafingRuntime>,
+) -> GsiStatus {
+    state.gsi_status()
+}
+
+#[tauri::command]
+pub fn install_or_repair_counter_strafing_gsi(
+    state: State<'_, CounterStrafingRuntime>,
+    app: AppHandle,
+    cs2_path: Option<String>,
+) -> Result<GsiStatus, String> {
+    state.install_or_repair_gsi(&app, cs2_path)
+}
+
+#[tauri::command]
+pub fn remove_counter_strafing_gsi_config(
+    state: State<'_, CounterStrafingRuntime>,
+    app: AppHandle,
+) -> Result<GsiStatus, String> {
+    state.remove_gsi_config(&app)
 }
 
 #[tauri::command]

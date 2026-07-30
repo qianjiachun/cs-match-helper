@@ -1,5 +1,6 @@
 mod assessment_engine;
 mod engine;
+mod gsi;
 mod hud_window;
 mod ipc_port_discovery;
 mod ipc_server;

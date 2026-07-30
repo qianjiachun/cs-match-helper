@@ -636,6 +636,7 @@ mod tests {
             is_perfect: false,
             is_success: false,
             timestamp_ms: 42,
+            context_mode: Default::default(),
         });
         assert_ne!(base, snapshot_revision(&snapshot));
     }
@@ -696,6 +697,9 @@ mod tests {
             fire_sample_delayed: false,
             shot_sequence_index: 1,
             crouch_grace_active: false,
+            context_mode: Default::default(),
+            weapon_name: None,
+            shot_confirmed: false,
         });
         queue.push_assessment_record(&CounterStrafingAssessmentRecord {
             axis: AssessmentAxis::Horizontal,
@@ -707,6 +711,7 @@ mod tests {
             is_perfect: false,
             is_success: false,
             timestamp_ms: 200,
+            context_mode: Default::default(),
         });
 
         let lines = queue.drain();

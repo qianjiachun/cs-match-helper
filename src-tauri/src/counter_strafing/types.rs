@@ -120,6 +120,66 @@ pub enum FireSampleKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum SampleContextMode {
+    Basic,
+    Enhanced,
+}
+
+impl Default for SampleContextMode {
+    fn default() -> Self {
+        Self::Basic
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GsiConnectionState {
+    Disabled,
+    NotConfigured,
+    WaitingForGame,
+    Connected,
+    Stale,
+    PortConflict,
+    Error,
+}
+
+impl Default for GsiConnectionState {
+    fn default() -> Self {
+        Self::Disabled
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GsiIgnoredCounts {
+    pub non_firearm: u64,
+    pub invalid_context: u64,
+    pub not_foreground: u64,
+    pub dead_or_spectating: u64,
+    pub empty_magazine: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GsiStatus {
+    pub enabled: bool,
+    pub configured: bool,
+    pub connection_state: GsiConnectionState,
+    pub restart_required: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_update_age_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_weapon: Option<String>,
+    #[serde(default)]
+    pub ignored: GsiIgnoredCounts,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum AssessmentAxis {
     Horizontal,
     Vertical,
@@ -172,6 +232,8 @@ pub struct CounterStrafingAssessmentRecord {
     pub is_perfect: bool,
     pub is_success: bool,
     pub timestamp_ms: u64,
+    #[serde(default)]
+    pub context_mode: SampleContextMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,6 +403,12 @@ pub struct ShootingErrorRecord {
     pub crouch_grace_active: bool,
     #[serde(default)]
     pub shot_sequence_index: u32,
+    #[serde(default)]
+    pub context_mode: SampleContextMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weapon_name: Option<String>,
+    #[serde(default)]
+    pub shot_confirmed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -400,6 +468,8 @@ pub struct CounterStrafingSnapshot {
     pub hud_shooting_chart_opacity: f64,
     #[serde(default)]
     pub hud_content_mode: HudContentMode,
+    #[serde(default)]
+    pub gsi_status: GsiStatus,
 }
 
 impl Default for CounterStrafingSnapshot {
@@ -425,6 +495,7 @@ impl Default for CounterStrafingSnapshot {
             hud_assessment_chart_opacity: default_hud_chart_opacity(),
             hud_shooting_chart_opacity: default_hud_chart_opacity(),
             hud_content_mode: HudContentMode::default(),
+            gsi_status: GsiStatus::default(),
         }
     }
 }
@@ -436,6 +507,8 @@ pub struct CounterStrafingSettings {
     pub enabled: bool,
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
+    #[serde(default = "default_gsi_enhancement_enabled")]
+    pub gsi_enhancement_enabled: bool,
     #[serde(default)]
     pub key_map: CounterStrafingKeyMap,
     #[serde(default = "default_stop_settle_ms")]
@@ -707,12 +780,16 @@ fn default_hud_line_stroke_width() -> f64 {
 fn default_hud_chart_opacity() -> f64 {
     1.0
 }
+fn default_gsi_enhancement_enabled() -> bool {
+    true
+}
 
 impl Default for CounterStrafingSettings {
     fn default() -> Self {
         Self {
             enabled: default_enabled(),
             display_mode: default_display_mode(),
+            gsi_enhancement_enabled: default_gsi_enhancement_enabled(),
             key_map: CounterStrafingKeyMap::default(),
             stop_settle_ms: default_stop_settle_ms(),
             clean_shot_speed_ratio: default_clean_shot_speed_ratio(),
@@ -788,6 +865,16 @@ mod tests {
         let settings: CounterStrafingSettings =
             serde_json::from_str(r#"{"assessmentChartSmooth":false}"#).unwrap();
         assert_eq!(settings.assessment_chart_type, AssessmentChartType::Line);
+    }
+
+    #[test]
+    fn legacy_settings_enable_gsi_but_explicit_false_is_preserved() {
+        let legacy: CounterStrafingSettings = serde_json::from_str("{}").unwrap();
+        assert!(legacy.gsi_enhancement_enabled);
+
+        let disabled: CounterStrafingSettings =
+            serde_json::from_str(r#"{"gsiEnhancementEnabled":false}"#).unwrap();
+        assert!(!disabled.gsi_enhancement_enabled);
     }
 
     #[test]

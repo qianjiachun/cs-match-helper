@@ -1,6 +1,6 @@
 use crate::counter_strafing::types::{
     BindingRole, CounterStrafingAssessmentRecord, CounterStrafingAssessmentSnapshot,
-    CounterStrafingSettings, AssessmentAxis, AssessmentTiming, InputBinding,
+    CounterStrafingSettings, AssessmentAxis, AssessmentTiming, InputBinding, SampleContextMode,
 };
 
 const MIN_RECORD_INTERVAL_SECS: f64 = 0.05;
@@ -230,6 +230,7 @@ impl CounterStrafingAssessmentEngine {
             is_perfect,
             is_success,
             timestamp_ms: (time * 1000.0) as u64,
+            context_mode: SampleContextMode::Basic,
         };
 
         self.last_record_time = time;
@@ -241,6 +242,25 @@ impl CounterStrafingAssessmentEngine {
         }
 
         Some(record)
+    }
+
+    pub fn update_last_record_context(
+        &mut self,
+        record: &CounterStrafingAssessmentRecord,
+        context_mode: SampleContextMode,
+    ) {
+        if let Some(stored) = self.records.iter_mut().rev().find(|stored| {
+            stored.timestamp_ms == record.timestamp_ms
+                && stored.from_key == record.from_key
+                && stored.to_key == record.to_key
+        }) {
+            stored.context_mode = context_mode;
+        }
+    }
+
+    pub fn reset_input_state(&mut self) {
+        self.key_states = [KeyState::default(); 4];
+        self.axis_states = [AxisState::default(); 2];
     }
 
     fn axis_enabled(&self, axis: AssessmentAxis) -> bool {

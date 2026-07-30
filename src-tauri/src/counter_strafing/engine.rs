@@ -1,6 +1,6 @@
 use crate::counter_strafing::types::{
     BindingRole, CounterStrafingKeyMap, CounterStrafingSettings, CounterStrafingSnapshot, FireSampleKind,
-    InputBinding, InputEvent, InputSource, ShootingErrorReason, ShootingErrorRecord,
+    InputBinding, InputEvent, InputSource, SampleContextMode, ShootingErrorReason, ShootingErrorRecord,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -384,6 +384,19 @@ impl CounterStrafingEngine {
         self.shot_records.clear();
         self.fire_scheduler.reset();
         self.last_tick_time = 0.0;
+    }
+
+    pub fn reset_input_context(&mut self, time: f64) {
+        self.movement = MovementEstimator::new();
+        self.movement.last_time = time;
+        self.movement_pressed = [false; 4];
+        self.movement_press_times = [None; 4];
+        self.crouch_pressed = false;
+        self.fire_pressed = false;
+        self.fire_scheduler.reset();
+        self.last_crouch_release_time = None;
+        self.last_movement_input_time = None;
+        self.last_tick_time = time;
     }
 
     pub fn snapshot(
@@ -916,6 +929,9 @@ impl CounterStrafingEngine {
             fire_sample_delayed,
             crouch_grace_active: eval.crouch_grace_active,
             shot_sequence_index,
+            context_mode: SampleContextMode::Basic,
+            weapon_name: None,
+            shot_confirmed: false,
         };
 
         self.shot_records.push(record.clone());
@@ -925,6 +941,40 @@ impl CounterStrafingEngine {
         }
 
         Some(record)
+    }
+
+    pub fn update_last_record_context(
+        &mut self,
+        record: &ShootingErrorRecord,
+        context_mode: SampleContextMode,
+        weapon_name: Option<String>,
+        shot_confirmed: bool,
+    ) {
+        if let Some(stored) = self.shot_records.iter_mut().rev().find(|stored| {
+            stored.timestamp_ms == record.timestamp_ms
+                && stored.shot_sequence_index == record.shot_sequence_index
+        }) {
+            stored.context_mode = context_mode;
+            stored.weapon_name = weapon_name;
+            stored.shot_confirmed = shot_confirmed;
+        }
+    }
+
+    pub fn discard_record(&mut self, record: &ShootingErrorRecord) {
+        if let Some(index) = self.shot_records.iter().rposition(|stored| {
+            stored.timestamp_ms == record.timestamp_ms
+                && stored.shot_sequence_index == record.shot_sequence_index
+        }) {
+            self.shot_records.remove(index);
+        }
+    }
+
+    pub fn restore_record(&mut self, record: ShootingErrorRecord) {
+        self.shot_records.push(record);
+        let limit = self.settings.history_limit;
+        if self.shot_records.len() > limit {
+            self.shot_records.drain(0..self.shot_records.len() - limit);
+        }
     }
 
     fn movement_keys_down(&self) -> u8 {
