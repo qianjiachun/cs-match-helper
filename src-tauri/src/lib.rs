@@ -77,7 +77,7 @@ async fn launch_5e_with_cdp(
             format!("5E 已启动，端口 {} 已就绪", result.port)
         } else {
             format!(
-                "无法启动 5E。请右键「CS 对局助手」→「以管理员身份运行」后重试。（端口 {} 在 60 秒内未就绪）",
+                "无法启动 5E。请右键「CS 匹配助手」→「以管理员身份运行」后重试。（端口 {} 在 60 秒内未就绪）",
                 result.port
             )
         };
@@ -116,6 +116,28 @@ async fn probe_5e_cdp_active(client_root: Option<String>) -> P5eProbeResult {
 fn close_app(app: tauri::AppHandle) {
     shutdown_app(&app);
     app.exit(0);
+}
+
+#[tauri::command]
+fn set_app_locale(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, CounterStrafingRuntime>,
+    locale: String,
+) {
+    let normalized = if locale.eq_ignore_ascii_case("en-US") {
+        "en-US"
+    } else {
+        "zh-CN"
+    };
+    state.set_locale(&app, normalized);
+    if let Some(window) = app.get_webview_window("main") {
+        let title = if normalized == "en-US" {
+            format!("CS Match Helper - By 小淳 v{}", env!("CARGO_PKG_VERSION"))
+        } else {
+            format!("CS 匹配助手 -By 小淳 v{}", env!("CARGO_PKG_VERSION"))
+        };
+        let _ = window.set_title(&title);
+    }
 }
 
 #[tauri::command]
@@ -212,7 +234,7 @@ pub fn run() {
         .setup(|app| {
             let version = env!("CARGO_PKG_VERSION");
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title(&format!("CS 对局助手 -By 小淳 v{version}"));
+                let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));
             }
 
             update::startup_update_maintenance(app.handle());
@@ -286,6 +308,7 @@ pub fn run() {
             gamebar_widget::uninstall_gamebar_widget,
             relaunch_as_admin,
             close_app,
+            set_app_locale,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

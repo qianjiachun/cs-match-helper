@@ -64,6 +64,7 @@ export type HudAnchor =
   | 'bottomRight';
 
 export interface CounterStrafingSnapshot {
+  locale?: 'zh-CN' | 'en-US';
   active: boolean;
   listening: boolean;
   hudVisible: boolean;
@@ -110,6 +111,7 @@ export interface CounterStrafingAssessmentRecord {
 export type CounterStrafingRecord = CounterStrafingAssessmentRecord;
 
 export interface CounterStrafingAssessmentSnapshot {
+  locale?: 'zh-CN' | 'en-US';
   active: boolean;
   listening: boolean;
   hudVisible: boolean;
@@ -431,7 +433,8 @@ export function speedMarkerY(blockH: number, speedRatio: number): number {
 }
 
 /** 将 speedRatio / error 转为 HUD 与设置页共用的余量/误差文案 */
-export function shotFeedback(record: ShootingErrorRecord): ShotFeedback {
+export function shotFeedback(record: ShootingErrorRecord, locale: 'zh-CN' | 'en-US' = 'zh-CN'): ShotFeedback {
+  const en = locale === 'en-US';
   const kind = sampleState(record);
   const color = sampleStateColor(record);
   const errorPercent = Math.round(record.error * 100);
@@ -445,8 +448,8 @@ export function shotFeedback(record: ShootingErrorRecord): ShotFeedback {
       errorPercent: 0,
       stabilityPercent,
       overspeedPercent: 0,
-      shortLabel: `稳 ${stabilityPercent}%`,
-      detailLabel: `稳定余量 ${stabilityPercent}%`,
+      shortLabel: en ? `Stable ${stabilityPercent}%` : `稳 ${stabilityPercent}%`,
+      detailLabel: en ? `Stability margin ${stabilityPercent}%` : `稳定余量 ${stabilityPercent}%`,
     };
   }
 
@@ -458,8 +461,8 @@ export function shotFeedback(record: ShootingErrorRecord): ShotFeedback {
       errorPercent: pct,
       stabilityPercent: 0,
       overspeedPercent,
-      shortLabel: `误差 ${pct}%`,
-      detailLabel: `超速误差 ${pct}%`,
+      shortLabel: en ? `Error ${pct}%` : `误差 ${pct}%`,
+      detailLabel: en ? `Movement error ${pct}%` : `超速误差 ${pct}%`,
     };
   }
 
@@ -470,8 +473,8 @@ export function shotFeedback(record: ShootingErrorRecord): ShotFeedback {
     errorPercent: pct,
     stabilityPercent: 0,
     overspeedPercent,
-    shortLabel: pct >= 100 ? '跑打 100%' : `误差 ${pct}%`,
-    detailLabel: `超速误差 ${pct}%`,
+    shortLabel: pct >= 100 ? (en ? 'Moving 100%' : '跑打 100%') : (en ? `Error ${pct}%` : `误差 ${pct}%`),
+    detailLabel: en ? `Moving-shot error ${pct}%` : `超速误差 ${pct}%`,
   };
 }
 

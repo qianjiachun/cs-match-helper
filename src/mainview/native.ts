@@ -16,8 +16,10 @@ import type { DownloadUpdateResult, UpdateCheckResult, UpdateProgressEvent } fro
 import type { ChangelogReleaseDetail, ChangelogReleaseSummary } from '@core/update/changelog';
 import type { LogLinePayload, WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
+import type { AppLocale } from './i18n';
 
-const appWindow = getCurrentWindow();
+const hasTauriWindow = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const appWindow = hasTauriWindow ? getCurrentWindow() : null;
 
 function waitForFirstPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -28,6 +30,7 @@ function waitForFirstPaint(): Promise<void> {
 /** 首帧绘制完成后再显示主窗口，并做一次 1px resize 以规避 WebView2 首帧白屏。 */
 export async function showMainWindowAfterFirstPaint(): Promise<void> {
   await waitForFirstPaint();
+  if (!appWindow) return;
   await appWindow.show();
 
   try {
@@ -48,24 +51,28 @@ export async function openExternalUrl(url: string): Promise<void> {
 }
 
 export async function minimizeWindow(): Promise<void> {
-  await appWindow.minimize();
+  await appWindow?.minimize();
 }
 
 /** Flash the Windows taskbar button without showing or focusing the window. */
 export async function requestMatchAttention(): Promise<void> {
-  await appWindow.requestUserAttention(UserAttentionType.Informational);
+  await appWindow?.requestUserAttention(UserAttentionType.Informational);
 }
 
 export async function toggleMaximizeWindow(): Promise<void> {
-  await appWindow.toggleMaximize();
+  await appWindow?.toggleMaximize();
 }
 
 export async function closeWindow(): Promise<void> {
-  await appWindow.close();
+  await appWindow?.close();
 }
 
 export async function closeApp(): Promise<void> {
   await invoke('close_app');
+}
+
+export async function setAppLocale(locale: AppLocale): Promise<void> {
+  await invoke('set_app_locale', { locale });
 }
 
 export async function getLogStatus(): Promise<WatcherStatus> {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "identifier": "default",
-  "description": "CS对局助手默认权限",
+  "description": "CS 匹配助手默认权限",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -80,6 +80,7 @@
     "allow-uninstall-gamebar-widget",
     "allow-relaunch-as-admin",
     "allow-close-app",
+    "allow-set-app-locale",
     "opener:default",
     "dialog:default",
     "core:webview:deny-internal-toggle-devtools"

@@ -117,6 +117,7 @@ pub struct CounterStrafingRuntime {
 
 #[derive(Default)]
 struct RuntimeInner {
+    locale: String,
     active: bool,
     listening: bool,
     hud_visible: bool,
@@ -136,6 +137,29 @@ struct RuntimeInner {
 }
 
 impl CounterStrafingRuntime {
+    pub fn set_locale(&self, app: &AppHandle, locale: &str) {
+        let locale = if locale.eq_ignore_ascii_case("en-US") {
+            "en-US"
+        } else {
+            "zh-CN"
+        };
+        let (snapshot, assessment, signal) = {
+            let mut inner = self.inner.lock().unwrap();
+            inner.locale = locale.to_string();
+            (
+                build_snapshot(&inner),
+                build_assessment_snapshot(&inner),
+                inner.snapshot_signal.clone(),
+            )
+        };
+        let _ = app.emit("counter-strafing-status", snapshot);
+        let _ = app.emit("counter-strafing-assessment-snapshot", assessment);
+        let _ = app.emit("app-locale-changed", locale);
+        if let Some(signal) = signal {
+            signal.bump();
+        }
+    }
+
     pub fn assessment_snapshot(&self) -> CounterStrafingAssessmentSnapshot {
         let inner = self.inner.lock().unwrap();
         build_assessment_snapshot(&inner)
@@ -1153,6 +1177,7 @@ fn build_snapshot(inner: &RuntimeInner) -> CounterStrafingSnapshot {
         }
     };
     snap.hud_locked = inner.settings.hud_locked;
+    snap.locale = normalized_locale(&inner.locale).to_string();
     snap.hud_show_stable_bars = inner.settings.hud_show_stable_bars;
     snap.hud_show_tap_markers = inner.settings.hud_show_tap_markers;
     snap.assessment_hud_visible = inner.assessment_hud_visible;
@@ -1176,9 +1201,14 @@ fn build_assessment_snapshot(inner: &RuntimeInner) -> CounterStrafingAssessmentS
             ..Default::default()
         }
     };
+    snap.locale = normalized_locale(&inner.locale).to_string();
     snap.hud_locked = inner.settings.assessment_hud_locked;
     apply_hud_display_to_assessment_snapshot(&mut snap, &inner.settings);
     snap
+}
+
+fn normalized_locale(locale: &str) -> &'static str {
+    if locale.eq_ignore_ascii_case("en-US") { "en-US" } else { "zh-CN" }
 }
 
 const WIDGET_IPC_TAIL: usize = 32;

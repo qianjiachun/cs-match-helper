@@ -177,6 +177,8 @@ pub struct CounterStrafingAssessmentRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CounterStrafingAssessmentSnapshot {
+    #[serde(default = "default_locale")]
+    pub locale: String,
     pub active: bool,
     pub listening: bool,
     pub hud_visible: bool,
@@ -213,6 +215,7 @@ pub struct CounterStrafingAssessmentSnapshot {
 impl Default for CounterStrafingAssessmentSnapshot {
     fn default() -> Self {
         Self {
+            locale: default_locale(),
             active: false,
             listening: false,
             hud_visible: false,
@@ -360,6 +363,8 @@ impl Default for HudAnchor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CounterStrafingSnapshot {
+    #[serde(default = "default_locale")]
+    pub locale: String,
     pub active: bool,
     pub listening: bool,
     pub hud_visible: bool,
@@ -400,6 +405,7 @@ pub struct CounterStrafingSnapshot {
 impl Default for CounterStrafingSnapshot {
     fn default() -> Self {
         Self {
+            locale: default_locale(),
             active: false,
             listening: false,
             hud_visible: false,
@@ -528,6 +534,10 @@ pub struct CounterStrafingSettings {
     pub hud_content_mode: HudContentMode,
     #[serde(default)]
     pub assessment_chart_type: AssessmentChartType,
+}
+
+fn default_locale() -> String {
+    "zh-CN".to_string()
 }
 
 pub const GAMEBAR_ASSESSMENT_RATIO_MIN: f64 = 0.05;
