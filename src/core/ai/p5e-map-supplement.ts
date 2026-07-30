@@ -6,7 +6,7 @@ import type {
   AiTokenUsage,
   StartAiAnalysisInput,
 } from './types';
-import { AI_OUTPUT_LANGUAGE_RULES } from './ai-prompt-schema';
+import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, type AiOutputLocale } from './ai-prompt-schema';
 import { p5eMapFitHint } from './p5e-baselines';
 import { sanitizeAiAnalysisResult } from './sanitize-result';
 
@@ -53,6 +53,20 @@ export const P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA = `请输出严格 JSON，字段�
 仅输出 JSON。winProbability、confidence、headlineRefine 为可选；其余数组可为空但建议至少提供 keyFactorsAdd 或 quickReasonsAdd。
 `;
 
+const P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA_EN = `Return strict JSON in this shape:
+{
+  "winProbability": { "A": number, "B": number },
+  "confidence": number,
+  "headlineRefine": string,
+  "quickReasonsAdd": string[],
+  "keyFactorsAdd": [{ "side": "A|B|Both", "type": "map|form|risk", "text": string, "weight": number }],
+  "playerNotesAdd": [{ "steamId": string, "nickname": string, "side": "A|B", "text": string, "role": string }],
+  "risksAdd": string[],
+  "dataQuality": string
+}
+Return JSON only. winProbability, confidence, and headlineRefine are optional; arrays may be empty, but include at least one map-related key factor or quick reason when data permits.
+`;
+
 export function resolveP5eMapName(record: MatchRecord): string | undefined {
   const name = (record.detail.mapName ?? record.summary.mapName)?.trim();
   return name || undefined;
@@ -67,7 +81,6 @@ export function resolveP5eMapStatus(record: MatchRecord): P5eMapStatus {
 }
 
 function summarizeMapPlayersForSupplement(record: MatchRecord) {
-  const mapName = resolveP5eMapName(record);
   return record.detail.teams.flatMap((team) =>
     team.players.map((player) => ({
       steamId: player.steamId,
@@ -117,12 +130,13 @@ export function buildP5eMapSupplementPayload(
 export function buildP5eMapSupplementRequest(
   record: MatchRecord,
   previous: AiAnalysisResult,
+  locale: AiOutputLocale = 'zh-CN',
 ): StartAiAnalysisInput {
   const payload = buildP5eMapSupplementPayload(record, previous);
   return {
     matchId: record.id,
-    systemPrompt: P5E_MAP_SUPPLEMENT_SYSTEM_PROMPT,
-    userPrompt: P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA + JSON.stringify(payload),
+    systemPrompt: P5E_MAP_SUPPLEMENT_SYSTEM_PROMPT.replace(AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules(locale)),
+    userPrompt: (locale === 'en-US' ? P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA_EN : P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA) + JSON.stringify(payload),
   };
 }
 

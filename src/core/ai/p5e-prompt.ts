@@ -10,7 +10,7 @@ import {
   type P5ePlayerMatchEntry,
 } from '@platforms/5e/match-detail-parser';
 import { numOrUndef, parseP5eSpecialData } from '@platforms/5e/field-mapper';
-import { AI_USER_PROMPT_SCHEMA, AI_OUTPUT_LANGUAGE_RULES } from './ai-prompt-schema';
+import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, getAiUserPromptSchema, type AiOutputLocale } from './ai-prompt-schema';
 import { P5E_METRIC_BASELINES_TEXT, p5eMapFitHint } from './p5e-baselines';
 import { resolveP5eMapName, resolveP5eMapStatus } from './p5e-map-supplement';
 import type { StartAiAnalysisInput } from './types';
@@ -325,11 +325,11 @@ export function buildP5eMatchSummary(record: MatchRecord): P5eMatchSummaryPayloa
 
 export { hasP5eMapReady, resolveP5eMapName, resolveP5eMapStatus } from './p5e-map-supplement';
 
-export function buildP5eAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
+export function buildP5eAiAnalysisRequest(record: MatchRecord, locale: AiOutputLocale = 'zh-CN'): StartAiAnalysisInput {
   const summary = buildP5eMatchSummary(record);
   return {
     matchId: record.id,
-    systemPrompt: P5E_SYSTEM_PROMPT,
-    userPrompt: AI_USER_PROMPT_SCHEMA + JSON.stringify(summary),
+    systemPrompt: P5E_SYSTEM_PROMPT.replace(AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules(locale)),
+    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify(summary),
   };
 }

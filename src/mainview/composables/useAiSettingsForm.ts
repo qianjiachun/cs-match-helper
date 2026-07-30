@@ -10,6 +10,7 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue';
 import { getAiSettingsPath } from '../native';
 import type { useAiAnalysis } from './useAiAnalysis';
+import { localize as l } from '../i18n';
 
 export function useAiSettingsForm(
   ai: ReturnType<typeof useAiAnalysis>,
@@ -61,21 +62,21 @@ export function useAiSettingsForm(
   }
 
   const maskedHint = computed(() => {
-    if (!ai.settings.value?.hasApiKey) return '尚未配置 API Key';
-    if (apiKeyInput.value.trim()) return 'Key 已填写，修改后将自动保存';
+    if (!ai.settings.value?.hasApiKey) return l('尚未配置 API Key', 'API key not configured');
+    if (apiKeyInput.value.trim()) return l('Key 已填写，修改后将自动保存', 'Key entered. Changes save automatically.');
     const masked = ai.settings.value.apiKeyMasked;
-    return masked ? `已保存：${masked}` : 'Key 已保存';
+    return masked ? l(`已保存：${masked}`, `Saved: ${masked}`) : l('Key 已保存', 'Key saved');
   });
 
   const statusText = computed(() => {
-    if (saving.value) return '正在保存…';
+    if (saving.value) return l('正在保存…', 'Saving…');
     if (saveMessage.value) return saveMessage.value;
-    return '修改后将自动保存';
+    return l('修改后将自动保存', 'Changes save automatically');
   });
 
-  const isSaveSuccess = computed(() => saveMessage.value === '已自动保存');
+  const isSaveSuccess = computed(() => saveMessage.value === l('已自动保存', 'Saved automatically'));
   const isSaveError = computed(
-    () => saveMessage.value.includes('失败') || saveMessage.value.includes('错误'),
+    () => /失败|错误|failed|error/i.test(saveMessage.value),
   );
 
   function buildInput(): SaveAiSettingsInput {
@@ -104,7 +105,7 @@ export function useAiSettingsForm(
       model.value = saved.model;
       thinkingEnabled.value = saved.thinkingEnabled;
       syncingFromServer.value = false;
-      saveMessage.value = '已自动保存';
+      saveMessage.value = l('已自动保存', 'Saved automatically');
       try {
         settingsPath.value = await getAiSettingsPath();
       } catch {

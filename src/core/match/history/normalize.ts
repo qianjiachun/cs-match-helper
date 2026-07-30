@@ -241,6 +241,7 @@ export function normalizeAiSectionPayload(payload: unknown): AiSectionPayloadV1 
     elapsedMs: asNumber(obj.elapsedMs),
     error: asString(obj.error),
     result: asRecord(obj.result) ?? undefined,
+    locale: obj.locale === 'en-US' ? 'en-US' : obj.locale === 'zh-CN' ? 'zh-CN' : undefined,
   };
 }
 

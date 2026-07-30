@@ -31,7 +31,15 @@ export function getApiKeyLabel(mode: AiProviderMode | string | undefined): strin
   return isDeepSeekProvider(mode) ? 'DeepSeek API Key' : 'API Key';
 }
 
-export function getMissingApiKeyMessage(mode: AiProviderMode | string | undefined): string {
+export function getMissingApiKeyMessage(
+  mode: AiProviderMode | string | undefined,
+  locale: 'zh-CN' | 'en-US' = 'zh-CN',
+): string {
+  if (locale === 'en-US') {
+    return isDeepSeekProvider(mode)
+      ? 'Configure a DeepSeek API key in Settings first'
+      : 'Configure an API key in Settings first';
+  }
   return isDeepSeekProvider(mode)
     ? '请先在设置中配置 DeepSeek API Key'
     : '请先在设置中配置 API Key';

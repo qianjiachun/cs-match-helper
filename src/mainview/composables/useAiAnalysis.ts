@@ -31,6 +31,7 @@ import {
   saveAiSettings,
   startAiAnalysis,
 } from '../native';
+import { currentLocale, i18n, localizeErrorMessage, type AppLocale } from '../i18n';
 
 export type AiAnalysisPhase = 'base' | 'map-supplement' | null;
 
@@ -44,6 +45,7 @@ export interface AiAnalysisSettledPayload {
   model?: string;
   providerMode?: string;
   analyzedAt: number;
+  locale: AppLocale;
 }
 
 function isP5eRecord(record: MatchRecord): boolean {
@@ -68,9 +70,11 @@ export function useAiAnalysis(options?: {
   const startedAt = ref<number | null>(null);
   const analysisPhase = ref<AiAnalysisPhase>(null);
   const supplementedMap = ref<string | null>(null);
+  const resultLocale = ref<AppLocale | null>(null);
   const pendingMapSupplementRecord = ref<MatchRecord | null>(null);
 
   let baseResultSnapshot: AiAnalysisResult | null = null;
+  let activeAnalysisLocale: AppLocale = currentLocale();
   let baseElapsedMsSnapshot = 0;
 
   const unlisteners: Array<() => void> = [];
@@ -83,7 +87,7 @@ export function useAiAnalysis(options?: {
       settings.value = await loadAiSettings();
     } catch (e) {
       settings.value = null;
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     }
   }
 
@@ -137,6 +141,7 @@ export function useAiAnalysis(options?: {
       model: settings.value?.model,
       providerMode: settings.value?.providerMode,
       analyzedAt: Date.now(),
+      locale: activeAnalysisLocale,
     });
   }
 
@@ -164,13 +169,13 @@ export function useAiAnalysis(options?: {
 
     try {
       await cancelAiAnalysis();
-      const request = buildP5eMapSupplementRequest(record, baseResultSnapshot);
+      const request = buildP5eMapSupplementRequest(record, baseResultSnapshot, activeAnalysisLocale);
       await startAiAnalysis(request);
     } catch (e) {
       analysisPhase.value = null;
       supplementedMap.value = null;
       status.value = 'error';
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
     }
   }
 
@@ -230,9 +235,9 @@ export function useAiAnalysis(options?: {
               const delta = parseP5eMapSupplementResult(evt.fullText);
               if (!delta || !baseResultSnapshot) {
                 status.value = 'error';
-                error.value = '地图补充结果无法解析，请重试';
+                error.value = i18n.global.t('aiErrors.mapSupplementParse');
                 analysisPhase.value = null;
-                emitSettled(evt.matchId, 'error', '地图补充结果无法解析，请重试');
+                emitSettled(evt.matchId, 'error', i18n.global.t('aiErrors.mapSupplementParse'));
                 return;
               }
               result.value = mergeAiMapSupplement(baseResultSnapshot, delta);
@@ -261,8 +266,8 @@ export function useAiAnalysis(options?: {
             result.value = parseAiAnalysisResult(evt.fullText);
             if (!result.value) {
               status.value = 'error';
-              error.value = 'AI 返回格式无法解析，请重试';
-              emitSettled(evt.matchId, 'error', 'AI 返回格式无法解析，请重试');
+              error.value = i18n.global.t('aiErrors.responseParse');
+              emitSettled(evt.matchId, 'error', i18n.global.t('aiErrors.responseParse'));
               return;
             }
 
@@ -287,7 +292,7 @@ export function useAiAnalysis(options?: {
           onAiAnalysisError((evt) => {
             if (activeMatchId.value && evt.matchId !== activeMatchId.value) return;
             status.value = 'error';
-            error.value = evt.error;
+            error.value = localizeErrorMessage(evt.error);
             if (analysisPhase.value === 'map-supplement') {
               supplementedMap.value = null;
             }
@@ -326,6 +331,8 @@ export function useAiAnalysis(options?: {
     }
 
     resetForMatch(record.id);
+    activeAnalysisLocale = currentLocale();
+    resultLocale.value = activeAnalysisLocale;
     analysisPhase.value = shouldAwaitLiveMapSupplement(record, force) ? 'base' : null;
     if (force || hasP5eMapReady(record)) {
       const mapName = resolveP5eMapName(record);
@@ -334,11 +341,11 @@ export function useAiAnalysis(options?: {
 
     try {
       await cancelAiAnalysis();
-      const request = buildAiAnalysisRequest(record);
+      const request = buildAiAnalysisRequest(record, activeAnalysisLocale);
       await startAiAnalysis(request);
     } catch (e) {
       status.value = 'error';
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = localizeErrorMessage(e);
       analysisPhase.value = null;
     }
   }
@@ -375,12 +382,13 @@ export function useAiAnalysis(options?: {
   /** 调试注入：跳过 API 请求，直接展示 AI 分析 JSON */
   async function injectResult(matchId: string, raw: string): Promise<string | null> {
     const parsed = parseAiAnalysisResult(raw);
-    if (!parsed) return 'AI 结果 JSON 无法解析，请检查格式';
+    if (!parsed) return i18n.global.t('aiErrors.injectParse');
     await cancelAiAnalysis();
     activeMatchId.value = matchId;
     status.value = 'done';
     streamingText.value = raw.trim();
     result.value = parsed;
+    resultLocale.value = currentLocale();
     usage.value = null;
     usageBreakdown.value = null;
     elapsedMs.value = 0;
@@ -406,10 +414,11 @@ export function useAiAnalysis(options?: {
     status.value = statusMap[historyAi.status] ?? 'idle';
     streamingText.value = '';
     result.value = historyAi.result;
+    resultLocale.value = historyAi.locale ?? null;
     usage.value = historyAi.usage;
     usageBreakdown.value = null;
     elapsedMs.value = historyAi.elapsedMs;
-    error.value = historyAi.error;
+    error.value = historyAi.error ? localizeErrorMessage(historyAi.error) : null;
     startedAt.value = historyAi.analyzedAt ?? null;
     resetSupplementState();
   }
@@ -443,6 +452,7 @@ export function useAiAnalysis(options?: {
     startedAt,
     analysisPhase,
     supplementedMap,
+    resultLocale,
     ensureSettingsLoaded,
     ensureAnalysisListeners,
     ensureReady,

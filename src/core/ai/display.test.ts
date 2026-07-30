@@ -12,4 +12,9 @@ describe('formatAiWinnerCapsule', () => {
     expect(formatAiWinnerCapsule('Even', { A: 52, B: 48 })).toBe('势均力敌 A52%·B48%');
     expect(formatAiWinnerCapsule('Unknown', { A: 50, B: 50 })).toBe('难以判断');
   });
+
+  it('uses standard English team terminology', () => {
+    expect(formatAiWinnerCapsule('A', { A: 62, B: 38 }, 'en-US')).toBe('Team A 62%');
+    expect(formatAiWinnerCapsule('Even', { A: 50, B: 50 }, 'en-US')).toBe('Even 50%');
+  });
 });

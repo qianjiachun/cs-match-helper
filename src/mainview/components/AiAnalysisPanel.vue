@@ -9,6 +9,7 @@ import {
   Target,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import AiLoadingAnimation from './AiLoadingAnimation.vue';
 import AiSparklesIcon from './AiSparklesIcon.vue';
 import {
@@ -29,6 +30,9 @@ import type { MatchRecord } from '@core/match/models';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import { openExternalUrl } from '../native';
 import PlayerAvatar from './PlayerAvatar.vue';
+import { currentLocale } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   match: MatchRecord;
@@ -75,7 +79,7 @@ const isDeepSeekMode = computed(() =>
 );
 const apiKeyLabel = computed(() => getApiKeyLabel(props.ai.settings.value?.providerMode));
 const missingApiKeyMessage = computed(() =>
-  getMissingApiKeyMessage(props.ai.settings.value?.providerMode),
+  getMissingApiKeyMessage(props.ai.settings.value?.providerMode, currentLocale()),
 );
 
 const showSetupGuide = computed(() => setupState.value !== 'active');
@@ -87,6 +91,9 @@ const isMapSupplementing = computed(() => props.ai.analysisPhase.value === 'map-
 const isError = computed(() => props.ai.status.value === 'error');
 const isNoKey = computed(() => props.ai.status.value === 'no-key');
 const result = computed(() => props.ai.result.value);
+const historyLocaleMismatch = computed(() =>
+  Boolean(props.historyMode && result.value && props.ai.resultLocale.value && props.ai.resultLocale.value !== currentLocale()),
+);
 const localInsights = computed(() => props.match.detail.insights);
 
 const canRunHistoryAnalysis = computed(
@@ -117,21 +124,21 @@ const winB = computed(() => result.value?.winProbability.B ?? 50);
 
 const localHeadline = computed(() => {
   const ins = localInsights.value;
-  if (!ins?.strongerSide) return '双方数据接近，等待 AI 细化判断';
-  return `本地初判：队伍 ${ins.strongerSide} 综合数据略优`;
+  if (!ins?.strongerSide) return t('aiUi.closeData');
+  return t('aiUi.localLead', { side: ins.strongerSide });
 });
 
 const headline = computed(() => {
   if (isDisabled.value) {
     if (props.ai.settings.value?.analysisEnabled && !props.ai.settings.value?.hasApiKey) {
-      return '请先在设置中填写 API Key 以启用 AI 分析';
+      return t('aiUi.needKey');
     }
-    return 'AI 分析已关闭，可在设置中开启';
+    return t('aiUi.disabled');
   }
   if (result.value?.headline) return result.value.headline;
-  if (isLoading.value) return `${localHeadline.value}，AI 正在校准…`;
+  if (isLoading.value) return t('aiUi.calibrating', { headline: localHeadline.value });
   if (isNoKey.value) return missingApiKeyMessage.value;
-  return '等待 AI 分析…';
+  return t('aiUi.waiting');
 });
 
 const quickChips = computed(() => {
@@ -148,8 +155,8 @@ const stabilityText = computed(() => {
   if (!result.value) return null;
   const reason = result.value.stabilityReason;
   const pct = result.value.confidence;
-  if (reason) return `数据把握 ${pct}% · ${reason}`;
-  return `数据把握 ${pct}%`;
+  if (reason) return t('aiUi.confidenceReason', { value: pct, reason });
+  return t('aiUi.confidence', { value: pct });
 });
 
 const elapsedLabel = computed(() => {
@@ -166,19 +173,19 @@ const elapsedLabel = computed(() => {
 
 const usageLabel = computed(() => {
   const u = props.ai.usage.value;
-  if (!u) return isLoading.value ? '统计中…' : '—';
+  if (!u) return isLoading.value ? t('aiUi.calculating') : '—';
   const breakdown = props.ai.usageBreakdown.value;
   if (breakdown && breakdown.mapSupplement.totalTokens > 0) {
-    return `输入 ${u.promptTokens} · 输出 ${u.completionTokens} · 合计 ${u.totalTokens}`;
+    return t('aiUi.tokens', { input: u.promptTokens, output: u.completionTokens, total: u.totalTokens });
   }
-  return `输入 ${u.promptTokens} · 输出 ${u.completionTokens} · 合计 ${u.totalTokens}`;
+  return t('aiUi.tokens', { input: u.promptTokens, output: u.completionTokens, total: u.totalTokens });
 });
 
 const usageTooltip = computed(() => {
   const breakdown = props.ai.usageBreakdown.value;
   if (!breakdown || breakdown.mapSupplement.totalTokens <= 0) return '';
   const { base, mapSupplement } = breakdown;
-  return `首轮 输入 ${base.promptTokens} · 输出 ${base.completionTokens} · 地图补充 输入 ${mapSupplement.promptTokens} · 输出 ${mapSupplement.completionTokens}`;
+  return t('aiUi.tokenBreakdown', { baseInput: base.promptTokens, baseOutput: base.completionTokens, mapInput: mapSupplement.promptTokens, mapOutput: mapSupplement.completionTokens });
 });
 
 const costLabel = computed(() => {
@@ -284,31 +291,29 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         </div>
         <p class="mb-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-100/80 px-3 py-1 text-[11px] font-semibold text-amber-800">
           <AlertTriangle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          缺少必要配置
+          {{ t('aiUi.missingConfig') }}
         </p>
         <h2 class="mb-3 text-[18px] font-bold text-slate-800">
-          请先填写
+          {{ t('aiUi.fillKey') }}
           <span class="text-warning">API Key</span>
         </h2>
         <p class="mb-4 text-[13px] leading-relaxed text-slate-600">
-          你已在设置中开启 AI 分析，但尚未填写
-          <span class="font-semibold text-amber-800">{{ apiKeyLabel }}</span>。
-          填写后即可使用赛前预测与维度分析。
+          {{ t('aiUi.keyExplanation', { label: apiKeyLabel }) }}
         </p>
         <div class="mb-5 rounded-xl border border-amber-200/90 bg-white/80 px-4 py-3 text-left text-[12px] leading-relaxed text-slate-700">
-          <p class="font-medium text-amber-900">在设置中找到「{{ apiKeyLabel }}」并粘贴你的 Key</p>
+          <p class="font-medium text-amber-900">{{ t('aiUi.findKey', { label: apiKeyLabel }) }}</p>
           <p v-if="isDeepSeekMode" class="mt-1.5 text-slate-500">
-            还没有 Key？
+            {{ t('aiUi.noKey') }}
             <a
               href="#"
               class="cursor-pointer font-medium text-accent transition-colors duration-200 hover:text-accent-hover hover:underline"
               @click.prevent="openExternalUrl(DEEPSEEK_API_KEYS_URL)"
             >
-              前往 DeepSeek 获取 API Key
+              {{ t('aiUi.getDeepSeekKey') }}
             </a>
           </p>
           <p v-else class="mt-1.5 text-slate-500">
-            请向你所选服务商获取兼容 OpenAI 的 API Key。
+            {{ t('aiUi.providerKey') }}
           </p>
         </div>
         <button
@@ -316,7 +321,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
           class="group flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-warning px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-colors duration-200 hover:brightness-95 hover:shadow-md"
           @click="emit('openSettings')"
         >
-          去设置填写 API Key
+          {{ t('aiUi.configureKey') }}
           <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
@@ -328,16 +333,16 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
             <AiSparklesIcon badge size="md" static />
           </div>
         </div>
-        <h2 class="mb-3 text-[18px] font-bold text-slate-800">未开启 AI 分析</h2>
+        <h2 class="mb-3 text-[18px] font-bold text-slate-800">{{ t('aiUi.notEnabled') }}</h2>
         <p class="mb-6 text-[13px] leading-relaxed text-slate-500">
-          开启后，匹配助手将根据双方数据进行胜负预测与维度分析。
+          {{ t('aiUi.enableDesc') }}
         </p>
         <button
           type="button"
           class="group inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-accent-hover hover:shadow-md"
           @click="emit('openSettings')"
         >
-          去设置中开启
+          {{ t('aiUi.enable') }}
           <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
@@ -356,13 +361,13 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         </div>
 
         <h2 class="text-[1rem] leading-6 font-semibold text-slate-900">
-          {{ isError ? '分析未完成' : '本局暂无赛前分析' }}
+          {{ isError ? t('aiUi.incomplete') : t('aiUi.noHistory') }}
         </h2>
         <p class="mt-1.5 text-sm leading-relaxed text-slate-500">
           {{
             isError
-              ? '可重新生成，结果会写回本局历史'
-              : '可按当时对局数据补跑，并保存至历史记录'
+              ? t('aiUi.retryHistory')
+              : t('aiUi.generateHistory')
           }}
         </p>
 
@@ -379,7 +384,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
           class="mt-6 w-full cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-accent-hover active:scale-[0.98]"
           @click="emit('analyze')"
         >
-          {{ isError ? '重试' : '生成分析' }}
+          {{ isError ? t('common.retry') : t('aiUi.generate') }}
         </button>
       </div>
     </div>
@@ -395,7 +400,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         class="cursor-pointer rounded-lg px-4 py-2 text-[12px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-100 hover:text-slate-700"
         @click="emit('stop')"
       >
-        停止分析
+        {{ t('aiUi.stopAnalysis') }}
       </button>
     </div>
 
@@ -412,7 +417,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         v-if="isMapSupplementing"
         class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800"
       >
-        地图已确认，正在补充分析…
+        {{ t('aiUi.mapSupplement') }}
       </p>
       <!-- 主结论卡 -->
       <section
@@ -464,7 +469,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
                 B {{ winB }}%
               </span>
             </div>
-            <p class="text-center text-[10px] text-slate-400">赛前胜率预估，非对局结果</p>
+            <p class="text-center text-[10px] text-slate-400">{{ t('aiUi.disclaimer') }}</p>
           </div>
 
           <div v-if="quickChips.length" class="flex flex-wrap gap-1.5">
@@ -488,7 +493,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50/80 px-5 py-2 text-[10px] text-slate-500">
-          <span>耗时 {{ elapsedLabel }}</span>
+          <span>{{ t('aiUi.elapsed', { value: elapsedLabel }) }}</span>
           <span v-if="result?.dataQuality" class="text-slate-400">{{ result.dataQuality }}</span>
           <span class="flex items-center gap-2">
             <span :title="usageTooltip || undefined">Tokens · {{ usageLabel }}</span>
@@ -499,6 +504,12 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
             >
               {{ costLabel }}
             </span>
+            <span
+              v-if="historyLocaleMismatch"
+              class="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700"
+            >
+              {{ t('aiUi.languageMismatch') }}
+            </span>
             <button
               v-if="showHistoryRerunCta"
               type="button"
@@ -506,7 +517,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
               @click="emit('analyze')"
             >
               <RefreshCw class="h-2.5 w-2.5" aria-hidden="true" />
-              重新分析
+              {{ historyLocaleMismatch ? t('aiUi.regenerateCurrentLanguage') : t('aiUi.reanalyze') }}
             </button>
             <button
               v-if="historyMode && isLoading"
@@ -514,7 +525,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
               class="ml-1 cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-200/60 hover:text-slate-700"
               @click="emit('stop')"
             >
-              停止
+              {{ t('aiUi.stop') }}
             </button>
           </span>
         </div>
@@ -525,7 +536,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         <section class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm" data-match-reveal="compare">
           <div class="mb-2 flex items-center gap-1.5">
             <Swords class="h-3.5 w-3.5 text-blue-500" />
-            <h3 class="text-[12px] font-bold text-slate-800">看点</h3>
+            <h3 class="text-[12px] font-bold text-slate-800">{{ t('aiUi.highlights') }}</h3>
           </div>
           <ul v-if="highlightFactors.length" class="space-y-1.5">
             <li
@@ -544,13 +555,13 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
               </button>
             </li>
           </ul>
-          <p v-else class="text-[11px] text-slate-400">等待 AI 返回…</p>
+          <p v-else class="text-[11px] text-slate-400">{{ t('aiUi.waitingReturn') }}</p>
         </section>
 
         <section class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm" data-match-reveal="compare">
           <div class="mb-2 flex items-center gap-1.5">
             <Shield class="h-3.5 w-3.5 text-amber-500" />
-            <h3 class="text-[12px] font-bold text-slate-800">风险</h3>
+            <h3 class="text-[12px] font-bold text-slate-800">{{ t('aiUi.risks') }}</h3>
           </div>
           <ul v-if="riskDisplayItems.length" class="space-y-1.5">
             <li v-for="(item, i) in riskDisplayItems" :key="'r-' + i">
@@ -568,7 +579,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
               </p>
             </li>
           </ul>
-          <p v-else class="text-[11px] text-slate-400">暂无显著风险</p>
+          <p v-else class="text-[11px] text-slate-400">{{ t('aiUi.noRisks') }}</p>
         </section>
       </div>
 
@@ -578,7 +589,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
         class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm"
         data-match-reveal="compare"
       >
-        <h3 class="mb-3 text-[13px] font-bold text-slate-800">重点玩家</h3>
+        <h3 class="mb-3 text-[13px] font-bold text-slate-800">{{ t('aiUi.keyPlayers') }}</h3>
         <div class="grid gap-3 sm:grid-cols-2">
           <button
             v-for="note in displayPlayerNotes"
@@ -641,7 +652,7 @@ function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean
                   >
                     R {{ note.rating.toFixed(2) }}
                   </span>
-                  <span class="text-[10px] text-slate-400">队伍 {{ note.side }}</span>
+                  <span class="text-[10px] text-slate-400">{{ t('aiUi.team', { side: note.side }) }}</span>
                 </div>
               </div>
             </div>

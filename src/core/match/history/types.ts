@@ -64,6 +64,7 @@ export interface AiSectionPayloadV1 {
   elapsedMs?: number;
   error?: string;
   result?: Record<string, unknown>;
+  locale?: 'zh-CN' | 'en-US';
 }
 
 export interface MatchHistoryDocumentV1 {

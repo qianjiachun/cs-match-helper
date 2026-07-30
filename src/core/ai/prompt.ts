@@ -1,6 +1,6 @@
 import type { MatchPlayer, MatchRecord, MatchTeam } from '@core/match/models';
 import { RADAR_LABELS } from '@core/match/insights';
-import { AI_USER_PROMPT_SCHEMA, AI_OUTPUT_LANGUAGE_RULES } from './ai-prompt-schema';
+import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, getAiUserPromptSchema, type AiOutputLocale } from './ai-prompt-schema';
 import { METRIC_BASELINES_TEXT, mapFitHint } from './baselines';
 import { buildP5eAiAnalysisRequest } from './p5e-prompt';
 import { sanitizeAiAnalysisResult } from './sanitize-result';
@@ -209,20 +209,24 @@ export function buildMatchSummary(record: MatchRecord): MatchSummaryPayload {
   };
 }
 
-export function buildPerfectAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
+function localizeSystemPrompt(prompt: string, locale: AiOutputLocale): string {
+  return prompt.replace(AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules(locale));
+}
+
+export function buildPerfectAiAnalysisRequest(record: MatchRecord, locale: AiOutputLocale = 'zh-CN'): StartAiAnalysisInput {
   const summary = buildMatchSummary(record);
   return {
     matchId: record.id,
-    systemPrompt: PERFECT_SYSTEM_PROMPT,
-    userPrompt: AI_USER_PROMPT_SCHEMA + JSON.stringify(summary),
+    systemPrompt: localizeSystemPrompt(PERFECT_SYSTEM_PROMPT, locale),
+    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify(summary),
   };
 }
 
-export function buildAiAnalysisRequest(record: MatchRecord): StartAiAnalysisInput {
+export function buildAiAnalysisRequest(record: MatchRecord, locale: AiOutputLocale = 'zh-CN'): StartAiAnalysisInput {
   if (record.platformId === '5e' || record.detail.platformId === '5e') {
-    return buildP5eAiAnalysisRequest(record);
+    return buildP5eAiAnalysisRequest(record, locale);
   }
-  return buildPerfectAiAnalysisRequest(record);
+  return buildPerfectAiAnalysisRequest(record, locale);
 }
 
 export function parseAiAnalysisResult(raw: string): import('./types').AiAnalysisResult | null {

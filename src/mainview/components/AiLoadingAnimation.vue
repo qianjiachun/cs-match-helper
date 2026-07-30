@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { localize as l } from '../i18n';
 // @ts-ignore
 import { animate, stagger } from 'animejs';
 import { onMounted, onUnmounted, ref } from 'vue';
@@ -51,8 +52,8 @@ onUnmounted(() => {
       />
     </div>
     <div class="mt-8 flex flex-col items-center gap-2">
-      <p class="animate-pulse text-[14px] font-semibold text-indigo-600">AI 数据分析中...</p>
-      <p class="text-[11px] text-slate-500">正在分析对局，请稍候</p>
+      <p class="animate-pulse text-[14px] font-semibold text-indigo-600">{{ l('AI 数据分析中…', 'AI analyzing match data…') }}</p>
+      <p class="text-[11px] text-slate-500">{{ l('正在分析对局，请稍候', 'This may take a moment.') }}</p>
     </div>
   </div>
 </template>

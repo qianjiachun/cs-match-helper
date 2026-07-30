@@ -74,6 +74,7 @@ export function aiResultToAiSection(input: {
   model?: string;
   providerMode?: AiProviderMode | string;
   analyzedAt?: number;
+  locale?: 'zh-CN' | 'en-US';
   now?: number;
 }): VersionedSection<AiSectionPayloadV1> {
   const now = input.now ?? Date.now();
@@ -88,6 +89,7 @@ export function aiResultToAiSection(input: {
     result: input.result
       ? (JSON.parse(JSON.stringify(input.result)) as Record<string, unknown>)
       : undefined,
+    locale: input.locale,
   };
   return {
     schemaVersion: CURRENT_AI_SECTION_VERSION,
@@ -182,6 +184,7 @@ export interface MatchHistoryViewModel {
     model?: string;
     providerMode?: string;
     analyzedAt?: number;
+    locale?: 'zh-CN' | 'en-US';
   };
   unsupportedSections: string[];
 }
@@ -211,6 +214,7 @@ export function documentToViewModel(
       model: aiPayload?.model,
       providerMode: aiPayload?.providerMode,
       analyzedAt: aiPayload?.analyzedAt,
+      locale: aiPayload?.locale,
     },
     unsupportedSections,
   };

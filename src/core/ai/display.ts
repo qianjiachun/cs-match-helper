@@ -4,17 +4,21 @@ import type { AiPredictedWinner } from './types';
 export function formatAiWinnerCapsule(
   winner: AiPredictedWinner,
   prob: { A: number; B: number },
+  locale: 'zh-CN' | 'en-US' = 'zh-CN',
 ): string {
+  const en = locale === 'en-US';
   switch (winner) {
     case 'A':
-      return `A队 ${prob.A}%`;
+      return en ? `Team A ${prob.A}%` : `A队 ${prob.A}%`;
     case 'B':
-      return `B队 ${prob.B}%`;
+      return en ? `Team B ${prob.B}%` : `B队 ${prob.B}%`;
     case 'Even':
-      return prob.A === prob.B ? `势均力敌 ${prob.A}%` : `势均力敌 A${prob.A}%·B${prob.B}%`;
+      return prob.A === prob.B
+        ? (en ? `Even ${prob.A}%` : `势均力敌 ${prob.A}%`)
+        : (en ? `Even A ${prob.A}% · B ${prob.B}%` : `势均力敌 A${prob.A}%·B${prob.B}%`);
     case 'Unknown':
-      return '难以判断';
+      return en ? 'Unclear' : '难以判断';
     default:
-      return '难以判断';
+      return en ? 'Unclear' : '难以判断';
   }
 }
