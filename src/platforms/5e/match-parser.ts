@@ -11,7 +11,11 @@ import { formatP5eHomeEnrichError } from './home-api';
 import { P5eMatchAggregator } from './aggregator';
 import { buildP5ePlayer, resolveMatchMap } from './field-mapper';
 import { hasMatchDetailTeams, resolveMapDescFromMatchDetail } from './match-detail-parser';
-import { computeP5eReadyDeadline, P5E_READY_COUNTDOWN_MS } from './ready-deadline';
+import {
+  computeP5eReadyDeadline,
+  parseP5eCapturedAtMs,
+  P5E_READY_COUNTDOWN_MS,
+} from './ready-deadline';
 import type { P5eApiPayload, P5eMatchBundle } from './types';
 
 const MODE_LABELS: Record<number, string> = {
@@ -134,12 +138,17 @@ export function summarizeP5eMatch(bundle: P5eMatchBundle): MatchSummary {
   };
 }
 
+function formatP5eBundleCapturedAt(capturedAt: string | undefined): string {
+  const ms = parseP5eCapturedAtMs(capturedAt);
+  return ms != null ? new Date(ms).toISOString() : new Date().toISOString();
+}
+
 export function createP5eMatchRecord(
   bundle: P5eMatchBundle,
   logLine?: LogLine,
 ): MatchRecord {
   const line: LogLine = logLine ?? {
-    time: new Date(bundle.capturedAt).toISOString(),
+    time: formatP5eBundleCapturedAt(bundle.capturedAt),
     level: 'INFO',
     category: '5e-cdp',
     decoded: bundle.platformGameId,

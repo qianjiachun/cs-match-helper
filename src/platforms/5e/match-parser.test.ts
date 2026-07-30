@@ -103,4 +103,21 @@ describe('P5eMatchParser', () => {
     expect(teamSizes).toEqual([5, 5]);
     expect(record.detail.parseWarnings.some((w) => w.includes('分队'))).toBe(true);
   });
+
+  it('accepts CDP epoch-ms capturedAt without throwing Invalid time value', () => {
+    const agg = new P5eMatchAggregator();
+    const bundle = agg.ingestFixtureEvents(fixture.events as Record<string, P5eApiPayload>);
+    expect(bundle).not.toBeNull();
+
+    const epochMs = '1785423088702';
+    const enriched: P5eMatchBundle = {
+      ...bundle!,
+      capturedAt: epochMs,
+      mapName: 'de_dust2',
+    };
+
+    const record = createP5eMatchRecord(enriched);
+    expect(record.time).toBe(new Date(Number(epochMs)).toISOString());
+    expect(Number.isNaN(Date.parse(record.time))).toBe(false);
+  });
 });
