@@ -29,6 +29,49 @@ export type ShootingErrorReason =
   | 'lowSpeedMovement';
 
 export type FireSampleKind = 'fireDown' | 'fireHeld';
+export type SampleContextMode = 'basic' | 'enhanced';
+export type GsiConnectionState =
+  | 'disabled'
+  | 'notConfigured'
+  | 'waitingForGame'
+  | 'connected'
+  | 'stale'
+  | 'portConflict'
+  | 'error';
+
+export interface GsiIgnoredCounts {
+  nonFirearm: number;
+  invalidContext: number;
+  notForeground: number;
+  deadOrSpectating: number;
+  emptyMagazine: number;
+}
+
+export interface GsiStatus {
+  enabled: boolean;
+  configured: boolean;
+  connectionState: GsiConnectionState;
+  restartRequired: boolean;
+  configPath?: string | null;
+  lastUpdateAgeMs?: number | null;
+  activeWeapon?: string | null;
+  ignored: GsiIgnoredCounts;
+  message?: string | null;
+}
+
+export const DEFAULT_GSI_STATUS: GsiStatus = {
+  enabled: false,
+  configured: false,
+  connectionState: 'disabled',
+  restartRequired: false,
+  ignored: {
+    nonFirearm: 0,
+    invalidContext: 0,
+    notForeground: 0,
+    deadOrSpectating: 0,
+    emptyMagazine: 0,
+  },
+};
 
 export interface ShootingErrorRecord {
   error: number;
@@ -51,6 +94,9 @@ export interface ShootingErrorRecord {
   fireSampleDelayed?: boolean;
   crouchGraceActive?: boolean;
   shotSequenceIndex?: number;
+  contextMode?: SampleContextMode;
+  weaponName?: string | null;
+  shotConfirmed?: boolean;
 }
 
 export type { HudContentMode } from './hudDisplay';
@@ -89,6 +135,7 @@ export interface CounterStrafingSnapshot {
   fireActive?: boolean;
   assessmentHudVisible?: boolean;
   assessmentHudLocked?: boolean;
+  gsiStatus: GsiStatus;
 }
 
 export type AssessmentAxis = 'horizontal' | 'vertical';
@@ -105,6 +152,7 @@ export interface CounterStrafingAssessmentRecord {
   isPerfect: boolean;
   isSuccess: boolean;
   timestampMs: number;
+  contextMode?: SampleContextMode;
 }
 
 /** @deprecated use CounterStrafingAssessmentRecord */
@@ -144,6 +192,7 @@ export interface ShotFeedback {
 export interface CounterStrafingSettings {
   enabled: boolean;
   displayMode: string;
+  gsiEnhancementEnabled: boolean;
   keyMap: CounterStrafingKeyMap;
   stopSettleMs: number;
   cleanShotSpeedRatio: number;
@@ -232,6 +281,7 @@ export function mergeCounterStrafingSettings(
     ...DEFAULT_COUNTER_STRAFING_SETTINGS,
     ...loaded,
     historyLimit,
+    gsiEnhancementEnabled: loaded.gsiEnhancementEnabled ?? true,
     assessmentHistoryLimit: historyLimit,
     hudShowStableBars: loaded.hudShowStableBars ?? true,
     hudShowTapMarkers: loaded.hudShowTapMarkers ?? true,
@@ -264,6 +314,7 @@ export function mergeCounterStrafingSettings(
 export const DEFAULT_COUNTER_STRAFING_SETTINGS: CounterStrafingSettings = {
   enabled: false,
   displayMode: 'transparentWindow',
+  gsiEnhancementEnabled: true,
   keyMap: DEFAULT_KEY_MAP,
   stopSettleMs: 110,
   cleanShotSpeedRatio: 0.34,

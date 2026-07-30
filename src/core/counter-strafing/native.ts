@@ -6,6 +6,7 @@ import type {
   CounterStrafingAssessmentSnapshot,
   CounterStrafingSettings,
   CounterStrafingSnapshot,
+  GsiStatus,
   ShootingErrorRecord,
 } from '@core/counter-strafing/types';
 
@@ -25,6 +26,30 @@ export async function resetCounterStrafingSettings(): Promise<CounterStrafingSna
 
 export async function getCounterStrafingSnapshot(): Promise<CounterStrafingSnapshot> {
   return invoke<CounterStrafingSnapshot>('get_counter_strafing_snapshot');
+}
+
+export async function getCounterStrafingGsiStatus(): Promise<GsiStatus> {
+  return invoke<GsiStatus>('get_counter_strafing_gsi_status');
+}
+
+export async function installOrRepairCounterStrafingGsi(
+  cs2Path?: string,
+): Promise<GsiStatus> {
+  return invoke<GsiStatus>('install_or_repair_counter_strafing_gsi', {
+    cs2Path: cs2Path ?? null,
+  });
+}
+
+export async function removeCounterStrafingGsiConfig(): Promise<GsiStatus> {
+  return invoke<GsiStatus>('remove_counter_strafing_gsi_config');
+}
+
+export async function onCounterStrafingGsiStatus(
+  handler: (status: GsiStatus) => void,
+): Promise<UnlistenFn> {
+  return listen<GsiStatus>('counter-strafing-gsi-status', (event) => {
+    handler(event.payload);
+  });
 }
 
 export async function startCounterStrafing(showHud = true): Promise<CounterStrafingSnapshot> {

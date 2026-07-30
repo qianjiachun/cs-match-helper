@@ -26,6 +26,28 @@ const toggleAriaLabel = computed(() => {
   return props.listening ? l('停止记录', 'Stop recording') : l('开始记录', 'Start recording');
 });
 
+const shellClass = computed(() => {
+  if (props.listening) {
+    return 'border-emerald-500/30 bg-emerald-500/6 text-fg shadow-[0_0_0_1px_rgba(16,185,129,0.06)]';
+  }
+  if (props.activePage) {
+    return 'border-accent/25 bg-accent/5 text-accent shadow-[0_0_0_1px_rgba(59,130,246,0.04)]';
+  }
+  return 'border-border-subtle bg-transparent text-fg-muted hover:border-border hover:bg-elevated/50';
+});
+
+const openButtonClass = computed(() => {
+  if (props.listening) return 'bg-emerald-500/10 text-fg';
+  if (props.activePage) return 'cursor-default bg-accent/7 text-accent';
+  return 'cursor-pointer bg-transparent text-fg-muted hover:bg-elevated/60 hover:text-fg-secondary';
+});
+
+const gaugeClass = computed(() => {
+  if (props.listening) return 'scale-105 text-emerald-600';
+  if (props.activePage) return 'scale-100 text-accent';
+  return 'scale-100 text-fg-muted';
+});
+
 function onOpen() {
   if (props.activePage) return;
   emit('open');
@@ -40,11 +62,7 @@ function onToggle() {
 <template>
   <div
     class="cs-header-strafing no-drag relative mx-1.5 flex h-7 shrink-0 items-stretch self-center overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow,color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
-    :class="
-      listening
-        ? 'border-emerald-500/30 bg-emerald-500/6 text-fg shadow-[0_0_0_1px_rgba(16,185,129,0.06)]'
-        : 'border-border bg-elevated/40 text-fg-muted hover:border-border hover:bg-elevated'
-    "
+    :class="shellClass"
     role="group"
     :aria-label="l('急停 HUD', 'Counter Strafing HUD')"
   >
@@ -52,10 +70,7 @@ function onToggle() {
       type="button"
       tabindex="-1"
       class="relative flex items-center gap-1.5 py-0 pl-2.5 pr-2 text-[12px] outline-none transition-[background-color,color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
-      :class="[
-        listening ? 'bg-emerald-500/10 text-fg' : 'bg-elevated text-fg-secondary',
-        activePage ? 'cursor-default' : 'cursor-pointer hover:bg-elevated',
-      ]"
+      :class="openButtonClass"
       :aria-label="openAriaLabel"
       :aria-current="activePage ? 'page' : undefined"
       @mousedown.prevent
@@ -64,7 +79,7 @@ function onToggle() {
       <span class="relative shrink-0">
         <Gauge
           class="h-3.5 w-3.5 transition-[color,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
-          :class="listening ? 'scale-105 text-emerald-600' : 'scale-100'"
+          :class="gaugeClass"
           aria-hidden="true"
         />
         <span
@@ -98,7 +113,7 @@ function onToggle() {
 
     <div
       class="w-px self-stretch transition-colors duration-200"
-      :class="listening ? 'bg-emerald-500/25' : 'bg-border'"
+      :class="listening ? 'bg-emerald-500/25' : activePage ? 'bg-accent/20' : 'bg-border-subtle'"
       aria-hidden="true"
     />
 

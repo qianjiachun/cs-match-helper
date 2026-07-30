@@ -5,10 +5,12 @@ import {
   CircleDot,
   CirclePause,
   Crosshair,
+  Filter,
   Gauge,
   LineChart,
   Minus,
   Plus,
+  ShieldCheck,
   Target,
   TrendingUp,
   Waves,
@@ -76,6 +78,32 @@ const assessmentCount = computed(() => props.assessmentSnapshot.records.length);
 const shotCount = computed(() => props.snapshot.shotRecords.length);
 const hasAssessmentData = computed(() => assessmentCount.value > 0);
 const hasShotData = computed(() => shotCount.value > 0);
+
+const gsiCoverage = computed(() => {
+  const records = [
+    ...props.snapshot.shotRecords,
+    ...props.assessmentSnapshot.records,
+  ];
+  if (!records.length) return 0;
+  const enhanced = records.filter((record) => record.contextMode === 'enhanced').length;
+  return (enhanced / records.length) * 100;
+});
+
+const gsiIgnoredTotal = computed(() => {
+  const ignored = props.snapshot.gsiStatus.ignored;
+  return Object.values(ignored).reduce((sum, value) => sum + value, 0);
+});
+
+const gsiIgnoredReasons = computed(() => {
+  const ignored = props.snapshot.gsiStatus.ignored;
+  return [
+    { value: ignored.nonFirearm, label: l('刀 / 投掷物 / C4', 'Knife / grenade / C4') },
+    { value: ignored.invalidContext, label: l('无效阶段', 'Invalid phase') },
+    { value: ignored.deadOrSpectating, label: l('死亡 / 观战', 'Dead / spectating') },
+    { value: ignored.notForeground, label: l('非游戏窗口', 'Game not focused') },
+    { value: ignored.emptyMagazine, label: l('空仓点击', 'Empty magazine') },
+  ].filter((item) => item.value > 0);
+});
 
 const assessmentDiffExtremes = computed(() => {
   const records = props.assessmentSnapshot.records;
@@ -244,6 +272,24 @@ const shootingKpis = computed(() => [
             </p>
           </div>
         </div>
+      </div>
+      <div
+        v-if="snapshot.gsiStatus.enabled"
+        class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border-subtle bg-elevated/30 px-5 py-3 text-[11px] text-fg-muted"
+      >
+        <span class="inline-flex items-center gap-1.5">
+          <ShieldCheck class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+          {{ l('数据校验率', 'Validated samples') }}
+          <strong class="font-semibold tabular-nums text-fg-secondary">{{ gsiCoverage.toFixed(1) }}%</strong>
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <Filter class="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+          {{ l('已过滤', 'Filtered') }}
+          <strong class="font-semibold tabular-nums text-fg-secondary">{{ gsiIgnoredTotal }}</strong>
+        </span>
+        <span v-if="gsiIgnoredReasons.length" class="min-w-0 text-fg-muted">
+          {{ gsiIgnoredReasons.map((item) => `${item.label} ${item.value}`).join(' · ') }}
+        </span>
       </div>
     </section>
 

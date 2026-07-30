@@ -8,6 +8,8 @@ import {
   Keyboard,
   LayoutDashboard,
   LineChart,
+  FolderOpen,
+  Radio,
   RotateCcw,
   ShieldAlert,
   SlidersHorizontal,
@@ -16,7 +18,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { currentLocale } from '../i18n';
+import { currentLocale, localize as l } from '../i18n';
 import CounterStrafingConsole from '../components/counter-strafing/CounterStrafingConsole.vue';
 import CounterStrafingDataPanel from '../components/counter-strafing/CounterStrafingDataPanel.vue';
 import CounterStrafingDataGuide from '../components/counter-strafing/CounterStrafingDataGuide.vue';
@@ -55,6 +57,7 @@ const {
   snapshot,
   assessmentSnapshot,
   settings,
+  gsiStatus,
   lastShot,
   lastAssessmentRecord,
   busy,
@@ -71,6 +74,10 @@ const {
   cancelCapture,
   restoreDefaultKeyMap,
   applySettings,
+  setGsiEnhancementEnabled,
+  repairGsiConfig,
+  chooseGsiDirectory,
+  openGsiConfigLocation,
   restartAsAdmin,
 } = cs;
 
@@ -116,6 +123,18 @@ const settingUnitClass = 'w-5 shrink-0 text-right text-[11px] leading-none text-
 
 const switchTrackClass =
   'relative inline-block h-6 w-11 shrink-0 rounded-full bg-slate-300 transition-colors duration-200 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:bg-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 peer-disabled:opacity-60';
+
+const gsiConfigurationFailed = computed(() =>
+  settings.value.gsiEnhancementEnabled
+  && ['notConfigured', 'portConflict', 'error'].includes(gsiStatus.value.connectionState),
+);
+
+const gsiFallbackText = computed(() => {
+  if (gsiStatus.value.connectionState === 'portConflict') {
+    return l('连接端口不可用，当前已使用基础记录。重新尝试后会自动更换端口。', 'The connection port is unavailable. Basic recording is active; retry to select another port.');
+  }
+  return l('自动配置未完成，当前已使用基础记录。可手动选择 CS2 目录继续配置。', 'Automatic setup did not finish. Basic recording is active; select the CS2 folder to continue.');
+});
 
 const tabContentShellRef = ref<HTMLElement | null>(null);
 const tabShellMinHeight = ref<number | null>(null);
@@ -338,6 +357,87 @@ function applyUpcomingTabWidth() {
 
           <!-- 高级设置 -->
           <div v-else key="advanced" class="space-y-5">
+            <SettingsCard
+              :title="l('过滤无效数据', 'Filter invalid data')"
+              :description="l('通过 CS2 官方接口减少无效数据', 'Use the official CS2 interface to reduce invalid training records')"
+              :icon="Radio"
+            >
+              <label class="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-2">
+                <div class="min-w-0">
+                  <p class="text-[13px] font-medium text-fg">
+                    {{ l('过滤无效数据', 'Filter invalid data') }}
+                  </p>
+                  <p class="mt-0.5 text-pretty text-[11px] leading-relaxed text-fg-muted">
+                    {{ l('自动识别游戏场景，让数据更准确', 'Recognize in-game context automatically for more accurate data') }}
+                  </p>
+                </div>
+                <span class="relative inline-flex h-10 shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    class="peer sr-only"
+                    :checked="settings.gsiEnhancementEnabled"
+                    :disabled="busy"
+                    :aria-label="l('过滤无效数据', 'Filter invalid data')"
+                    @change="setGsiEnhancementEnabled(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span :class="switchTrackClass" aria-hidden="true" />
+                </span>
+              </label>
+
+              <div v-if="settings.gsiEnhancementEnabled" class="mt-2 border-t border-border-subtle pt-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <span class="shrink-0 text-[10px] text-fg-muted">
+                    {{ l('配置文件', 'Config file') }}
+                  </span>
+                  <button
+                    type="button"
+                    class="group flex min-h-10 min-w-0 flex-1 cursor-pointer items-center justify-end gap-1.5 rounded-lg px-1 text-right text-fg-muted transition-[background-color,color] duration-150 hover:bg-elevated/60 hover:text-fg-secondary active:bg-elevated"
+                    :title="gsiStatus.configPath || l('手动选择 CS2 目录', 'Select the CS2 folder manually')"
+                    :aria-label="gsiStatus.configPath ? l('打开 GSI 配置文件位置', 'Open the GSI config location') : l('手动选择 CS2 目录', 'Select the CS2 folder manually')"
+                    @click="openGsiConfigLocation()"
+                  >
+                    <code class="truncate text-[10px] font-normal">
+                      {{ gsiStatus.configPath || l('尚未生成，点击手动选择目录', 'Not created; select the folder manually') }}
+                    </code>
+                    <FolderOpen class="h-3.5 w-3.5 shrink-0 transition-colors duration-150 group-hover:text-accent" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div
+                  v-if="gsiConfigurationFailed"
+                  class="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-500/7 px-3.5 py-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.16)]"
+                  role="status"
+                >
+                  <div class="flex min-w-0 flex-1 items-start gap-2.5">
+                    <ShieldAlert class="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
+                    <p class="min-w-0 text-pretty text-[11px] leading-relaxed text-fg-secondary">
+                      {{ gsiFallbackText }}
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-surface px-3 text-[11px] font-medium text-fg-secondary shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_-1px_rgba(0,0,0,0.08)] transition-[background-color,color,box-shadow,transform] duration-150 hover:bg-elevated hover:text-fg hover:shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.06)] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="busy"
+                      @click="repairGsiConfig()"
+                    >
+                      <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
+                      {{ l('重新尝试', 'Retry') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-fg-muted transition-[background-color,color,transform] duration-150 hover:bg-amber-500/10 hover:text-fg-secondary active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="busy"
+                      @click="chooseGsiDirectory()"
+                    >
+                      <FolderOpen class="h-3.5 w-3.5" aria-hidden="true" />
+                      {{ l('选择目录', 'Select folder') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </SettingsCard>
+
             <SettingsCard :title="t('counter.judgement')" :description="t('counter.judgementDesc')" :icon="SlidersHorizontal">
               <div class="space-y-4">
                 <div

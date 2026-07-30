@@ -14,7 +14,11 @@ import {
   mergeCounterStrafingSnapshot,
 } from '@core/counter-strafing/mergeCounterStrafingSnapshot';
 import type { CounterStrafingSnapshot, ShootingErrorRecord } from '@core/counter-strafing/types';
-import { formatErrorValue, latestPressSessionAvgError } from '@core/counter-strafing/types';
+import {
+  DEFAULT_GSI_STATUS,
+  formatErrorValue,
+  latestPressSessionAvgError,
+} from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useHudWindow, onHudDragPointerDown } from './useHudWindow';
 import {
@@ -58,7 +62,15 @@ function createRafCoalescer<T>(apply: (value: T) => void) {
     }
   };
 
-  return { schedule, flush };
+  const discard = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    pending = null;
+  };
+
+  return { schedule, flush, discard };
 }
 
 let snapshotRafFlush: (() => void) | null = null;
@@ -80,6 +92,7 @@ const snapshot = ref<CounterStrafingSnapshot>({
   stableRate: 0,
   lastShot: null,
   fireActive: false,
+  gsiStatus: { ...DEFAULT_GSI_STATUS, ignored: { ...DEFAULT_GSI_STATUS.ignored } },
 });
 const liveSample = ref<ShootingErrorRecord | null>(null);
 const initError = ref<string | null>(null);
@@ -138,7 +151,7 @@ onMounted(async () => {
     const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
       snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
       if (next.locale) applyResolvedLocale(next.locale);
-      if (next.shotRecords.length === 0) {
+      if (snapshot.value.shotRecords.length === 0) {
         liveSample.value = null;
       }
     });
@@ -146,6 +159,7 @@ onMounted(async () => {
 
     unlisteners = await Promise.all([
       onCounterStrafingShot((record) => {
+        snapshotRaf.discard();
         liveSample.value = record;
         snapshot.value = {
           ...snapshot.value,
@@ -156,7 +170,6 @@ onMounted(async () => {
           ),
           lastShot: record,
         };
-        snapshotRaf.flush();
       }),
       onCounterStrafingSnapshot((next) => {
         snapshotRaf.schedule(next);

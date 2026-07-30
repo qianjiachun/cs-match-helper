@@ -1,4 +1,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { open } from '@tauri-apps/plugin-dialog';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { localize as l, localizeErrorMessage } from '../i18n';
 import { useCounterStrafingDisplayMode } from './useCounterStrafingDisplayMode';
 import {
@@ -13,6 +15,7 @@ import {
   clearCounterStrafingRecords,
   getCounterStrafingAssessmentSnapshot,
   getCounterStrafingSnapshot,
+  getCounterStrafingGsiStatus,
   hideCounterStrafingAssessmentHud,
   hideCounterStrafingHud,
   loadCounterStrafingSettings,
@@ -21,9 +24,12 @@ import {
   onCounterStrafingShot,
   onCounterStrafingSnapshot,
   onCounterStrafingStatus,
+  onCounterStrafingGsiStatus,
+  installOrRepairCounterStrafingGsi,
   relaunchAsAdmin,
   resetKeyMap,
   resetCounterStrafingSettings,
+  removeCounterStrafingGsiConfig,
   saveCounterStrafingSettings,
   showCounterStrafingAssessmentHud,
   showCounterStrafingHud,
@@ -37,6 +43,7 @@ import {
 } from '@core/counter-strafing/mergeCounterStrafingSnapshot';
 import {
   DEFAULT_COUNTER_STRAFING_SETTINGS,
+  DEFAULT_GSI_STATUS,
   MOVEMENT_MODEL_DEFAULTS,
   mergeCounterStrafingSettings,
   type BindingRole,
@@ -44,6 +51,7 @@ import {
   type CounterStrafingAssessmentSnapshot,
   type CounterStrafingSettings,
   type CounterStrafingSnapshot,
+  type GsiStatus,
   type ShootingErrorRecord,
 } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
@@ -82,12 +90,15 @@ function createRafCoalescer<T>(apply: (value: T) => void) {
     }
   };
 
-  return { schedule, flush };
-}
+  const discard = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    pending = null;
+  };
 
-function trimHistory<T>(records: T[], limit: number): T[] {
-  if (records.length <= limit) return records;
-  return records.slice(records.length - limit);
+  return { schedule, flush, discard };
 }
 
 async function withHudInitRetry<T>(action: () => Promise<T>, attempts = 10): Promise<T> {
@@ -124,6 +135,7 @@ export function useCounterStrafing() {
     avgError: 0,
     stableRate: 0,
     lastShot: null,
+    gsiStatus: { ...DEFAULT_GSI_STATUS, ignored: { ...DEFAULT_GSI_STATUS.ignored } },
   });
   const assessmentSnapshot = ref<CounterStrafingAssessmentSnapshot>({
     active: false,
@@ -138,6 +150,10 @@ export function useCounterStrafing() {
     lastRecord: null,
   });
   const settings = ref<CounterStrafingSettings>({ ...DEFAULT_COUNTER_STRAFING_SETTINGS });
+  const gsiStatus = ref<GsiStatus>({
+    ...DEFAULT_GSI_STATUS,
+    ignored: { ...DEFAULT_GSI_STATUS.ignored },
+  });
   const lastShot = ref<ShootingErrorRecord | null>(null);
   const lastAssessmentRecord = ref<CounterStrafingAssessmentRecord | null>(null);
   const opBusy = ref(false);
@@ -169,6 +185,7 @@ export function useCounterStrafing() {
 
   async function refresh() {
     snapshot.value = await getCounterStrafingSnapshot();
+    gsiStatus.value = snapshot.value.gsiStatus ?? await getCounterStrafingGsiStatus();
     if (snapshot.value.lastShot) {
       lastShot.value = snapshot.value.lastShot;
     }
@@ -203,6 +220,70 @@ export function useCounterStrafing() {
       settingsPersistTimer = null;
     }
     await persistSettings();
+    gsiStatus.value = snapshot.value.gsiStatus;
+  }
+
+  async function setGsiEnhancementEnabled(enabled: boolean) {
+    opBusy.value = true;
+    error.value = null;
+    try {
+      await applySettings({ gsiEnhancementEnabled: enabled });
+      if (!enabled) {
+        gsiStatus.value = await removeCounterStrafingGsiConfig();
+      }
+    } catch (e) {
+      error.value = localizeErrorMessage(e);
+    } finally {
+      opBusy.value = false;
+    }
+  }
+
+  async function repairGsiConfig(cs2Path?: string) {
+    opBusy.value = true;
+    error.value = null;
+    try {
+      gsiStatus.value = await installOrRepairCounterStrafingGsi(cs2Path);
+      snapshot.value = { ...snapshot.value, gsiStatus: gsiStatus.value };
+      showToast(l('GSI 配置已写入，请重启 CS2', 'GSI configured. Restart CS2 to apply it.'));
+    } catch (e) {
+      error.value = localizeErrorMessage(e);
+      try {
+        gsiStatus.value = await getCounterStrafingGsiStatus();
+        snapshot.value = { ...snapshot.value, gsiStatus: gsiStatus.value };
+      } catch {
+        // Keep the original configuration error visible.
+      }
+    } finally {
+      opBusy.value = false;
+    }
+  }
+
+  async function chooseGsiDirectory() {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: l('选择 CS2 安装目录', 'Select the CS2 installation folder'),
+      });
+      if (typeof selected === 'string') {
+        await repairGsiConfig(selected);
+      }
+    } catch (e) {
+      error.value = localizeErrorMessage(e);
+    }
+  }
+
+  async function openGsiConfigLocation() {
+    const path = gsiStatus.value.configPath?.trim();
+    if (!path) {
+      await chooseGsiDirectory();
+      return;
+    }
+    try {
+      await revealItemInDir(path);
+    } catch (e) {
+      error.value = localizeErrorMessage(e);
+    }
   }
 
   function patchNumberSetting<K extends keyof CounterStrafingSettings>(
@@ -399,6 +480,7 @@ export function useCounterStrafing() {
 
       const snapshotRaf = createRafCoalescer<CounterStrafingSnapshot>((next) => {
         snapshot.value = mergeCounterStrafingSnapshot(snapshot.value, next);
+        gsiStatus.value = snapshot.value.gsiStatus;
       });
       const assessmentSnapshotRaf = createRafCoalescer<CounterStrafingAssessmentSnapshot>((next) => {
         assessmentSnapshot.value = mergeCounterStrafingAssessmentSnapshot(
@@ -411,6 +493,7 @@ export function useCounterStrafing() {
 
       unlisteners = await Promise.all([
         onCounterStrafingShot((record) => {
+          snapshotRaf.discard();
           lastShot.value = record;
           snapshot.value = {
             ...snapshot.value,
@@ -421,7 +504,6 @@ export function useCounterStrafing() {
             ),
             lastShot: record,
           };
-          snapshotRaf.flush();
         }),
         onCounterStrafingSnapshot((next) => {
           snapshotRaf.schedule(next);
@@ -429,7 +511,12 @@ export function useCounterStrafing() {
         onCounterStrafingStatus((next) => {
           snapshotRaf.schedule(next);
         }),
+        onCounterStrafingGsiStatus((next) => {
+          gsiStatus.value = next;
+          snapshot.value = { ...snapshot.value, gsiStatus: next };
+        }),
         onCounterStrafingAssessmentRecord((record) => {
+          assessmentSnapshotRaf.discard();
           lastAssessmentRecord.value = record;
           assessmentSnapshot.value = {
             ...assessmentSnapshot.value,
@@ -440,7 +527,6 @@ export function useCounterStrafing() {
             ),
             lastRecord: record,
           };
-          assessmentSnapshotRaf.flush();
         }),
         onCounterStrafingAssessmentSnapshot((next) => {
           assessmentSnapshotRaf.schedule(next);
@@ -470,6 +556,7 @@ export function useCounterStrafing() {
     snapshot,
     assessmentSnapshot,
     settings,
+    gsiStatus,
     lastShot,
     lastAssessmentRecord,
     busy,
@@ -482,6 +569,10 @@ export function useCounterStrafing() {
     refreshAssessment,
     loadSettings,
     applySettings,
+    setGsiEnhancementEnabled,
+    repairGsiConfig,
+    chooseGsiDirectory,
+    openGsiConfigLocation,
     patchNumberSetting,
     patchStatisticsHistoryLimit,
     restoreMovementModelDefaults,

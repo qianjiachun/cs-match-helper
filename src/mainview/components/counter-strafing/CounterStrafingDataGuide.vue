@@ -59,6 +59,9 @@ const assessmentLegend = computed(() => [
           <p class="mt-1.5 text-[13px] leading-relaxed text-fg-secondary">
             {{ l('急停 HUD 监听本机方向键、蹲键与开火键输入，结合移速模型估算移动状态与按键时机，不读取游戏内存。模块包含两项独立指标：开枪稳定用于评估停稳后开火的质量；急停评估用于评估同轴方向切换的按键衔接。', 'The HUD listens to local movement, crouch, and fire inputs, then estimates movement and key timing without reading game memory. Shooting stability measures whether you are fully stopped before firing; counter-strafe assessment measures opposite-key timing on the same movement axis.') }}
           </p>
+          <p class="mt-2 text-[12px] leading-relaxed text-fg-muted">
+            {{ l('默认开启的 CS2 数据联动使用官方 GSI 接口过滤持刀、投掷物、无效回合阶段、死亡或观战等操作，可在高级设置中关闭并记住选择。GSI 不参与移速计算，断连时会自动回退到原有算法。', 'CS2 data integration is enabled by default and uses the official GSI interface to filter knife, grenade, invalid-round, death, and spectating inputs. It can be disabled under Advanced and remembers the choice. GSI does not calculate movement speed, and the assistant falls back automatically when disconnected.') }}
+          </p>
         </div>
       </div>
     </section>
@@ -210,7 +213,7 @@ const assessmentLegend = computed(() => [
     >
       <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
       <p class="text-[11px] leading-relaxed text-fg-secondary">
-        {{ l('本功能仅监听本机键盘与鼠标输入，用于个人练习分析，不修改游戏文件、不注入游戏进程。若系统提示需要管理员权限，系 Windows 对全局输入监听的权限要求，与第三方作弊工具无关。', 'This feature only listens to local keyboard and mouse input for personal practice analysis. It does not modify game files or inject into the game process. Administrator access may be required by Windows for global input capture; it is unrelated to third-party cheat software.') }}
+        {{ l('本功能不读取游戏内存、不注入游戏进程。可选的状态增强只创建并管理本软件专属的 CS2 GSI 配置；若系统提示需要管理员权限，系 Windows 对全局输入监听的权限要求。', 'This feature does not read game memory or inject into the game process. The optional enhancement only creates and manages this app\'s dedicated CS2 GSI configuration. Administrator access may be required by Windows for global input capture.') }}
       </p>
     </div>
   </div>
