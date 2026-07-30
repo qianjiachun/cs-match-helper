@@ -639,7 +639,7 @@ fn launch_5e_elevated(exe: &Path, root: &Path, port: u16) -> Result<Option<u32>,
             );
         }
         return Err(format!(
-            "无法启动 5E。请右键「CS 对局助手」→「以管理员身份运行」后重试。（错误码 {code}）"
+            "无法启动 5E。请右键「CS 匹配助手」→「以管理员身份运行」后重试。（错误码 {code}）"
         ));
     }
 

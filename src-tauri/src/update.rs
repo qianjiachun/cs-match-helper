@@ -826,7 +826,7 @@ mod tests {
 
     #[test]
     fn restart_helper_script_preserves_chinese_and_space_paths() {
-        let work = PathBuf::from(r"C:\Users\Administrator\Desktop\CS对局助手");
+        let work = PathBuf::from(r"C:\Users\Administrator\Desktop\CS 匹配助手");
         let target = work.join("cs-match-helper.exe");
         let old = old_exe_path(&target);
         let new_exe = PathBuf::from(r"C:\Users\Admin Name\AppData\Local\Temp\update.exe");
@@ -844,9 +844,9 @@ mod tests {
             &powershell_single_quoted(&new_exe),
         );
 
-        assert!(script.contains(r"$workDir = 'C:\Users\Administrator\Desktop\CS对局助手'"));
+        assert!(script.contains(r"$workDir = 'C:\Users\Administrator\Desktop\CS 匹配助手'"));
         assert!(script.contains(
-            r"$targetExe = 'C:\Users\Administrator\Desktop\CS对局助手\cs-match-helper.exe'"
+            r"$targetExe = 'C:\Users\Administrator\Desktop\CS 匹配助手\cs-match-helper.exe'"
         ));
         assert!(script.contains(r"$newExe = 'C:\Users\Admin Name\AppData\Local\Temp\update.exe'"));
         assert!(script.contains("$pidToWait = 12345"));
@@ -883,12 +883,12 @@ mod tests {
         ));
         std::fs::create_dir_all(&temp).expect("create temp dir");
         let path = temp.join("restart.ps1");
-        write_utf8_bom_text_file(&path, "Write-Host 'CS对局助手'").expect("write bom file");
+        write_utf8_bom_text_file(&path, "Write-Host 'CS 匹配助手'").expect("write bom file");
 
         let bytes = std::fs::read(&path).expect("read bom file");
         assert_eq!(&bytes[..3], &[0xEF, 0xBB, 0xBF]);
         let body = String::from_utf8(bytes[3..].to_vec()).expect("utf8 body");
-        assert!(body.contains("CS对局助手"));
+        assert!(body.contains("CS 匹配助手"));
 
         let _ = std::fs::remove_dir_all(&temp);
     }
