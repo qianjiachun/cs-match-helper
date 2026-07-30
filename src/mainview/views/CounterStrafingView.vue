@@ -171,7 +171,7 @@ function applyUpcomingTabWidth() {
 <template>
   <div class="flex h-full min-h-0 bg-base">
     <aside
-      class="flex w-[220px] shrink-0 flex-col border-r border-border bg-surface"
+      class="flex w-55 shrink-0 flex-col border-r border-border bg-surface"
       :aria-label="t('counter.nav')"
     >
       <div class="border-b border-border px-4 py-4">
