@@ -53,6 +53,19 @@ const ALIAS_TO_SLUG: Record<string, string> = {
   italy: 'italy',
   cs_agency: 'agency',
   agency: 'agency',
+  '炙热沙城 ii': 'dust2',
+  荒漠迷城: 'mirage',
+  炼狱小镇: 'inferno',
+  核子危机: 'nuke',
+  死亡游乐园: 'overpass',
+  殒命大厦: 'vertigo',
+  远古遗迹: 'ancient',
+  阿努比斯: 'anubis',
+  列车停放站: 'train',
+  死亡工厂: 'cache',
+  办公室: 'office',
+  意大利小镇: 'italy',
+  事务所: 'agency',
 };
 
 export function resolveMapSlug(mapName?: string | null): string | null {
@@ -98,13 +111,11 @@ export function resolveMapAsset(mapName?: string | null): MapAssetInfo | null {
       imageUrl: resolveMapImageUrl(known.slug),
     };
   }
-  const en = slug
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const raw = mapName?.trim() || slug;
   return {
     slug,
-    en,
-    zh: en,
+    en: raw,
+    zh: raw,
     imageUrl: resolveMapImageUrl(slug),
   };
 }
