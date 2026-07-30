@@ -52,22 +52,26 @@ export type GameBarWidgetPhase =
   | 'complete'
   | 'error';
 
-export function formatWidgetProgressMessage(event: GameBarWidgetProgressEvent): string {
+export function formatWidgetProgressMessage(
+  event: GameBarWidgetProgressEvent,
+  locale: 'zh-CN' | 'en-US' = 'zh-CN',
+): string {
   if (event.message) return event.message;
+  const en = locale === 'en-US';
   switch (event.phase) {
     case 'downloading':
       return event.percent != null
-        ? `正在下载安装包… ${event.percent.toFixed(0)}%`
-        : '正在下载安装包…';
+        ? (en ? `Downloading package… ${event.percent.toFixed(0)}%` : `正在下载安装包… ${event.percent.toFixed(0)}%`)
+        : (en ? 'Downloading package…' : '正在下载安装包…');
     case 'verifying':
-      return '正在检查安装包是否完整…';
+      return en ? 'Verifying package…' : '正在检查安装包是否完整…';
     case 'extracting':
-      return '正在打开安装包…';
+      return en ? 'Opening package…' : '正在打开安装包…';
     case 'installing':
-      return '正在安装，请保持安装窗口开启；若出现系统提示也请耐心等待，通常几分钟内可完成。';
+      return en ? 'Installing. Keep the setup window open; this normally takes a few minutes.' : '正在安装，请保持安装窗口开启；若出现系统提示也请耐心等待，通常几分钟内可完成。';
     case 'complete':
-      return '安装完成';
+      return en ? 'Installation complete' : '安装完成';
     default:
-      return '处理中…';
+      return en ? 'Working…' : '处理中…';
   }
 }

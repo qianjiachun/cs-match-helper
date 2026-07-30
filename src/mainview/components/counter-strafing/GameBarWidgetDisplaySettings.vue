@@ -3,6 +3,7 @@ import { ArrowDownUp, ChartColumn, ChevronDown, Eye, Layers, LineChart } from 'l
 import { computed, ref } from 'vue';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 import HudDisplaySettingsControls from './HudDisplaySettingsControls.vue';
+import { localize as l } from '../../i18n';
 
 const props = defineProps<{
   cs: ReturnType<typeof useCounterStrafing>;
@@ -20,19 +21,19 @@ const dualChartMode = computed(
 
 const ratioLabel = computed(() => {
   const assessment = Math.round(settings.value.gamebarAssessmentRatio * 100);
-  return `急停 ${assessment}% / 开枪 ${100 - assessment}%`;
+  return l(`急停 ${assessment}% / 开枪 ${100 - assessment}%`, `Counter-strafing ${assessment}% / Shooting ${100 - assessment}%`);
 });
 
 const orderSummary = computed(() =>
-  settings.value.gamebarAssessmentOnTop ? '急停在上' : '开枪在上',
+  settings.value.gamebarAssessmentOnTop ? l('急停在上', 'Counter-strafing on top') : l('开枪在上', 'Shooting on top'),
 );
 
 const displaySummary = computed(() => {
   const charts = [
-    settings.value.gamebarShowAssessmentChart ? '急停' : '',
-    settings.value.gamebarShowShootingChart ? '开枪' : '',
+    settings.value.gamebarShowAssessmentChart ? l('急停', 'Counter-strafing') : '',
+    settings.value.gamebarShowShootingChart ? l('开枪', 'Shooting') : '',
   ].filter(Boolean);
-  if (!dualChartMode.value) return charts[0] ?? '未配置';
+  if (!dualChartMode.value) return charts[0] ?? l('未配置', 'Not configured');
   return `${charts.join(' + ')} · ${orderSummary.value} · ${ratioLabel.value}`;
 });
 
@@ -84,7 +85,7 @@ function patchAssessmentRatio(raw: string) {
       class="group flex min-h-16 w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-[background-color,scale] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/35 active:scale-[0.96]"
       :class="expanded ? 'bg-elevated/25 hover:bg-elevated/45' : 'hover:bg-accent/7'"
       :aria-expanded="expanded"
-      :aria-label="expanded ? '收起小组件显示设置' : '展开小组件显示设置'"
+      :aria-label="expanded ? l('收起小组件显示设置', 'Collapse Widget display settings') : l('展开小组件显示设置', 'Expand Widget display settings')"
       @click="expanded = !expanded"
     >
       <span
@@ -99,7 +100,7 @@ function patchAssessmentRatio(raw: string) {
       </span>
       <span class="min-w-0 flex-1">
         <span class="block text-[14px] font-semibold leading-tight text-fg">
-          小组件显示设置
+          {{ l('小组件显示设置', 'Widget display settings') }}
         </span>
         <span class="mt-1 block truncate text-[10px] tabular-nums text-fg-muted">
           {{ displaySummary }}
@@ -133,7 +134,7 @@ function patchAssessmentRatio(raw: string) {
             >
               <div class="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
                 <Eye class="size-3.5 text-fg-muted" aria-hidden="true" />
-                <p class="text-[11px] font-semibold text-fg-secondary">显示内容</p>
+                <p class="text-[11px] font-semibold text-fg-secondary">{{ l('显示内容', 'Visible charts') }}</p>
               </div>
               <div class="grid flex-1 grid-rows-2 divide-y divide-border-subtle">
                 <label
@@ -147,10 +148,10 @@ function patchAssessmentRatio(raw: string) {
                     </span>
                     <span class="min-w-0">
                       <span class="block text-[12px] font-medium leading-tight text-fg-secondary">
-                        急停图表
+                        {{ l('急停图表', 'Counter-strafe chart') }}
                       </span>
                       <span class="mt-1 block text-[10px] leading-tight text-fg-muted">
-                        急停时机趋势
+                        {{ l('急停时机趋势', 'Counter-strafe timing trend') }}
                       </span>
                     </span>
                   </span>
@@ -159,7 +160,7 @@ function patchAssessmentRatio(raw: string) {
                       type="checkbox"
                       class="peer sr-only"
                       :checked="settings.gamebarShowAssessmentChart"
-                      aria-label="显示急停图表"
+                      :aria-label="l('显示急停图表', 'Show counter-strafe chart')"
                       @change="patchShowAssessment(($event.target as HTMLInputElement).checked)"
                     />
                     <span :class="switchTrackClass" aria-hidden="true" />
@@ -176,10 +177,10 @@ function patchAssessmentRatio(raw: string) {
                     </span>
                     <span class="min-w-0">
                       <span class="block text-[12px] font-medium leading-tight text-fg-secondary">
-                        开枪稳定图表
+                        {{ l('开枪稳定图表', 'Shooting stability chart') }}
                       </span>
                       <span class="mt-1 block text-[10px] leading-tight text-fg-muted">
-                        开枪稳定趋势
+                        {{ l('开枪稳定趋势', 'Shooting stability trend') }}
                       </span>
                     </span>
                   </span>
@@ -188,7 +189,7 @@ function patchAssessmentRatio(raw: string) {
                       type="checkbox"
                       class="peer sr-only"
                       :checked="settings.gamebarShowShootingChart"
-                      aria-label="显示开枪稳定直方图"
+                      :aria-label="l('显示开枪稳定直方图', 'Show shooting stability histogram')"
                       @change="patchShowShooting(($event.target as HTMLInputElement).checked)"
                     />
                     <span :class="switchTrackClass" aria-hidden="true" />
@@ -205,10 +206,10 @@ function patchAssessmentRatio(raw: string) {
               >
                 <div class="flex items-center gap-2">
                   <ArrowDownUp class="size-3.5 text-fg-muted" aria-hidden="true" />
-                  <p class="text-[11px] font-semibold text-fg-secondary">上下布局</p>
+                  <p class="text-[11px] font-semibold text-fg-secondary">{{ l('上下布局', 'Vertical layout') }}</p>
                 </div>
                 <span v-if="!dualChartMode" class="text-[10px] text-fg-muted">
-                  需显示两个图表
+                  {{ l('需显示两个图表', 'Requires both charts') }}
                 </span>
               </div>
               <div
@@ -219,7 +220,7 @@ function patchAssessmentRatio(raw: string) {
                   <div
                     class="grid grid-cols-2 gap-1 rounded-lg bg-elevated/65 p-1 shadow-[inset_0_0_0_1px_var(--color-border-subtle)]"
                     role="group"
-                    aria-label="图表上下顺序"
+                    :aria-label="l('图表上下顺序', 'Chart order')"
                   >
                     <button
                       type="button"
@@ -229,7 +230,7 @@ function patchAssessmentRatio(raw: string) {
                       :aria-pressed="settings.gamebarAssessmentOnTop"
                       @click="patchAssessmentOnTop(true)"
                     >
-                      急停在上
+                      {{ l('急停在上', 'Counter-strafing on top') }}
                     </button>
                     <button
                       type="button"
@@ -239,12 +240,12 @@ function patchAssessmentRatio(raw: string) {
                       :aria-pressed="!settings.gamebarAssessmentOnTop"
                       @click="patchAssessmentOnTop(false)"
                     >
-                      开枪在上
+                      {{ l('开枪在上', 'Shooting on top') }}
                     </button>
                   </div>
                   <div>
                     <div class="flex h-4 items-center justify-between gap-3 px-0.5 text-[10px] text-fg-muted">
-                      <span>高度占比</span>
+                      <span>{{ l('高度占比', 'Height split') }}</span>
                       <output class="tabular-nums">
                         {{ ratioLabel }}
                       </output>
@@ -258,7 +259,7 @@ function patchAssessmentRatio(raw: string) {
                       :disabled="!dualChartMode"
                       :value="settings.gamebarAssessmentRatio"
                       :style="{ '--ratio-pct': `${((settings.gamebarAssessmentRatio - 0.05) / 0.9) * 100}%` }"
-                      aria-label="急停图表与开枪图表高度占比"
+                      :aria-label="l('急停图表与开枪图表高度占比', 'Counter-strafing and shooting chart height split')"
                       @input="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
                       @change="patchAssessmentRatio(($event.target as HTMLInputElement).value)"
                     />

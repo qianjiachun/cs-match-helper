@@ -17,6 +17,7 @@ import { MOCK_GAMEBAR_WIDGET_UPDATE_CHECK } from '@core/gamebar-widget/mock-upda
 import { formatWidgetProgressMessage } from '@core/gamebar-widget/types';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { computed, onUnmounted, ref } from 'vue';
+import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
 
 let sessionUpdateCheckStarted = false;
 
@@ -92,7 +93,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
         githubDownloadUrl: null,
         sha256: null,
         zipFileName: null,
-        error: err instanceof Error ? err.message : String(err),
+        error: localizeErrorMessage(err),
       };
       if (!silent) {
         phase.value = 'idle';
@@ -114,12 +115,12 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     installLogPath?: string | null;
     installLogExcerpt?: string | null;
   }): boolean {
-    lastMessage.value = result.message;
+    lastMessage.value = localizeErrorMessage(result.message);
     installLogPath.value = result.installLogPath ?? null;
     installLogExcerpt.value = result.installLogExcerpt ?? null;
     phase.value = result.success ? 'complete' : 'error';
     if (!result.success) {
-      error.value = result.message;
+      error.value = localizeErrorMessage(result.message);
     }
     return result.success;
   }
@@ -136,7 +137,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     phase.value = 'downloading';
     try {
       const downloadUrl = resolveDownloadUrl(sourceOrUrl);
-      const result = await installOrUpdateGameBarWidget(downloadUrl);
+      const result = await installOrUpdateGameBarWidget(downloadUrl, currentLocale());
       const success = applyInstallResult(result);
       await refreshStatus();
       if (!sessionUpdateCheckStarted) {
@@ -145,7 +146,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       updateCheck.value = await checkGameBarWidgetUpdate();
       return success;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      error.value = localizeErrorMessage(err);
       phase.value = 'error';
       return false;
     } finally {
@@ -181,12 +182,12 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     installLogExcerpt.value = null;
     phase.value = 'extracting';
     try {
-      const result = await installGameBarWidgetFromLocal(sourcePath);
+      const result = await installGameBarWidgetFromLocal(sourcePath, currentLocale());
       const success = applyInstallResult(result);
       await refreshStatus();
       return success;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      error.value = localizeErrorMessage(err);
       phase.value = 'error';
       return false;
     } finally {
@@ -200,10 +201,10 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     try {
       await uninstallGameBarWidget();
       await refreshStatus();
-      lastMessage.value = '已卸载 Widget';
+      lastMessage.value = l('已卸载 Widget', 'Widget uninstalled');
       phase.value = 'idle';
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      error.value = localizeErrorMessage(err);
       phase.value = 'error';
     } finally {
       busy.value = false;
@@ -212,7 +213,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
 
   function copyDiagnostics(): Promise<void> {
     const lines = [
-      'CS 对局助手 小组件诊断',
+      l('CS 匹配助手小组件诊断', 'CS Match Helper Widget diagnostics'),
       `gameBarInstalled: ${status.value?.gameBarInstalled ?? 'unknown'}`,
       `gameBarOpenShortcut: ${status.value?.gameBarOpenShortcut ?? '-'}`,
       `gameBarOpenShortcutFromRegistry: ${status.value?.gameBarOpenShortcutFromRegistry ?? 'unknown'}`,
@@ -227,7 +228,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       `updateCheckError: ${updateCheck.value?.error ?? '-'}`,
       `phase: ${phase.value}`,
       `error: ${error.value ?? '-'}`,
-      `progress: ${progress.value ? formatWidgetProgressMessage(progress.value) : '-'}`,
+      `progress: ${progress.value ? formatWidgetProgressMessage(progress.value, currentLocale()) : '-'}`,
       `installLogPath: ${installLogPath.value ?? '-'}`,
       `installLogExcerpt: ${installLogExcerpt.value ?? '-'}`,
     ];
@@ -238,12 +239,12 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     const selected = await openFileDialog({
       directory: false,
       multiple: false,
-      filters: [{ name: '小组件安装包', extensions: ['zip'] }],
-      title: '选择小组件 zip 安装包',
+      filters: [{ name: l('小组件安装包', 'Widget package'), extensions: ['zip'] }],
+      title: l('选择小组件 zip 安装包', 'Select Widget zip package'),
     });
     if (typeof selected !== 'string') return false;
     if (!selected.toLowerCase().endsWith('.zip')) {
-      error.value = '请选择 .zip 格式的安装包';
+      error.value = l('请选择 .zip 格式的安装包', 'Select a .zip package');
       phase.value = 'error';
       return false;
     }
@@ -254,7 +255,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     const selected = await openFileDialog({
       directory: true,
       multiple: false,
-      title: '选择已解压的小组件文件夹（内含 install.ps1）',
+      title: l('选择已解压的小组件文件夹（内含 install.ps1）', 'Select the extracted Widget folder containing install.ps1'),
     });
     if (typeof selected !== 'string') return false;
     return installFromLocal(selected);
@@ -311,7 +312,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     copyDiagnostics,
     copyDownloadUrl,
     getDownloadUrlForSource,
-    formatWidgetProgressMessage,
+    formatWidgetProgressMessage: (event: GameBarWidgetProgressEvent) => formatWidgetProgressMessage(event, currentLocale()),
   };
 }
 
@@ -386,7 +387,7 @@ export function useDebugGameBarWidget() {
       applyMockDownloadUrls();
     }
 
-    const label = source === 'cdn' ? '国内 CDN' : 'GitHub 发布页';
+    const label = source === 'cdn' ? l('国内 CDN', 'regional CDN') : l('GitHub 发布页', 'GitHub Releases');
     const url =
       baseWidget.getDownloadUrlForSource(source) ??
       (source === 'cdn'
@@ -414,7 +415,7 @@ export function useDebugGameBarWidget() {
           downloadedBytes: 0,
           totalBytes,
           percent: 0,
-          message: `【模拟】正在从 ${label} 下载…\n${url ?? '-'}`,
+          message: l(`【模拟】正在从 ${label} 下载…\n${url ?? '-'}`, `[Simulation] Downloading from ${label}…\n${url ?? '-'}`),
         },
         'downloading',
       )
@@ -427,7 +428,7 @@ export function useDebugGameBarWidget() {
       if (runId !== simulateRunId) return;
       if (outcome === 'download-fail' && pct === 38) {
         baseWidget.progress.value = null;
-        baseWidget.error.value = '【模拟】下载 Widget 失败: HTTP 503 Service Unavailable';
+        baseWidget.error.value = l('【模拟】下载 Widget 失败: HTTP 503 Service Unavailable', '[Simulation] Widget download failed: HTTP 503 Service Unavailable');
         baseWidget.phase.value = 'error';
         baseWidget.busy.value = false;
         return;
@@ -437,7 +438,7 @@ export function useDebugGameBarWidget() {
         downloadedBytes: Math.floor((totalBytes * pct) / 100),
         totalBytes,
         percent: pct,
-        message: `【模拟】正在从 ${label} 下载… ${pct}%`,
+        message: l(`【模拟】正在从 ${label} 下载… ${pct}%`, `[Simulation] Downloading from ${label}… ${pct}%`),
       };
     }
 
@@ -450,7 +451,7 @@ export function useDebugGameBarWidget() {
           downloadedBytes: totalBytes,
           totalBytes,
           percent: 100,
-          message: '【模拟】正在校验安装包…',
+          message: l('【模拟】正在校验安装包…', '[Simulation] Verifying the package…'),
         },
         'verifying',
       )
@@ -467,7 +468,7 @@ export function useDebugGameBarWidget() {
           downloadedBytes: totalBytes,
           totalBytes,
           percent: 100,
-          message: '【模拟】正在解压安装包…',
+          message: l('【模拟】正在解压安装包…', '[Simulation] Extracting the package…'),
         },
         'extracting',
       )
@@ -484,16 +485,16 @@ export function useDebugGameBarWidget() {
         downloadedBytes: 0,
         totalBytes: null,
         percent: null,
-        message: `【模拟】正在安装小组件，请勿关闭 PowerShell 窗口（已等待 0 分 ${sec} 秒）。若出现错误提示也请耐心等待。`,
+        message: l(`【模拟】正在安装小组件，请勿关闭 PowerShell 窗口（已等待 0 分 ${sec} 秒）。若出现错误提示也请耐心等待。`, `[Simulation] Installing the Widget. Keep the PowerShell window open (${sec}s elapsed), even if it briefly shows an error.`),
       };
       await sleep(1000, runId);
       if (runId !== simulateRunId) return;
       if (outcome === 'install-fail' && sec === 2) {
         baseWidget.progress.value = null;
-        baseWidget.error.value = '【模拟】安装失败（退出码 1）\n请在 UAC 中点「是」，并勿关闭弹出的 PowerShell 窗口。';
+        baseWidget.error.value = l('【模拟】安装失败（退出码 1）\n请在 UAC 中点「是」，并勿关闭弹出的 PowerShell 窗口。', '[Simulation] Installation failed (exit code 1).\nApprove the UAC prompt and keep the PowerShell window open.');
         baseWidget.installLogPath.value = '%LOCALAPPDATA%\\CSMatchHelper\\gamebar-widget\\install.log';
         baseWidget.installLogExcerpt.value =
-          '【模拟日志】正在请求管理员权限…\nAdd-AppxPackage : 部署失败，HRESULT 0x80073D02';
+          l('【模拟日志】正在请求管理员权限…\nAdd-AppxPackage : 部署失败，HRESULT 0x80073D02', '[Simulation log] Requesting administrator access…\nAdd-AppxPackage: deployment failed, HRESULT 0x80073D02');
         baseWidget.phase.value = 'error';
         baseWidget.busy.value = false;
         return;
@@ -501,7 +502,7 @@ export function useDebugGameBarWidget() {
     }
 
     if (runId !== simulateRunId) return;
-    baseWidget.lastMessage.value = `【模拟】已通过 ${label} 完成下载并安装`;
+    baseWidget.lastMessage.value = l(`【模拟】已通过 ${label} 完成下载并安装`, `[Simulation] Downloaded from ${label} and installed successfully`);
     baseWidget.progress.value = {
       phase: 'complete',
       downloadedBytes: totalBytes,
@@ -519,7 +520,7 @@ export function useDebugGameBarWidget() {
       directory: false,
       multiple: false,
       filters: [{ name: 'Widget Zip', extensions: ['zip'] }],
-      title: '选择 CSMatchHelperGameBarWidget zip',
+      title: l('选择 CSMatchHelperGameBarWidget zip', 'Select a CSMatchHelperGameBarWidget zip'),
     });
     if (typeof selected === 'string') {
       widgetZipPath.value = selected;
@@ -530,11 +531,11 @@ export function useDebugGameBarWidget() {
     actionError.value = '';
     const path = widgetZipPath.value.trim();
     if (!path) {
-      actionError.value = '请先选择 Widget zip 文件';
+      actionError.value = l('请先选择 Widget zip 文件', 'Select a Widget zip file first');
       return;
     }
     if (!path.toLowerCase().endsWith('.zip')) {
-      actionError.value = '仅支持 .zip 安装包';
+      actionError.value = l('仅支持 .zip 安装包', 'Only .zip packages are supported');
       return;
     }
     await baseWidget.installFromLocal(path);
@@ -545,7 +546,7 @@ export function useDebugGameBarWidget() {
     try {
       await baseWidget.uninstall();
     } catch (err) {
-      actionError.value = err instanceof Error ? err.message : String(err);
+      actionError.value = localizeErrorMessage(err);
     }
   }
 

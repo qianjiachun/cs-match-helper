@@ -65,6 +65,10 @@
     </AppxManifest>
   </ItemGroup>
   <ItemGroup>
+    <PRIResource Include="Strings\zh-CN\Resources.resw" />
+    <PRIResource Include="Strings\en-US\Resources.resw" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="Assets\LockScreenLogo.png" />
     <Content Include="Assets\SplashScreen.png" />
     <Content Include="Assets\Square150x150Logo.png" />

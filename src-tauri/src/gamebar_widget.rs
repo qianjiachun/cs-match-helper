@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter};
 use zip::read::ZipArchive;
 
 const WIDGET_PACKAGE_NAME: &str = "CSMatchHelper.GameBarWidget";
-const WIDGET_DISPLAY_NAME: &str = "CS 对局助手";
+const WIDGET_DISPLAY_NAME: &str = "CS 匹配助手";
 const LEGACY_PACKAGE_NAMES: &[&str] = &["CSMatchHelper.CounterStrafingHudWidget"];
 const WIDGET_ZIP_PREFIX: &str = "CSMatchHelperGameBarWidget-";
 const LUNARIS_USERNAME: &str = "qianjiachun";
@@ -415,6 +415,7 @@ async fn download_widget_zip(
     download_url: &str,
     dest_path: &Path,
     expected_sha256: Option<&str>,
+    locale: &str,
 ) -> Result<(), String> {
     let client = http_client()?;
     emit_progress(
@@ -422,7 +423,7 @@ async fn download_widget_zip(
         "downloading",
         0,
         None,
-        Some(&format!("正在下载 {WIDGET_DISPLAY_NAME} 小组件…")),
+        Some(if locale == "en-US" { "Downloading the CS Match Helper Widget…" } else { "正在下载 CS 匹配助手小组件…" }),
     );
 
     let response = client
@@ -468,7 +469,7 @@ async fn download_widget_zip(
         "verifying",
         downloaded_bytes,
         total_bytes,
-        Some("正在校验安装包…"),
+        Some(if locale == "en-US" { "Verifying the package…" } else { "正在校验安装包…" }),
     );
 
     if let Some(expected) = expected_sha256.filter(|value| !value.is_empty()) {
@@ -492,8 +493,9 @@ async fn download_widget_zip_with_fallback(
     fallback_url: Option<&str>,
     dest_path: &Path,
     expected_sha256: Option<&str>,
+    locale: &str,
 ) -> Result<(), String> {
-    match download_widget_zip(app, primary_url, dest_path, expected_sha256).await {
+    match download_widget_zip(app, primary_url, dest_path, expected_sha256, locale).await {
         Ok(()) => Ok(()),
         Err(primary_error) => {
             let Some(fallback) = fallback_url.filter(|url| !url.is_empty() && *url != primary_url)
@@ -505,12 +507,12 @@ async fn download_widget_zip_with_fallback(
                 "downloading",
                 0,
                 None,
-                Some("CDN 下载失败，正在尝试 GitHub Release…"),
+                Some(if locale == "en-US" { "CDN download failed. Trying GitHub Releases…" } else { "CDN 下载失败，正在尝试 GitHub Release…" }),
             );
             if dest_path.exists() {
                 let _ = std::fs::remove_file(dest_path);
             }
-            download_widget_zip(app, fallback, dest_path, expected_sha256)
+            download_widget_zip(app, fallback, dest_path, expected_sha256, locale)
                 .await
                 .map_err(|fallback_error| {
                     format!(
@@ -672,15 +674,16 @@ fn merge_install_log_excerpts(wrapper_log: &str, end_user: &EndUserInstallArtifa
 }
 
 #[cfg(windows)]
-fn format_install_failure(outcome: &ElevatedInstallOutcome) -> String {
+fn format_install_failure(outcome: &ElevatedInstallOutcome, locale: &str) -> String {
     let end_user = read_end_user_install_artifacts();
     let base = if let Some(fail_message) = end_user.fail_message.as_ref().filter(|v| !v.is_empty()) {
         fail_message.clone()
     } else if outcome.message.trim().is_empty() {
-        format!(
-            "安装失败（{}）",
-            describe_process_exit_code(outcome.exit_code)
-        )
+        if locale == "en-US" {
+            format!("Installation failed (exit code {})", outcome.exit_code)
+        } else {
+            format!("安装失败（{}）", describe_process_exit_code(outcome.exit_code))
+        }
     } else {
         outcome.message.clone()
     };
@@ -689,7 +692,11 @@ fn format_install_failure(outcome: &ElevatedInstallOutcome) -> String {
     if merged_log.trim().is_empty() {
         base
     } else {
-        format!("{base}\n\n--- 安装日志 ---\n{}", merged_log.trim())
+        format!(
+            "{base}\n\n--- {} ---\n{}",
+            if locale == "en-US" { "Installation log" } else { "安装日志" },
+            merged_log.trim()
+        )
     }
 }
 
@@ -711,19 +718,22 @@ fn write_install_wrapper(
     log_path: &Path,
     result_path: &Path,
     started_path: &Path,
+    locale: &str,
 ) -> Result<PathBuf, String> {
     let wrapper_path = workspace.join("run-install-wrapper.ps1");
     let install_literal = install_script.to_string_lossy().replace('\'', "''");
     let log_literal = log_path.to_string_lossy().replace('\'', "''");
     let result_literal = result_path.to_string_lossy().replace('\'', "''");
     let started_literal = started_path.to_string_lossy().replace('\'', "''");
+    let locale_literal = locale.replace('\'', "''");
     let content = format!(
         r#"$ErrorActionPreference = 'Stop'
 $logPath = '{log_literal}'
 $resultPath = '{result_literal}'
 $startedPath = '{started_literal}'
 $installScript = '{install_literal}'
-try {{ $Host.UI.RawUI.WindowTitle = 'CS 对局助手 - 小组件安装' }} catch {{ }}
+$locale = '{locale_literal}'
+try {{ $Host.UI.RawUI.WindowTitle = 'CS 匹配助手 - 小组件安装' }} catch {{ }}
 "started $(Get-Date -Format o)" | Set-Content -Path $startedPath -Encoding UTF8
 "=== Widget install started $(Get-Date -Format o) ===" | Set-Content -Path $logPath -Encoding UTF8
 try {{
@@ -734,7 +744,7 @@ try {{
     stage = 'run-install-script'
     message = 'Running install.ps1'
   }} | ConvertTo-Json | Set-Content -Path $resultPath -Encoding UTF8
-  & $installScript
+  & $installScript -Language $locale
   $exitCode = if ($null -ne $LASTEXITCODE) {{ [int]$LASTEXITCODE }} else {{ if ($?) {{ 0 }} else {{ 1 }} }}
   if ($exitCode -ne 0) {{ throw "install.ps1 exited with code $exitCode" }}
   @{{
@@ -884,7 +894,7 @@ fn describe_process_exit_code(code: u32) -> String {
 }
 
 #[cfg(windows)]
-fn run_elevated_install(install_script: &Path) -> Result<ElevatedInstallOutcome, String> {
+fn run_elevated_install(install_script: &Path, locale: &str) -> Result<ElevatedInstallOutcome, String> {
     let workspace = widget_workspace_root()?;
     std::fs::create_dir_all(&workspace).map_err(|e| format!("创建工作目录失败: {e}"))?;
 
@@ -898,6 +908,7 @@ fn run_elevated_install(install_script: &Path) -> Result<ElevatedInstallOutcome,
         &log_path,
         &result_path,
         &started_path,
+        locale,
     )?;
 
     let _ = std::fs::remove_file(&started_path);
@@ -1004,8 +1015,15 @@ fn build_bootstrap_failure_message(exit_code: u32, wrapper_started: bool, log_ex
 }
 
 #[cfg(not(windows))]
-fn run_elevated_install(_install_script: &Path) -> Result<(), String> {
+fn run_elevated_install(_install_script: &Path, _locale: &str) -> Result<(), String> {
     Err("Game Bar Widget 安装仅支持 Windows".to_string())
+}
+
+fn normalize_app_locale(locale: Option<&str>) -> &'static str {
+    match locale {
+        Some(value) if value.eq_ignore_ascii_case("zh-CN") || value.to_ascii_lowercase().starts_with("zh-") => "zh-CN",
+        _ => "en-US",
+    }
 }
 
 fn is_zip_path(path: &Path) -> bool {
@@ -1095,6 +1113,7 @@ fn find_dev_dist_candidates() -> Vec<PathBuf> {
 async fn install_from_prepared_root(
     app: &AppHandle,
     install_root: &Path,
+    locale: &str,
 ) -> Result<GameBarWidgetInstallResult, String> {
     let install_script = install_root.join("install.ps1");
     if !install_script.is_file() {
@@ -1112,12 +1131,14 @@ async fn install_from_prepared_root(
         "installing",
         0,
         None,
-        Some("请在 UAC 中点「是」。随后会弹出安装窗口，请保持开启，通常 1–3 分钟即可完成。"),
+        Some(if locale == "en-US" { "Approve the UAC prompt, then keep the setup window open. Installation normally takes 1–3 minutes." } else { "请在 UAC 中点「是」。随后会弹出安装窗口，请保持开启，通常 1–3 分钟即可完成。" }),
     );
 
     #[cfg(windows)]
     {
         let script_path = install_script.clone();
+        let install_locale = locale.to_string();
+        let heartbeat_locale = install_locale.clone();
         let app_for_heartbeat = app.clone();
         let installing = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let installing_flag = installing.clone();
@@ -1132,19 +1153,22 @@ async fn install_from_prepared_root(
                 let elapsed = start.elapsed().as_secs();
                 let mins = elapsed / 60;
                 let secs = elapsed % 60;
+                let message = if heartbeat_locale == "en-US" {
+                    format!("Installing the Widget. Keep the setup window open ({mins}m {secs}s elapsed).")
+                } else {
+                    format!("正在安装小组件，请保持安装窗口开启（已等待 {mins} 分 {secs} 秒）。若出现系统提示也请耐心等待，通常几分钟内可完成。")
+                };
                 emit_progress(
                     &app_for_heartbeat,
                     "installing",
                     0,
                     None,
-                    Some(&format!(
-                        "正在安装小组件，请保持安装窗口开启（已等待 {mins} 分 {secs} 秒）。若出现系统提示也请耐心等待，通常几分钟内可完成。"
-                    )),
+                    Some(&message),
                 );
             }
         });
 
-        let outcome = tauri::async_runtime::spawn_blocking(move || run_elevated_install(&script_path))
+        let outcome = tauri::async_runtime::spawn_blocking(move || run_elevated_install(&script_path, &install_locale))
             .await
             .map_err(|e| format!("安装任务失败: {e}"))??;
 
@@ -1152,7 +1176,7 @@ async fn install_from_prepared_root(
         heartbeat.abort();
 
         let result = if outcome.exit_code != 0 {
-            let message = format_install_failure(&outcome);
+            let message = format_install_failure(&outcome, locale);
             Ok(GameBarWidgetInstallResult {
                 success: false,
                 installed_version: None,
@@ -1161,11 +1185,13 @@ async fn install_from_prepared_root(
                 install_log_excerpt: Some(outcome.log_excerpt),
             })
         } else if let Some(version) = query_installed_package().map(|(version, _)| version) {
-            emit_progress(app, "complete", 0, None, Some("安装完成"));
+            emit_progress(app, "complete", 0, None, Some(if locale == "en-US" { "Installation complete" } else { "安装完成" }));
             let shortcut = read_game_bar_open_shortcut().display;
-            let message = format!(
-                "{WIDGET_DISPLAY_NAME} 小组件安装成功。请在游戏中按 {shortcut} 打开游戏栏并固定小组件。"
-            );
+            let message = if locale == "en-US" {
+                format!("CS Match Helper Widget installed. Press {shortcut} in game, then open and pin the Widget.")
+            } else {
+                format!("{WIDGET_DISPLAY_NAME} 小组件安装成功。请在游戏中按 {shortcut} 打开游戏栏并固定小组件。")
+            };
             Ok(GameBarWidgetInstallResult {
                 success: true,
                 installed_version: Some(version),
@@ -1179,7 +1205,7 @@ async fn install_from_prepared_root(
                 message: "安装脚本已结束，但未检测到 Widget 包。请检查安装日志。".to_string(),
                 log_path: outcome.log_path.clone(),
                 log_excerpt: outcome.log_excerpt.clone(),
-            });
+            }, locale);
             Ok(GameBarWidgetInstallResult {
                 success: false,
                 installed_version: None,
@@ -1219,7 +1245,9 @@ pub fn find_gamebar_widget_dev_dist() -> Option<String> {
 pub async fn install_or_update_gamebar_widget(
     app: AppHandle,
     download_url: Option<String>,
+    locale: Option<String>,
 ) -> Result<GameBarWidgetInstallResult, String> {
+    let locale = normalize_app_locale(locale.as_deref());
     let update = check_gamebar_widget_update().await?;
     let latest_version = update
         .latest_version
@@ -1245,6 +1273,7 @@ pub async fn install_or_update_gamebar_widget(
         fallback_download_url.as_deref(),
         &zip_path,
         update.sha256.as_deref(),
+        locale,
     )
     .await?;
 
@@ -1253,28 +1282,30 @@ pub async fn install_or_update_gamebar_widget(
         "extracting",
         0,
         None,
-        Some("正在解压安装包…"),
+        Some(if locale == "en-US" { "Extracting the package…" } else { "正在解压安装包…" }),
     );
     extract_widget_zip(&zip_path, &extract_dir)?;
 
-    install_from_prepared_root(&app, &extract_dir).await
+    install_from_prepared_root(&app, &extract_dir, locale).await
 }
 
 #[tauri::command]
 pub async fn install_gamebar_widget_from_local(
     app: AppHandle,
     source_path: String,
+    locale: Option<String>,
 ) -> Result<GameBarWidgetInstallResult, String> {
+    let locale = normalize_app_locale(locale.as_deref());
     let source = PathBuf::from(source_path.trim());
     emit_progress(
         &app,
         "extracting",
         0,
         None,
-        Some("正在准备本地安装包…"),
+        Some(if locale == "en-US" { "Preparing the local package…" } else { "正在准备本地安装包…" }),
     );
     let install_root = prepare_local_install_root(&source)?;
-    install_from_prepared_root(&app, &install_root).await
+    install_from_prepared_root(&app, &install_root, locale).await
 }
 
 #[tauri::command]

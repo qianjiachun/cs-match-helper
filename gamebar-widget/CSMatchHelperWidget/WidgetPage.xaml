@@ -26,8 +26,8 @@
                 <StackPanel Orientation="Horizontal">
                     <StackPanel x:Name="AssessmentAvgStatGroup" Orientation="Horizontal" Margin="0,0,10,0">
                         <Grid Margin="0,0,4,0">
-                            <TextBlock Text="平均" Style="{StaticResource HudStatLabelShadowStyle}"/>
-                            <TextBlock Text="平均" Style="{StaticResource HudStatLabelStyle}"/>
+                            <TextBlock x:Name="AssessmentAvgLabelShadow" Text="平均" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock x:Name="AssessmentAvgLabel" Text="平均" Style="{StaticResource HudStatLabelStyle}"/>
                         </Grid>
                         <Grid>
                             <TextBlock x:Name="AvgDiffTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
@@ -36,8 +36,8 @@
                     </StackPanel>
                     <StackPanel x:Name="AssessmentSuccessStatGroup" Orientation="Horizontal" Margin="0,0,10,0">
                         <Grid Margin="0,0,4,0">
-                            <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelShadowStyle}"/>
-                            <TextBlock Text="优秀率" Style="{StaticResource HudStatLabelStyle}"/>
+                            <TextBlock x:Name="AssessmentSuccessLabelShadow" Text="优秀率" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock x:Name="AssessmentSuccessLabel" Text="优秀率" Style="{StaticResource HudStatLabelStyle}"/>
                         </Grid>
                         <Grid>
                             <TextBlock x:Name="SuccessRateTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
@@ -46,8 +46,8 @@
                     </StackPanel>
                     <StackPanel x:Name="AssessmentStdDevStatGroup" Orientation="Horizontal">
                         <Grid Margin="0,0,4,0">
-                            <TextBlock Text="标准差" Style="{StaticResource HudStatLabelShadowStyle}"/>
-                            <TextBlock Text="标准差" Style="{StaticResource HudStatLabelStyle}"/>
+                            <TextBlock x:Name="AssessmentStdDevLabelShadow" Text="标准差" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                            <TextBlock x:Name="AssessmentStdDevLabel" Text="标准差" Style="{StaticResource HudStatLabelStyle}"/>
                         </Grid>
                         <Grid>
                             <TextBlock x:Name="StdDevTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
@@ -152,8 +152,8 @@
             <StackPanel x:Name="ShootingStatsRow" Grid.Row="0" Orientation="Horizontal" Margin="1,0,1,2">
                 <StackPanel x:Name="ShootingErrorStatGroup" Orientation="Horizontal" Margin="0,0,12,0">
                     <Grid Margin="0,0,4,0">
-                        <TextBlock Text="误差" Style="{StaticResource HudStatLabelShadowStyle}"/>
-                        <TextBlock Text="误差" Style="{StaticResource HudStatLabelStyle}"/>
+                        <TextBlock x:Name="ShootingErrorLabelShadow" Text="误差" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                        <TextBlock x:Name="ShootingErrorLabel" Text="误差" Style="{StaticResource HudStatLabelStyle}"/>
                     </Grid>
                     <Grid>
                         <TextBlock x:Name="AvgErrorTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
@@ -162,8 +162,8 @@
                 </StackPanel>
                 <StackPanel x:Name="ShootingStableStatGroup" Orientation="Horizontal">
                     <Grid Margin="0,0,4,0">
-                        <TextBlock Text="稳定" Style="{StaticResource HudStatLabelShadowStyle}"/>
-                        <TextBlock Text="稳定" Style="{StaticResource HudStatLabelStyle}"/>
+                        <TextBlock x:Name="ShootingStableLabelShadow" Text="稳定" Style="{StaticResource HudStatLabelShadowStyle}"/>
+                        <TextBlock x:Name="ShootingStableLabel" Text="稳定" Style="{StaticResource HudStatLabelStyle}"/>
                     </Grid>
                     <Grid>
                         <TextBlock x:Name="StableRateTextShadow" Text="—" Style="{StaticResource HudStatValueShadowStyle}"/>
@@ -199,7 +199,7 @@
                     TextAlignment="Center"/>
                 <TextBlock
                     x:Name="StatusHintText"
-                    Text="请打开 CS 对局助手开始记录"
+                    Text="请打开 CS 匹配助手开始记录"
                     FontSize="10"
                     Foreground="#B3FFFFFF"
                     FontFamily="Segoe UI"

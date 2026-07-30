@@ -1,11 +1,25 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Install CS Match Helper Game Bar Widget (end user, pre-built package).
   Place this script next to CSMatchHelperWidget.msix and .cer, then run as Admin.
 #>
+param(
+    [ValidateSet('auto', 'zh-CN', 'en-US')]
+    [string]$Language = 'auto'
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$InstallLocale = if ($Language -eq 'auto') {
+    if ([Globalization.CultureInfo]::CurrentUICulture.Name -like 'zh-*') { 'zh-CN' } else { 'en-US' }
+} else { $Language }
+
+function L {
+    param([string]$Zh, [string]$En)
+    if ($InstallLocale -eq 'en-US') { return $En }
+    return $Zh
+}
 
 try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -91,18 +105,18 @@ function Write-InstallLog {
 
 function Show-InstallWelcome {
     try {
-        $Host.UI.RawUI.WindowTitle = 'CS 对局助手 - 小组件安装'
+        $Host.UI.RawUI.WindowTitle = L 'CS 匹配助手 - 小组件安装' 'CS Match Helper - Widget Setup'
     } catch { }
 
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Game)CS 对局助手 · 游戏内小组件安装" -ForegroundColor Cyan
+    Write-Host "  $($InstallGlyphs.Game)$(L 'CS 匹配助手 · 游戏内小组件安装' 'CS Match Helper · In-game Widget Setup')" -ForegroundColor Cyan
     Write-Host $InstallGlyphs.Divider -ForegroundColor DarkGray
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Wait)正在安装，请保持此窗口开启。" -ForegroundColor White
-    Write-Host '     通常需要 1–3 分钟，完成后窗口会自动关闭。' -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Wait)$(L '正在安装，请保持此窗口开启。' 'Installing. Keep this window open.')" -ForegroundColor White
+    Write-Host (L '     通常需要 1–3 分钟，完成后窗口会自动关闭。' '     This normally takes 1–3 minutes. The window closes automatically.') -ForegroundColor DarkGray
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Tip)若中途出现系统提示（例如「资源正在使用」），属于正常现象，" -ForegroundColor DarkYellow
-    Write-Host '     请勿关闭窗口，耐心等待即可。' -ForegroundColor DarkYellow
+    Write-Host "  $($InstallGlyphs.Tip)$(L '若中途出现系统提示（例如「资源正在使用」），属于正常现象，' 'Windows may briefly report that a resource is in use.')" -ForegroundColor DarkYellow
+    Write-Host (L '     请勿关闭窗口，耐心等待即可。' '     Keep this window open while setup retries automatically.') -ForegroundColor DarkYellow
     Write-Host ''
 }
 
@@ -134,7 +148,7 @@ function Show-InstallSuccess {
     Write-Host ''
     Write-Host $InstallGlyphs.Rule -ForegroundColor DarkGray
     Write-Host "  $($InstallGlyphs.Done)" -NoNewline -ForegroundColor Green
-    Write-Host '安装完成！' -NoNewline -ForegroundColor Green
+    Write-Host (L '安装完成！' 'Setup complete!') -NoNewline -ForegroundColor Green
     if ($Version) {
         Write-Host "  v$Version" -ForegroundColor DarkGray
     } else {
@@ -142,20 +156,20 @@ function Show-InstallSuccess {
     }
     Write-Host $InstallGlyphs.Rule -ForegroundColor DarkGray
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Target)接下来你可以：" -ForegroundColor White
-    Write-Host "$($InstallGlyphs.Bullet)关闭此窗口，回到 CS 对局助手" -ForegroundColor DarkGray
-    Write-Host "$($InstallGlyphs.Bullet)游戏中按 " -NoNewline -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Target)$(L '接下来你可以：' 'Next steps:')" -ForegroundColor White
+    Write-Host "$($InstallGlyphs.Bullet)$(L '关闭此窗口，回到 CS 匹配助手' 'Close this window and return to CS Match Helper')" -ForegroundColor DarkGray
+    Write-Host "$($InstallGlyphs.Bullet)$(L '游戏中按 ' 'In game, press ')" -NoNewline -ForegroundColor DarkGray
     Write-Host 'Win+G' -NoNewline -ForegroundColor Cyan
-    Write-Host " 打开游戏栏，固定小组件$($InstallGlyphs.Party)" -ForegroundColor DarkGray
+    Write-Host "$(L ' 打开游戏栏，固定小组件' ' to open Game Bar and pin the widget')$($InstallGlyphs.Party)" -ForegroundColor DarkGray
     Write-Host ''
 }
 
 function Show-InstallFailure {
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Fail)安装未能完成" -ForegroundColor Red
+    Write-Host "  $($InstallGlyphs.Fail)$(L '安装未能完成' 'Setup could not be completed')" -ForegroundColor Red
     Write-Host ''
-    Write-Host "  $($InstallGlyphs.Guide)请关闭此窗口，回到 CS 对局助手查看提示或重试。" -ForegroundColor DarkGray
-    Write-Host "  $($InstallGlyphs.Chat)若多次失败，可在应用内复制诊断信息以便反馈。" -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Guide)$(L '请关闭此窗口，回到 CS 匹配助手查看提示或重试。' 'Close this window, then review the message in CS Match Helper or retry.')" -ForegroundColor DarkGray
+    Write-Host "  $($InstallGlyphs.Chat)$(L '若多次失败，可在应用内复制诊断信息以便反馈。' 'If setup keeps failing, copy diagnostics from the app when reporting the issue.')" -ForegroundColor DarkGray
     Write-Host ''
 }
 
@@ -241,7 +255,7 @@ function Get-AppxPackageVersionFromPath {
     try {
         $entry = $zip.Entries | Where-Object { $_.Name -eq 'AppxManifest.xml' } | Select-Object -First 1
         if (-not $entry) {
-            throw "AppxManifest.xml not found in package: $PackagePath"
+            throw (L "安装包中未找到 AppxManifest.xml：$PackagePath" "AppxManifest.xml not found in package: $PackagePath")
         }
         $stream = $entry.Open()
         try {
@@ -328,7 +342,7 @@ function Install-WidgetAppxPackage {
     )
 
     Write-InstallDetail -Message "Package path: $Path"
-    Write-InstallStep -Message '正在写入小组件文件，请稍候…' -Kind wait
+    Write-InstallStep -Message (L '正在写入小组件文件，请稍候…' 'Writing widget files…') -Kind wait
 
     $params = @{
         Path                      = $Path
@@ -344,7 +358,7 @@ function Install-WidgetAppxPackage {
         return
     } catch {
         if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
-            Write-InstallStep -Message '检测到旧版本，正在清理后重新安装…' -Kind retry
+            Write-InstallStep -Message (L '检测到旧版本，正在清理后重新安装…' 'Removing an older version before reinstalling…') -Kind retry
             Write-InstallDetail -Message "Same-version reinstall: $($_.Exception.Message)"
             Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
             Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
@@ -352,14 +366,14 @@ function Install-WidgetAppxPackage {
         }
 
         Write-InstallDetail -Message "Fast install failed, retrying with ForceApplicationShutdown: $($_.Exception.Message)"
-        Write-InstallStep -Message '正在等待系统释放资源，稍后自动重试（约 1–3 分钟）…' -Kind retry
+        Write-InstallStep -Message (L '正在等待系统释放资源，稍后自动重试（约 1–3 分钟）…' 'Waiting for Windows to release resources; setup will retry automatically…') -Kind retry
     }
 
     try {
         Invoke-AddAppxPackageAttempt -Params $params -ForceApplicationShutdown
     } catch {
         if (-not $SkipSameVersionRemoval -and (Test-SamePackageReinstallError $_)) {
-            Write-InstallStep -Message '检测到旧版本，正在清理后重新安装…' -Kind retry
+            Write-InstallStep -Message (L '检测到旧版本，正在清理后重新安装…' 'Removing an older version before reinstalling…') -Kind retry
             Write-InstallDetail -Message "Same-version reinstall: $($_.Exception.Message)"
             Remove-InstalledWidgetPackages -Names @($PackageName) + $LegacyPackageNames
             Install-WidgetAppxPackage -Path $Path -DependencyPaths $DependencyPaths -SkipSameVersionRemoval
@@ -390,7 +404,7 @@ try {
         [Security.Principal.WindowsBuiltInRole]::Administrator
     )
     if (-not $isAdmin) {
-        throw 'Administrator privileges are required to install the widget.'
+        throw (L '安装 Widget 需要管理员权限。' 'Administrator privileges are required to install the Widget.')
     }
 
     Write-InstallDetail -Message "Windows: $([Environment]::OSVersion.VersionString)"
@@ -399,13 +413,13 @@ try {
     Write-InstallDetail -Message "Package: $(if ($AppxPath) { Split-Path -Leaf $AppxPath } else { 'missing' })"
 
     if (-not $AppxPath) {
-        throw "Missing package in $Dir`nExpected CSMatchHelperWidget.msix or CSMatchHelperWidget.appx next to install.ps1"
+        throw (L "目录中缺少安装包：$Dir`ninstall.ps1 同级应包含 CSMatchHelperWidget.msix 或 CSMatchHelperWidget.appx" "Missing package in $Dir`nExpected CSMatchHelperWidget.msix or CSMatchHelperWidget.appx next to install.ps1")
     }
     if (-not (Test-Path $CerPath)) {
-        throw "Missing certificate: $CerPath`nEnsure CSMatchHelperWidget.cer is in the same folder"
+        throw (L "缺少证书：$CerPath`n请确认 CSMatchHelperWidget.cer 位于同一文件夹" "Missing certificate: $CerPath`nEnsure CSMatchHelperWidget.cer is in the same folder")
     }
 
-    Write-InstallStep -Message '正在检查运行环境…' -Kind default
+    Write-InstallStep -Message (L '正在检查运行环境…' 'Checking system requirements…') -Kind default
 
     $depDir = Join-Path $Dir 'Dependencies\x64'
     $dependencyPaths = @()
@@ -418,11 +432,11 @@ try {
     if (Test-CertificateTrusted -CerFilePath $CerPath) {
         Write-InstallDetail -Message 'Signing certificate already trusted, skip import'
     } else {
-        Write-InstallStep -Message '正在配置安装证书…' -Kind default
+        Write-InstallStep -Message (L '正在配置安装证书…' 'Configuring the signing certificate…') -Kind default
         Import-Certificate -FilePath $CerPath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
     }
 
-    Write-InstallStep -Message '正在清理旧版本（如有）…' -Kind default
+    Write-InstallStep -Message (L '正在清理旧版本（如有）…' 'Removing older versions, if present…') -Kind default
     foreach ($legacyName in $LegacyPackageNames) {
         Get-AppxPackage -Name $legacyName -ErrorAction SilentlyContinue |
             ForEach-Object {
@@ -436,23 +450,23 @@ try {
 
     $existingPkg = Get-AppxPackage -Name $PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($existingPkg -and $existingPkg.Version -eq $incomingVersion) {
-        Write-InstallStep -Message "正在更新 v$incomingVersion…" -Kind wait
+        Write-InstallStep -Message (L "正在更新 v$incomingVersion…" "Updating to v$incomingVersion…") -Kind wait
         Remove-InstalledWidgetPackages -Names @($PackageName)
     } elseif ($existingPkg -and (Test-LoopbackConfigured -PackageFamilyName $existingPkg.PackageFamilyName)) {
-        Write-InstallStep -Message "正在从 v$($existingPkg.Version) 升级…" -Kind wait
+        Write-InstallStep -Message (L "正在从 v$($existingPkg.Version) 升级…" "Upgrading from v$($existingPkg.Version)…") -Kind wait
         Write-InstallDetail -Message "Widget already installed v$($existingPkg.Version) with loopback, upgrading package"
     }
 
-    Write-InstallStep -Message '正在安装小组件…' -Kind wait
+    Write-InstallStep -Message (L '正在安装小组件…' 'Installing the widget…') -Kind wait
     Install-WidgetAppxPackage -Path $AppxPath -DependencyPaths $dependencyPaths
 
     $pkg = Get-AppxPackage -Name $PackageName
     if (-not $pkg) {
-        throw 'Installation failed: package not found after Add-AppxPackage'
+        throw (L '安装失败：Add-AppxPackage 完成后未找到 Widget 包' 'Installation failed: package not found after Add-AppxPackage')
     }
 
     if (-not (Test-LoopbackConfigured -PackageFamilyName $pkg.PackageFamilyName)) {
-        Write-InstallStep -Message '正在配置本机连接…' -Kind default
+        Write-InstallStep -Message (L '正在配置本机连接…' 'Configuring the local connection…') -Kind default
         Write-InstallDetail -Message "Allow localhost access: $($pkg.PackageFamilyName)"
         CheckNetIsolation LoopbackExempt -a -n="$($pkg.PackageFamilyName)"
     } else {

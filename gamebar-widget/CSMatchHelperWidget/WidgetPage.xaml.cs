@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
+using Windows.Globalization;
 using Windows.Storage.Streams;
 using Windows.Foundation;
 using Windows.UI;
@@ -39,6 +40,8 @@ namespace CSMatchHelperWidget
         private Storyboard _comboStoryboard;
         private bool _comboExitInProgress;
         private bool _comboVisible;
+        private string _locale = ResolveSystemLocale();
+        private WidgetLinkState _linkState = WidgetLinkState.Preparing;
 
         private const double MinAssessmentRatio = 0.05;
         private const double MaxAssessmentRatio = 0.95;
@@ -74,11 +77,12 @@ namespace CSMatchHelperWidget
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
             ApplyWidgetLayout();
+            ApplyLocale();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            SetLinkState(WidgetLinkState.Preparing, "请打开 CS 对局助手开始记录");
+            SetLinkState(WidgetLinkState.Preparing, L("请打开 CS 匹配助手开始记录", "Open CS Match Helper and start recording"));
             UpdateChartStatsVisibility();
             _ = StreamLoopAsync();
         }
@@ -121,13 +125,13 @@ namespace CSMatchHelperWidget
                             await RunOnUiThreadAsync(() =>
                             {
                                 ResetIdleState();
-                                SetLinkState(WidgetLinkState.Offline, "请确认 CS 对局助手已启动并开始记录");
+                                SetLinkState(WidgetLinkState.Offline, L("请确认 CS 匹配助手已启动并开始记录", "Make sure CS Match Helper is running and recording"));
                             });
                         }
                         else if (!_hasLiveSnapshot)
                         {
                             await RunOnUiThreadAsync(() =>
-                                SetLinkState(WidgetLinkState.Preparing, "请打开 CS 对局助手开始记录"));
+                                SetLinkState(WidgetLinkState.Preparing, L("请打开 CS 匹配助手开始记录", "Open CS Match Helper and start recording")));
                         }
                     }
 
@@ -879,19 +883,20 @@ namespace CSMatchHelperWidget
 
         private void SetLinkState(WidgetLinkState state, string hint = null)
         {
+            _linkState = state;
             switch (state)
             {
                 case WidgetLinkState.Live:
                     StatusOverlay.Visibility = Visibility.Collapsed;
                     return;
                 case WidgetLinkState.Offline:
-                    StatusText.Text = "未连接";
-                    StatusHintText.Text = hint ?? "请确认 CS 对局助手已启动并开始记录";
+                    StatusText.Text = L("未连接", "Offline");
+                    StatusHintText.Text = hint ?? L("请确认 CS 匹配助手已启动并开始记录", "Make sure CS Match Helper is running and recording");
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
                 default:
-                    StatusText.Text = "数据准备中…";
-                    StatusHintText.Text = hint ?? "请打开 CS 对局助手开始记录";
+                    StatusText.Text = L("数据准备中…", "Preparing data…");
+                    StatusHintText.Text = hint ?? L("请打开 CS 匹配助手开始记录", "Open CS Match Helper and start recording");
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
             }
@@ -917,6 +922,12 @@ namespace CSMatchHelperWidget
         private void ApplySnapshot(JsonObject root)
         {
             _lastRoot = root;
+            var nextLocale = NormalizeLocale(JsonHelpers.GetString(root, "locale", _locale));
+            if (!string.Equals(nextLocale, _locale, StringComparison.Ordinal))
+            {
+                _locale = nextLocale;
+                ApplyLocale();
+            }
             var active = JsonHelpers.GetBool(root, "active");
             var listening = JsonHelpers.GetBool(root, "listening");
 
@@ -926,7 +937,7 @@ namespace CSMatchHelperWidget
                 ResetIdleState();
                 SetLinkState(
                     WidgetLinkState.Preparing,
-                    active ? "等待开始记录" : "请先在急停助手中开始记录");
+                    active ? L("等待开始记录", "Waiting for recording to start") : L("请先在急停 HUD 中开始记录", "Start recording in the Counter Strafing HUD"));
                 return;
             }
 
@@ -988,7 +999,7 @@ namespace CSMatchHelperWidget
             var successRate = JsonHelpers.GetNumber(root, "successRate");
             var stdDevMs = JsonHelpers.GetNumber(root, "stdDevMs");
             var tendency = JsonHelpers.GetString(root, "tendency", "normal");
-            var tendencyLabel = JsonHelpers.GetString(root, "tendencyLabel", "正常");
+            var tendencyLabel = tendency == "early" ? L("偏早", "Early") : tendency == "late" ? L("偏晚", "Late") : L("正常", "Neutral");
 
             SetShadowedStatValue(AvgDiffText, AvgDiffTextShadow, FormatDiffMs(avgDiffMs), BrushForAvgDiff(avgDiffMs));
             SetShadowedStatValue(SuccessRateText, SuccessRateTextShadow, $"{successRate:F1}%", BrushForSuccessRate(successRate));
@@ -1510,12 +1521,41 @@ namespace CSMatchHelperWidget
             SetShadowedStatValue(StableRateText, StableRateTextShadow, "—", HudBrushes.DefaultValue);
         }
 
-        private static string ComboLabel(string timing, bool isPerfect, bool isSuccess)
+        private string ComboLabel(string timing, bool isPerfect, bool isSuccess)
         {
-            if (isPerfect || timing == "perfect") return "完美";
-            if (isSuccess) return "优秀";
-            if (timing == "early") return "偏早";
-            return "偏晚";
+            if (isPerfect || timing == "perfect") return L("完美", "Perfect");
+            if (isSuccess) return L("优秀", "Good");
+            if (timing == "early") return L("偏早", "Early");
+            return L("偏晚", "Late");
+        }
+
+        private static string ResolveSystemLocale()
+        {
+            var language = ApplicationLanguages.Languages.Count > 0 ? ApplicationLanguages.Languages[0] : "en-US";
+            return NormalizeLocale(language);
+        }
+
+        private static string NormalizeLocale(string locale)
+        {
+            return !string.IsNullOrWhiteSpace(locale) && locale.StartsWith("zh", StringComparison.OrdinalIgnoreCase)
+                ? "zh-CN"
+                : "en-US";
+        }
+
+        private string L(string zh, string en)
+        {
+            return _locale == "en-US" ? en : zh;
+        }
+
+        private void ApplyLocale()
+        {
+            AssessmentAvgLabel.Text = AssessmentAvgLabelShadow.Text = L("平均", "Average");
+            AssessmentSuccessLabel.Text = AssessmentSuccessLabelShadow.Text = L("优秀率", "Good rate");
+            AssessmentStdDevLabel.Text = AssessmentStdDevLabelShadow.Text = L("标准差", "Std. dev.");
+            ShootingErrorLabel.Text = ShootingErrorLabelShadow.Text = L("误差", "Error");
+            ShootingStableLabel.Text = ShootingStableLabelShadow.Text = L("稳定", "Stable");
+            ToolTipService.SetToolTip(SplitterHandle, L("上下拖动调节图表高度", "Drag vertically to resize the charts"));
+            SetLinkState(_linkState);
         }
 
         private static string FormatDiffMs(double diffMs)

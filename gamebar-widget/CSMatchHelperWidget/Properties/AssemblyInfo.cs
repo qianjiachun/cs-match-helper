@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("CSMatchHelperWidget")]
-[assembly: AssemblyDescription("CS Match Helper Game Bar 急停 HUD Widget")]
+[assembly: AssemblyDescription("CS Match Helper Game Bar Counter Strafing HUD Widget")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("CS Match Helper")]
 [assembly: AssemblyProduct("CSMatchHelperWidget")]

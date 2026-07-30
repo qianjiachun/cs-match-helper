@@ -14,6 +14,7 @@ import { useGameBarWidgetInstallUi } from '../../composables/useGameBarWidgetIns
 import { showToast } from '../../composables/useCopyFeedback';
 import { openExternalUrl } from '../../native';
 import type { useGameBarWidget } from '../../composables/useGameBarWidget';
+import { localize as l } from '../../i18n';
 
 const WIDGET_FEEDBACK_ISSUES_URL = 'https://github.com/qianjiachun/cs-match-helper/issues';
 
@@ -181,7 +182,7 @@ defineExpose({ openInstallPanel });
           :class="widgetStatusRefreshing ? 'animate-spin' : ''"
           aria-hidden="true"
         />
-        重新检测
+        {{ l('重新检测', 'Detect again') }}
       </button>
     </div>
 
@@ -199,13 +200,12 @@ defineExpose({ openInstallPanel });
         v-if="showInstallWaitingHint"
         class="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900"
       >
-        <p class="font-semibold">安装进行中，请稍候</p>
+        <p class="font-semibold">{{ l('安装进行中，请稍候', 'Installation in progress') }}</p>
         <p class="mt-1">
-          会弹出<strong class="font-medium">安装窗口</strong>，完成后会自动关闭。
-          <strong class="font-medium">请勿手动关闭</strong>。
+          {{ l('会弹出安装窗口，完成后会自动关闭。请勿手动关闭。', 'A setup window will open and close automatically when finished. Keep it open.') }}
         </p>
         <p class="mt-1.5">
-          若中途出现系统提示（例如「资源正在使用」），属于正常现象，耐心等待几分钟即可。
+          {{ l('若中途出现系统提示（例如「资源正在使用」），属于正常现象，耐心等待几分钟即可。', 'Windows may briefly report that a resource is in use. Wait a few minutes while setup retries.') }}
         </p>
       </div>
     </div>
@@ -215,7 +215,7 @@ defineExpose({ openInstallPanel });
       class="mt-3 rounded-lg border border-danger/25 bg-danger/5 px-3 py-2 text-[11px] leading-relaxed text-danger"
       :class="showStepNumber ? 'sm:ml-10.5' : ''"
     >
-      <p class="font-medium">安装失败</p>
+      <p class="font-medium">{{ l('安装失败', 'Installation failed') }}</p>
       <p class="mt-1 whitespace-pre-wrap">{{ widgetError }}</p>
       <div class="mt-2 flex flex-wrap items-center gap-3">
         <button
@@ -223,14 +223,14 @@ defineExpose({ openInstallPanel });
           class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
           @click="copyDiagnostics()"
         >
-          复制问题信息
+          {{ l('复制问题信息', 'Copy diagnostics') }}
         </button>
         <button
           type="button"
           class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
           @click="openWidgetFeedback()"
         >
-          去反馈
+          {{ l('去反馈', 'Report issue') }}
         </button>
       </div>
     </div>
@@ -242,7 +242,7 @@ defineExpose({ openInstallPanel });
     >
       <div class="install-panel-shell__inner">
         <div class="rounded-xl border border-border bg-elevated/50 p-3">
-          <p class="mb-3 text-[12px] font-medium text-fg">选择下载方式</p>
+          <p class="mb-3 text-[12px] font-medium text-fg">{{ l('选择下载方式', 'Choose download source') }}</p>
           <div v-if="downloadSources.length" class="space-y-2">
             <div
               v-for="source in downloadSources"
@@ -278,7 +278,7 @@ defineExpose({ openInstallPanel });
                   :disabled="widgetBusy || !source.url"
                   @click.stop="installFromSource(source.id)"
                 >
-                  从此源安装
+                  {{ l('从此源安装', 'Install from this source') }}
                 </button>
                 <button
                   type="button"
@@ -287,7 +287,7 @@ defineExpose({ openInstallPanel });
                   @click.stop="copySourceUrl(source.id)"
                 >
                   <Copy class="h-3 w-3" />
-                  复制下载地址
+                  {{ l('复制下载地址', 'Copy download URL') }}
                 </button>
               </div>
             </div>
@@ -299,9 +299,9 @@ defineExpose({ openInstallPanel });
             {{ installPanelHint }}
           </p>
           <div class="mt-3 border-t border-border-subtle pt-3">
-            <p class="text-[12px] font-medium text-fg">已经下载好了？</p>
+            <p class="text-[12px] font-medium text-fg">{{ l('已经下载好了？', 'Already downloaded it?') }}</p>
             <p class="mt-1 text-[11px] leading-relaxed text-fg-muted">
-              在线安装会自动解压 zip，无需电脑安装解压软件。若你手动下载了 zip 且无法解压，可用其他电脑解压后拷贝文件夹过来。
+              {{ l('在线安装会自动解压 zip，无需电脑安装解压软件。若你手动下载了 zip 且无法解压，可用其他电脑解压后拷贝文件夹过来。', 'Online setup extracts the zip automatically. You can also select a downloaded zip or an extracted folder.') }}
             </p>
             <div class="mt-2 flex flex-wrap gap-2">
               <button
@@ -311,7 +311,7 @@ defineExpose({ openInstallPanel });
                 @click="pickLocalPackage()"
               >
                 <FolderOpen class="h-4 w-4" />
-                选择 zip 安装包
+                {{ l('选择 zip 安装包', 'Select zip package') }}
               </button>
               <button
                 type="button"
@@ -320,7 +320,7 @@ defineExpose({ openInstallPanel });
                 @click="pickLocalFolder()"
               >
                 <FolderOpen class="h-4 w-4" />
-                选择已解压文件夹
+                {{ l('选择已解压文件夹', 'Select extracted folder') }}
               </button>
             </div>
           </div>
@@ -330,7 +330,7 @@ defineExpose({ openInstallPanel });
             :disabled="widgetBusy || !downloadSources.length"
             @click="installFromSelectedSource()"
           >
-            使用所选来源安装
+            {{ l('使用所选来源安装', 'Install from selected source') }}
           </button>
         </div>
       </div>
@@ -341,7 +341,7 @@ defineExpose({ openInstallPanel });
       class="mt-2 text-[11px] text-warning"
       :class="showStepNumber ? 'sm:pl-10.5' : ''"
     >
-      请先完成第 1 步
+      {{ l('请先完成第 1 步', 'Complete step 1 first') }}
     </p>
   </div>
 </template>

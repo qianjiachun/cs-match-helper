@@ -17,17 +17,21 @@ export async function checkGameBarWidgetUpdate(): Promise<GameBarWidgetUpdateChe
 
 export async function installOrUpdateGameBarWidget(
   downloadUrl?: string | null,
+  locale?: 'zh-CN' | 'en-US',
 ): Promise<GameBarWidgetInstallResult> {
   return invoke<GameBarWidgetInstallResult>('install_or_update_gamebar_widget', {
     downloadUrl: downloadUrl ?? null,
+    locale: locale ?? null,
   });
 }
 
 export async function installGameBarWidgetFromLocal(
   sourcePath: string,
+  locale?: 'zh-CN' | 'en-US',
 ): Promise<GameBarWidgetInstallResult> {
   return invoke<GameBarWidgetInstallResult>('install_gamebar_widget_from_local', {
     sourcePath,
+    locale: locale ?? null,
   });
 }
 
