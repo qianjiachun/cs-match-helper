@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMapAsset, resolveMapSlug } from './map-assets';
+import { resolveCanonicalMapName, resolveMapAsset, resolveMapSlug } from './map-assets';
 
 describe('map-assets', () => {
   it('resolves common aliases to slug', () => {
@@ -22,5 +22,12 @@ describe('map-assets', () => {
   it('returns null for empty name', () => {
     expect(resolveMapSlug('')).toBeNull();
     expect(resolveMapAsset(null)).toBeNull();
+  });
+
+  it('normalizes known maps to engine ids', () => {
+    expect(resolveCanonicalMapName('荒漠迷城')).toBe('de_mirage');
+    expect(resolveCanonicalMapName('Mirage')).toBe('de_mirage');
+    expect(resolveCanonicalMapName('de_mirage')).toBe('de_mirage');
+    expect(resolveCanonicalMapName('Office')).toBe('cs_office');
   });
 });

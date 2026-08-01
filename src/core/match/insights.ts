@@ -90,31 +90,21 @@ function computeStrengthScore(team: MatchTeam, platformId: MatchPlatformId = 'pe
 }
 
 function computePerfectStrengthScore(team: MatchTeam): number {
+  const values: Array<[number | undefined, number, number]> = [
+    [team.avgScore, 0.22, 1],
+    [avg(team.players.map((p) => p.seasonRating).filter((n): n is number => n != null)), 0.2, 2000],
+    [team.avgRating, 0.18, 2000],
+    [team.avgAdpr, 0.12, 25],
+    [team.avgKd, 0.1, 2000],
+    [avg(team.players.map((p) => p.rws).filter((n): n is number => n != null)), 0.08, 200],
+    [team.mapWinRate, 0.1, 1500],
+  ];
   let score = 0;
   let weight = 0;
-  if (team.avgScore != null) {
-    score += team.avgScore * 0.25;
-    weight += 0.25;
-  }
-  if (team.avgRating != null) {
-    score += team.avgRating * 2000 * 0.25;
-    weight += 0.25;
-  }
-  if (team.avgWe != null) {
-    score += team.avgWe * 200 * 0.15;
-    weight += 0.15;
-  }
-  if (team.avgAdpr != null) {
-    score += team.avgAdpr * 25 * 0.1;
-    weight += 0.1;
-  }
-  if (team.recentWinRate != null) {
-    score += team.recentWinRate * 2000 * 0.15;
-    weight += 0.15;
-  }
-  if (team.mapWinRate != null) {
-    score += team.mapWinRate * 1500 * 0.1;
-    weight += 0.1;
+  for (const [value, metricWeight, scale] of values) {
+    if (value == null) continue;
+    score += value * scale * metricWeight;
+    weight += metricWeight;
   }
   return weight > 0 ? score / weight : 0;
 }

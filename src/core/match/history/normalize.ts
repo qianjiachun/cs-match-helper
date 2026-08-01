@@ -59,6 +59,43 @@ function normalizeRecentResults(raw: unknown): Array<'win' | 'lose' | 'draw'> {
   return raw.filter((v): v is 'win' | 'lose' | 'draw' => v === 'win' || v === 'lose' || v === 'draw');
 }
 
+function normalizeHotMaps(raw: unknown): MatchPlayer['hotMaps'] {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.flatMap((value) => {
+    const map = asRecord(value);
+    const id = map && asString(map.map);
+    const totalMatch = map && asNumber(map.totalMatch);
+    if (!map || !id || totalMatch == null) return [];
+    return [{
+      map: id, mapName: asString(map.mapName), mapImage: asString(map.mapImage), mapLogo: asString(map.mapLogo),
+      totalMatch, winCount: asNumber(map.winCount) ?? 0, totalKill: asNumber(map.totalKill),
+      totalAdr: asNumber(map.totalAdr), ratingSum: asNumber(map.ratingSum), rwsSum: asNumber(map.rwsSum),
+      deathNum: asNumber(map.deathNum), firstKillNum: asNumber(map.firstKillNum), firstDeathNum: asNumber(map.firstDeathNum),
+      headshotKillNum: asNumber(map.headshotKillNum), matchMvpNum: asNumber(map.matchMvpNum),
+      threeKillNum: asNumber(map.threeKillNum), fourKillNum: asNumber(map.fourKillNum), fiveKillNum: asNumber(map.fiveKillNum),
+    }];
+  });
+}
+
+function normalizeWeapons(raw: unknown): MatchPlayer['primaryWeapons'] {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.flatMap((value) => {
+    const weapon = asRecord(value);
+    const name = weapon && asString(weapon.name);
+    const killNum = weapon && asNumber(weapon.killNum);
+    if (!weapon || !name || killNum == null) return [];
+    return [{
+      name, killNum, nameZh: asString(weapon.nameZh), image: asString(weapon.image), matchNum: asNumber(weapon.matchNum),
+      headshotSum: asNumber(weapon.headshotSum), headshotRate: asNumber(weapon.headshotRate), damageSum: asNumber(weapon.damageSum),
+      avgDamage: asNumber(weapon.avgDamage), firstShotAccuracy: asNumber(weapon.firstShotAccuracy),
+      avgTimeToKill: asNumber(weapon.avgTimeToKill), sprayAccuracy: asNumber(weapon.sprayAccuracy),
+      levelAvgTimeToKill: asString(weapon.levelAvgTimeToKill), levelAccuracy: asString(weapon.levelAccuracy),
+      levelAvgDamage: asString(weapon.levelAvgDamage), levelHeadshotRate: asString(weapon.levelHeadshotRate),
+      levelAvgKillNum: asString(weapon.levelAvgKillNum),
+    }];
+  });
+}
+
 function normalizePlayer(raw: unknown): MatchPlayer | null {
   const obj = asRecord(raw);
   if (!obj) return null;
@@ -78,6 +115,12 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
     adpr: asNumber(obj.adpr),
     rating: asNumber(obj.rating),
     seasonRating: asNumber(obj.seasonRating),
+    standardRating: asNumber(obj.standardRating),
+    recentStandardRating: asNumber(obj.recentStandardRating),
+    commonRating: asNumber(obj.commonRating),
+    rws: asNumber(obj.rws),
+    recentRws: asNumber(obj.recentRws),
+    entryKillRatio: asNumber(obj.entryKillRatio),
     kd: asNumber(obj.kd),
     hsRate: asNumber(obj.hsRate),
     firstKillSuccessRate: asNumber(obj.firstKillSuccessRate),
@@ -86,6 +129,22 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
     clutchWinRate: asNumber(obj.clutchWinRate),
     weRaw: asNumber(obj.weRaw),
     weAvg: asNumber(obj.weAvg),
+    seasonWe: asNumber(obj.seasonWe),
+    eloTrend: asNumber(obj.eloTrend),
+    kills: asNumber(obj.kills),
+    deaths: asNumber(obj.deaths),
+    assists: asNumber(obj.assists),
+    mvpCount: asNumber(obj.mvpCount),
+    clutchWins: asNumber(obj.clutchWins),
+    clutch1v1: asNumber(obj.clutch1v1),
+    clutch1v2: asNumber(obj.clutch1v2),
+    clutch1v3: asNumber(obj.clutch1v3),
+    clutch1v4: asNumber(obj.clutch1v4),
+    clutch1v5: asNumber(obj.clutch1v5),
+    multiKill2: asNumber(obj.multiKill2),
+    multiKill3: asNumber(obj.multiKill3),
+    multiKill4: asNumber(obj.multiKill4),
+    multiKill5: asNumber(obj.multiKill5),
     recentWinRate: asNumber(obj.recentWinRate),
     recentDrawCount: asNumber(obj.recentDrawCount),
     seasonWinRate: asNumber(obj.seasonWinRate),
@@ -109,6 +168,16 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
       ? obj.recentRatings.filter((n): n is number => typeof n === 'number')
       : [],
     tags: asStringArray(obj.tags),
+    hotMaps: normalizeHotMaps(obj.hotMaps),
+    primaryWeapons: normalizeWeapons(obj.primaryWeapons),
+    abilityProfile: asRecord(obj.abilityProfile) ? {
+      shot: asNumber((obj.abilityProfile as Record<string, unknown>).shot),
+      victory: asNumber((obj.abilityProfile as Record<string, unknown>).victory),
+      breach: asNumber((obj.abilityProfile as Record<string, unknown>).breach),
+      snipe: asNumber((obj.abilityProfile as Record<string, unknown>).snipe),
+      prop: asNumber((obj.abilityProfile as Record<string, unknown>).prop),
+      summary: asString((obj.abilityProfile as Record<string, unknown>).summary),
+    } : undefined,
     platformBoardId: asString(obj.platformBoardId),
   };
 }

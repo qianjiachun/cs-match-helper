@@ -1,0 +1,84 @@
+{
+  "source": "C:/Users/qianjiachun/AppData/Roaming/Wmpvp/Log/pvpClient.2026-07-31.log",
+  "matchId": "9220102482485790732",
+  "events": [
+    {
+      "timestamp": "2026-07-31T14:07:39.988",
+      "raw": "[2026-07-31T14:07:39.988] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e461a091b3f140c1816c8e0bdaab4a2a1a6a8acad969d9a9f9684838e8a8af3f1$",
+      "decoded": "[prod][1.0.26073111] setMatchId: 9220102482485790732",
+      "delayMs": 0
+    },
+    {
+      "timestamp": "2026-07-31T14:07:39.989",
+      "raw": "[2026-07-31T14:07:39.989] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82c6dacecfc5d197dddcada6eea4adbbb1bdf8a8ab82819499c4d09d998d95667a26647f68$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a create game(match sucess) notify msg",
+      "delayMs": 1
+    },
+    {
+      "timestamp": "2026-07-31T14:07:40.972",
+      "raw": "[2026-07-31T14:07:40.972] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7f7b796960636d6a50411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199707844770\"}",
+      "delayMs": 984
+    },
+    {
+      "timestamp": "2026-07-31T14:07:41.054",
+      "raw": "[2026-07-31T14:07:41.054] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7d7f7761676f6b6959411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199549038149\"}",
+      "delayMs": 1066
+    },
+    {
+      "timestamp": "2026-07-31T14:07:41.054",
+      "raw": "[2026-07-31T14:07:41.054] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7f7d7e636c6e6b6e56411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199760289136\"}",
+      "delayMs": 1066
+    },
+    {
+      "timestamp": "2026-07-31T14:07:41.576",
+      "raw": "[2026-07-31T14:07:41.576] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7d717277646c666a6457411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561198999581097\"}",
+      "delayMs": 1588
+    },
+    {
+      "timestamp": "2026-07-31T14:07:42.272",
+      "raw": "[2026-07-31T14:07:42.272] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7d7e7c686c656a6a57411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199552982077\"}",
+      "delayMs": 2284
+    },
+    {
+      "timestamp": "2026-07-31T14:07:42.504",
+      "raw": "[2026-07-31T14:07:42.504] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7d7e7d686763626952411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199553934842\"}",
+      "delayMs": 2516
+    },
+    {
+      "timestamp": "2026-07-31T14:07:44.785",
+      "raw": "[2026-07-31T14:07:44.785] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7073796565636a6e58411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199887414038\"}",
+      "delayMs": 4797
+    },
+    {
+      "timestamp": "2026-07-31T14:07:44.855",
+      "raw": "[2026-07-31T14:07:44.855] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7d707f7c6364626e6550411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561198842205480\"}",
+      "delayMs": 4867
+    },
+    {
+      "timestamp": "2026-07-31T14:07:44.921",
+      "raw": "[2026-07-31T14:07:44.921] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c707e776363636c6c53411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199859274613\"}",
+      "delayMs": 4933
+    },
+    {
+      "timestamp": "2026-07-31T14:08:00.564",
+      "raw": "[2026-07-31T14:08:00.564] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82d7cdcacac894d9d5c9a9a5bfe9a1bcb5f9f8b5b1958d8193d7d088d48b9961677f567c63736c7d6941484005100f0705030f0d0e7b7c7e7d796363656f6850411b$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a ready notify msg, notify: {\"ready_player_id\":\"76561199667272550\"}",
+      "delayMs": 20576
+    },
+    {
+      "timestamp": "2026-07-31T14:08:03.869",
+      "raw": "[2026-07-31T14:08:03.869] [TRACE] matchMgr - ^715d425c5264670e6c756679786163646b6c513e462a3f283d2a343a3ac5c1d5b0ade2f6f5efbcfe82c2c9c6cb91c7c3dbcfb4e3a8a6b8a6b4acf8b6ad86c8c79888939c98979963772667637b7b7361213e5a06404b40556c5f575a50607f33693e3d35233c32120e390e0d02172a111f5cbba6beb8bfa0a2a6aba8a79091909e99888480898fe2efe4a4adbf8dbbb9b6bbc3dec58e88af97838a8832212a2b64606161477270474b05100f010202170d0e716b7a7a7f7f6163606c575356504e435005141a07e4f6f4a8b7cbe8b4e9f0fedbc0daf4c7d5968d988af6f6f0f8fdf6eaedece9ecd1d1d3d2ddd2dfd48a906f77597d757f7737222a3203544b4b545541694a485e36303b6974607875332e3f0f091b084d48010a0e1bada6f4e9e2e2f6b4a3ada696938489dddddbc3e5d4a4e1fca7b9a3bef9fab2adbe83958f889ed1ccc9d02271696560506670797641484005101c1c115f4a634c2b2b2f272b736e67767f141109061c300610191621e8e0a5b0bca6abaea0a8ad90958489deddd5cedfcf9fa4a7a4a990a0bab4befcdbd79ac696d2839a988565715960682d28372f2d2b1715161315090a0f0c040e727c7f696273273b35293f171f19094d484454590eede5feefffcfe0e2f8e8ead187929a8293ddc4e5d1afb1a2ebf6bba0a0bdf7fc9287889888d2c9c7c0ce382f247a6060664a717f3c1b4a5246411c115f4a635830202d256c6b647b782f0f0f0a36180a131827121aa3beb6a6aff9e0c9eaf5f1c5c9cd8994819895cecfafacb696b8aab3b887b2bac3ded6dcddc6c2cec1c5322f2479606e6b706a4479404942755f5f5f531b060b3f6933693e3d352e3f2f3f0a024b564d45434d4d4fb0bdbebdbda7aba2adaba892878489dddddbc3e5c9b9b3a3ebf6fefef7a8b7bf988195b59e8492828c8f223937252e66614a74746c45061d5e5f45561a1b4f5c2d372d6974606362627142100a0618301b115a4110f4e8eba6aff9e0c9feeefac7cb8a919e9d96c5d5d1ac9cb2acada28dbcbcf9e4d0c8c5839eaf809f979b6c6624333c2330616a7471517b534f4c5d6c5f5d1e0573737a7879646462687142130a08150a002a1f1a13e4dbf5e5e1f5b1aca9e1b3d987d8c7cfc8d1c5e5d4a4e1fcebfbf9e7e3e9eae7d8d3d1dadfc8cac7caca222f247a6060664a6c626e44061d1b0112435a58455a301a3b3f2f2521247867514f44001f301e1a0a1f5cbbe2e6e6fef5bfb4eafff0d0c08a919c818486969fb3afa9bd93a6b6f7e2b5ab8d88cbc88483ac918b99656d24333c2330677777727e50424b406f5a521b060e6e67213811223d393d3105415c59404d060717140edef0e2ebe0cffaf2bba6ae94979b9c9b818185969fb0afa7b0a9bd8db2b9b6bbbe96888688d2c9c384d07b2176656d76776747727a031e051d1b0505070805067a7d7f7f7f656464627f4c411505031b2d01010b1ba3beb6a6afe0fff7e0f9edfdd6dccadac4c795808cece1afba93a3bda7bcf9e49596928fc1d28095968e65213c38343621393a68724e507843491209584c50536e672138113626323f33425956454e1d1d1914240ae4e5ead5e4f4b1aca8b0bdcbd6f7d8c7dfd3dbdf9ffaf3eaebb8bdbdbaa884aa84858ab58494d1ccc8ca39333f3c383c24393a6b72405d42587257525b5c634d2d292d697461297b217f100f0710091d2d1c1c5944a3b3b1bfbba1a2afa0a9aa919c9b9f96858695969fb3afa9bd93bbaba5bdf9e4d3c8c59a81918a938ba37377677d797c302f29373c485778464242571403484d372064693d323b253f7f5a52515f5943500614140adeede3a8b7fee6faf5b0bdcbd6f7ccdcd4d1d99887f1efe4bba3a3be8aacbebf8cbb8e8ecfcac1dadb95735c756062687e703a212e0d065358425f43694d595e2f1a212f6c6b6561626f58525f505a435005141a07e4f6d8edecfdf6c9ebf3f3c787929bd39dcf95cad1a1baa3bb93a6b6f7e2f9e9d7d1d1dbdcc9caceccc53234323f3d3c30393a68724e50785e54405614030e136035242a3734260829290117131a4e5543595a120ddee8e8f8e9b2a9f0f8f0ecc7898ad8cddec6d29887f2f3f4fde0eda1b9b7af818880c5d083859f9ad5de6970596e7e6a777b3a212e0d065545415c6c425c5d521d2c2c6974637875332e3f100f070b031757424b52a3f0f5e5e2e0cce2fcfdf2fdcccc899480828f8885f1faffffe0eda2b9b9a2bb93bb808b8095ac84969065213c3a7123693768777f584155754454110c1b0b097773797a776862616d6f5751535c5c4d5e570b1711f5dbf3f3fdf5b1acabb0bdd2c9c9d2cbc3ebc4cedcb4b6b5ebf6fefef7b1a8818d8b958ecfca87848c992c21756a637d7737222a2713160b085e5c5c4266555b607f263e223d7875332e3f04140c0901504f48575cf3ebebe6d2e4f6f7f4c3f6c68792998293ddc4e5cea9ada1a5a9ede8e5f4f9aa938b889ab284969794a3696724333d392a202a2c2c15100b085d5c524f5c4e602524252e11233b3b3f7f5a561b45174d021919021bf3dbeeeeafaab1a1afa9a9939491929b858d878985f1f7ffebe0eda1b9b7af81959d978fcfcac1dadb8c6c627f6c7e506161796f6b52061d1b01125a4566505030216a713a232132767f1300091b094d4844414d47ada6f4e6e2e4ccfffdbea5ccd0c4c78293ddc4e5dab2a6a3a7eef5e3f9faa9b18d88b89e88919ea99098223934252e66614a6b72704648420817001f144d4e502d35173f2b30390833394259575f5d5c4142414248ada6f7e6ece9f6e4c6fbfecfc0f7d9c1ddd195808dbdefbdebbca3b3acbda9818880c5d0cfc7c5c3cfcd313a3f3c393d2b2d2a2b2916060b085e5c5c4266484632206a717c7d7627363c190614361f1b13010d085cbbb5aba8e4e3ccfaf6eefb809fcecac2c2d19b98cea3acb4aceef5e3ede8edf2c3978b8599af9a92dbc66e766a65202d7b66477c6c4441490817001f144b53532e1a3c2e2f3c0b3e3e7f5a514a4b051c2d06111519ede1a5b0bdbcb1e2ebf3f0d2fadccecfdcebdede9ffaf2f0f8fffce5ece1edf2c3948b8b949581a99e9d6d66597b63637737222f637c08054d4c5d56694a485e36303b6974627875283801071f36000a1401270f17ece1d8e7feb2a9a7a9acac97898ad1c1dfd1e8d4dcada6e4f3ee2a5e423c61720440400f614ad1dadb95735c617b696a7c37222b3203564846416f40555c525a607f33693d2535233f7f5a534a4b000a1401270f17ece1a5b0bdbcb1f4f8f2c0cfc4d8f4c2d8c7c398879b9eeaebaeaebc8ab5baaebe888e9999af9a9281de3a332a2b7e6a7f747175414c4557590f0a686b151e5c37373a2e20250b3a3b2d3f0d0704094d48575a575ce0e8ebd5e0f1e3e5bba6e4df898ac9cfdfebcdd5d3a5b099a5a5bca6f7e28083cdc6858b83af89999799735c6f6d742d282534396c44494643436f495957594c607f13166273353b36021a0c080c1f4d480e05575ce2f1f5f8e8fee7c9e3f3f1c787929b8293c4ded9d69fb3aaa8b5aaa08ab4b2ad95c6dd84989c9fdadb8c69606d567c63736c7d69414d4d545e7259574e1b0651372924676c23313a3b340e3c16050d1617070b5944eff1ebe6a1b2f2faf5c3efcec4d1cedcc2968dd4c8acafeaebbca6b1be87b8bf8c94b88383969cd4c392756f6a252e6e7e7947787f4c545408175e465a55101d3620292611233b3b3602090d00064e551c00141752a3e9e6fafecfe4fff7c3f1d7c88a91c0c4d8dbc791e2aab596bfa6bcb2b4befcdbd4cbc89d999d91a69161732433627a7e7934397d5243487541515d694a4b56362620146c6b3236362e054f44050909062a0c1213e4a6bdbdbaa6a7babbf5ecfdc4cad8f1d3d5dbdbd3a3a6e4f3aaaebea6bdf7fc848d97b5859f8082a6956e65692b3661677974373c5b4b494f72595714030a0f73696a223d0e363b3b3e0b415c0f0d030110545917f2dbf5ebe3fbccf4e9bea5c4c4c4d8cbccc9$",
+      "decoded": "[prod][1.0.26073111] CSGO_LADDER: recv a game start notify msg, reconnect notify: {\"game_info\":{\"platform_game_id\":\"9220102482485790732\",\"map_name\":\"de_dust2\",\"host_info\":\"114.113.211.54:17009\",\"players\":[{\"player_id\":\"76561198842205480\",\"slot_type\":1,\"player_status\":1,\"is_lord\":true,\"score\":1946,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":1,\"is_single\":0,\"troop_team_id\":168894220,\"player_game_role\":3},{\"player_id\":\"76561198999581097\",\"slot_type\":1,\"player_status\":1,\"is_lord\":true,\"score\":1928,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":1,\"is_single\":0,\"troop_team_id\":160618892,\"player_game_role\":4},{\"player_id\":\"76561199707844770\",\"slot_type\":1,\"player_status\":1,\"is_lord\":true,\"score\":1758,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":1,\"is_single\":0,\"troop_team_id\":162375052,\"player_game_role\":0},{\"player_id\":\"76561199760289136\",\"slot_type\":1,\"player_status\":1,\"is_lord\":false,\"score\":2001,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":1,\"is_single\":0,\"troop_team_id\":162375052,\"player_game_role\":5},{\"player_id\":\"76561199887414038\",\"slot_type\":1,\"player_status\":1,\"is_lord\":true,\"score\":1893,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":1,\"is_single\":0,\"troop_team_id\":169095436,\"player_game_role\":0},{\"player_id\":\"76561199553934842\",\"slot_type\":2,\"player_status\":1,\"is_lord\":true,\"score\":1765,\"slot_id\":null,\"is_green\":1,\"roll_team_id\":2,\"is_single\":0,\"troop_team_id\":168281996,\"player_game_role\":0},{\"player_id\":\"76561199859274613\",\"slot_type\":2,\"player_status\":1,\"is_lord\":false,\"score\":2024,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":2,\"is_single\":0,\"troop_team_id\":168281996,\"player_game_role\":3},{\"player_id\":\"76561199667272550\",\"slot_type\":2,\"player_status\":1,\"is_lord\":true,\"score\":1922,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":2,\"is_single\":0,\"troop_team_id\":168527244,\"player_game_role\":5},{\"player_id\":\"76561199549038149\",\"slot_type\":2,\"player_status\":1,\"is_lord\":true,\"score\":1969,\"slot_id\":null,\"is_green\":1,\"roll_team_id\":2,\"is_single\":0,\"troop_team_id\":161337996,\"player_game_role\":0},{\"player_id\":\"76561199552982077\",\"slot_type\":2,\"player_status\":1,\"is_lord\":false,\"score\":1806,\"slot_id\":null,\"is_green\":0,\"roll_team_id\":2,\"is_single\":0,\"troop_team_id\":161337996,\"player_game_role\":4}],\"game_status\":3,\"ready_left_time_ms\":10035,\"zone_name\":\"北京大区\",\"is_green\":0,\"roll_scene\":{\"state\":0,\"left_time\":0,\"ban_map_list\":[],\"ban_map_list_idx\":0,\"remain_maps\":[],\"current_map_name\":\"\",\"all_maps\":{},\"ban_zones_list\":[],\"ban_zones_idx\":0,\"remain_zones\":[],\"all_zones\":{},\"current_zone\":0,\"pick_player_list\":null,\"pick_player_list_idx\":null,\"remain_players\":null,\"all_players\":null,\"pick_camp_info\":null,\"all_camps\":null,\"team_roll_info\":null,\"maps_win_num\":null},\"is_single\":0,\"ping_map\":null,\"csgo_lan_switch_\":false,\"left_time\":7764,\"is_abs_balance\":false,\"eip_host_info\":null,\"zone_id\":601,\"is_black\":false,\"is_rank_bp\":false}}",
+      "delayMs": 23881
+    }
+  ]
+}

@@ -92,6 +92,14 @@ export async function stopLogWatch(): Promise<void> {
   await invoke('stop_log_watch');
 }
 
+export async function fetchPerfectPlayerStatsRaw(steamId: string): Promise<unknown> {
+  return invoke<unknown>('fetch_perfect_player_stats', { steamId });
+}
+
+export async function searchPerfectBoardUserRaw(steamId: string): Promise<unknown> {
+  return invoke<unknown>('search_perfect_board_user', { steamId });
+}
+
 export async function onLogLine(
   handler: (line: LogLinePayload) => void,
 ): Promise<UnlistenFn> {

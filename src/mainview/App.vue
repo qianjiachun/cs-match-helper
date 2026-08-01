@@ -47,7 +47,7 @@ function flashTaskbarForNewMatch() {
 }
 
 const logWatcher = useLogWatcher({ autoInit: false, onNewMatch: flashTaskbarForNewMatch });
-const { matches, logEntries, clearLogEntries, watcher, injectMatch, ensureListeners, startWatching, stopWatching } =
+const { matches, logEntries, clearLogEntries, watcher, injectMatch, replayPerfectFixture, ensureListeners, startWatching, stopWatching } =
   logWatcher;
 
 const matchHistory = useMatchHistory();
@@ -98,12 +98,16 @@ watch(
   () => matches.value[0] ?? null,
   (record) => {
     if (!record) return;
+    if (record.detail.source === 'ladder-events' && record.detail.perfectSessionPhase !== 'assigned') return;
     void matchHistory.saveMatchSnapshot(record).catch(() => {
       // 历史写入失败不阻断主流程
     });
   },
 );
-const comments = useComments({ autoInit: false });
+const comments = useComments({
+  autoInit: false,
+  onPlayerLoadState: logWatcher.patchPlayerLoadState,
+});
 const {
   formattedVersion,
   dialogOpen,
@@ -273,6 +277,7 @@ function onBackFromP5e() {
       :counter-strafing-listening="counterStrafingListening"
       :counter-strafing-busy="counterStrafingBusy"
       :inject-match="injectMatch"
+      :replay-perfect-fixture="replayPerfectFixture"
       :inject-ai-result="injectAiResult"
       :p5e="p5e"
       :log-entries="logEntries"

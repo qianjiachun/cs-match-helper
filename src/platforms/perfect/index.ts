@@ -16,7 +16,7 @@ export const perfectAdapter: PlatformAdapter = {
 
 export { buildLogDir, buildLogPath } from './log-path';
 export { decodeLogLine, decodePayload } from './log-decrypt';
-export { BOOTSTRAP_MATCH_MAX_AGE_MS, extractMatchEvents, findLastMatchEventInLogLines, isLogLineWithinMaxAge, parseLogLine, parseLogLineTime } from './log-parser';
+export { BOOTSTRAP_MATCH_MAX_AGE_MS, extractMatchEvents, extractPerfectMatchEvent, findLastMatchEventInLogLines, findLatestPerfectSessionInLogLines, isLogLineWithinMaxAge, parseLogLine, parseLogLineTime } from './log-parser';
 export { buildMatchDetail, createMatchRecord, parseMatchInput, summarizeMatch } from './match-parser';
 export { normalizeMediaUrl, pickPlayerAvatar } from './media-url';
 export * from './player-api';

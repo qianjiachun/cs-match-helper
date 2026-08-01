@@ -31,6 +31,7 @@ const props = defineProps<{
   counterStrafingListening: boolean;
   counterStrafingBusy: boolean;
   injectMatch: (data: Record<string, unknown>) => void;
+  replayPerfectFixture: () => Promise<void>;
   injectAiResult: (raw: string) => Promise<string | null>;
   p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
   logEntries: DebugLogEntry[];
@@ -101,6 +102,7 @@ const showBackButton = computed(() => props.view === 'settings' || props.view ==
         :log-entries="logEntries"
         :watcher="watcher"
         :inject-ai-result="injectAiResult"
+        :replay-perfect-fixture="replayPerfectFixture"
         :p5e="p5e"
         :comments="comments"
         :match-history="matchHistory"

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { LogLine } from '@core/log/types';
-import { computePerfectReadyDeadline } from './ready-deadline';
+import { computePerfectReadyDeadline, createPerfectReadyDeadline, PERFECT_READY_WINDOW_MS } from './ready-deadline';
 
 function logLine(time: string): LogLine {
   return { time, level: 'INFO', category: 'test', decoded: '', raw: '' };
@@ -30,5 +30,9 @@ describe('computePerfectReadyDeadline', () => {
     expect(computePerfectReadyDeadline(line, undefined)).toBeUndefined();
     expect(computePerfectReadyDeadline(line, 0)).toBeUndefined();
     expect(computePerfectReadyDeadline(line, -100)).toBeUndefined();
+  });
+
+  it('creates the progressive ladder deadline from match-success time', () => {
+    expect(createPerfectReadyDeadline(1_000)).toBe(1_000 + PERFECT_READY_WINDOW_MS);
   });
 });

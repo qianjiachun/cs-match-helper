@@ -42,6 +42,7 @@ const props = withDefaults(
     logEntries?: DebugLogEntry[];
     watcher?: WatcherStatus;
     injectAiResult?: (raw: string) => Promise<string | null>;
+    replayPerfectFixture?: () => Promise<void>;
     p5e?: ReturnType<typeof useP5eCdp>;
     comments?: ReturnType<typeof useComments>;
     matchHistory?: MatchHistoryApi;
@@ -107,6 +108,20 @@ const historyPlatformMix = ref<MockHistoryPlatformMix>('both');
 const historyWithAi = ref(true);
 const historyBusy = ref(false);
 const historyError = ref('');
+const perfectReplayBusy = ref(false);
+
+async function runPerfectReplay() {
+  if (!props.replayPerfectFixture || perfectReplayBusy.value) return;
+  perfectReplayBusy.value = true;
+  error.value = '';
+  try {
+    await props.replayPerfectFixture();
+  } catch (reason) {
+    error.value = localizeErrorMessage(reason instanceof Error ? reason.message : String(reason));
+  } finally {
+    perfectReplayBusy.value = false;
+  }
+}
 
 const p5eLogEntries = computed(() => props.p5e?.logEntries.value ?? []);
 const filteredP5eLogEntries = computed(() =>
@@ -586,25 +601,34 @@ watch(
 
         <div v-if="injectSubTab === 'match'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            {{ l('粘贴解码后的匹配 JSON，含 players 与 playerlist_extrainfo。', 'Paste decoded match JSON containing players and playerlist_extrainfo.') }}
+            {{ l('离线回放真实完美天梯事件：逐人 ready、数据返回、10/10 等待与最终分队。', 'Replay a real Perfect ladder session offline: progressive ready, data loading, waiting, and team assignment.') }}
           </p>
-          <textarea
-            v-model="input"
-            class="h-36 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
-            placeholder='{"platform_game_id":"...","map_name":"de_dust2","players":[...]}'
-            spellcheck="false"
-          />
-          <div class="flex items-center justify-between gap-3">
-            <p v-if="error" class="text-[11px] text-danger">{{ error }}</p>
-            <span v-else />
+          <div class="rounded-md border border-border bg-elevated px-3 py-2.5">
+            <p class="text-[11px] text-fg-secondary">9220102482485790732 · de_dust2 · 10 players</p>
             <button
               type="button"
-              class="shrink-0 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover"
-              @click="submit"
+              class="mt-2 min-h-10 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+              :disabled="perfectReplayBusy"
+              @click="runPerfectReplay"
             >
-              {{ l('注入', 'Inject') }}
+              {{ perfectReplayBusy ? l('回放中…', 'Replaying…') : l('一键回放完美平台', 'Replay Perfect session') }}
             </button>
           </div>
+          <p v-if="error" class="text-[11px] text-danger">{{ error }}</p>
+          <details class="rounded-md border border-border bg-base px-3 py-2">
+            <summary class="cursor-pointer text-[11px] font-medium text-fg-secondary">{{ l('高级：手动 JSON 注入', 'Advanced: manual JSON injection') }}</summary>
+            <textarea
+              v-model="input"
+              class="mt-2 h-36 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
+              placeholder='{"platform_game_id":"...","map_name":"de_dust2","players":[...]}'
+              spellcheck="false"
+            />
+            <div class="mt-2 flex justify-end">
+              <button type="button" class="min-h-10 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover" @click="submit">
+                {{ l('注入', 'Inject') }}
+              </button>
+            </div>
+          </details>
         </div>
 
         <div v-else-if="isDev && injectSubTab === 'p5e'" class="space-y-3">

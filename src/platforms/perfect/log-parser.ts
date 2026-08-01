@@ -1,8 +1,9 @@
 import type { LogLine } from '@core/log/types';
 import { decodeLogLine } from './log-decrypt';
+import type { PerfectMatchEvent } from './types';
 
 /** 启动时恢复对局的最大时效（毫秒） */
-export const BOOTSTRAP_MATCH_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+export const BOOTSTRAP_MATCH_MAX_AGE_MS = 60 * 60 * 1000;
 
 export function parseLogLine(line: string): LogLine {
   const m = line.match(/^\[([^\]]+)\]\s+\[(\w+)\]\s+(\S+)\s+-\s+(.*)$/);
@@ -117,6 +118,77 @@ export function extractMatchEvents(decodedText: string): Record<string, unknown>
   }
 
   return null;
+}
+
+function pickString(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+/** Parse the progressive Perfect ladder flow while preserving legacy CreateGame payloads. */
+export function extractPerfectMatchEvent(decodedText: string): PerfectMatchEvent | null {
+  const matchId = decodedText.match(/setMatchId\s*:\s*(\d+)/i)?.[1]
+    ?? decodedText.match(/\bmatch[_ ]id\b\s*[:=]\s*["']?(\d+)/i)?.[1];
+  if (matchId) return { kind: 'match-id', matchId };
+
+  const embedded = extractEmbeddedJson(decodedText);
+  if (/\bready\s+notify\b/i.test(decodedText)) {
+    const steamId = embedded ? pickString(embedded.ready_player_id) : undefined;
+    if (steamId) return { kind: 'ready', steamId };
+  }
+
+  if (/\bgame\s+start\s+notify\b/i.test(decodedText) && embedded) {
+    const gameInfo = embedded.game_info;
+    if (gameInfo && typeof gameInfo === 'object' && !Array.isArray(gameInfo)) {
+      return { kind: 'game-start', gameInfo: gameInfo as Record<string, unknown> };
+    }
+    return { kind: 'game-start', gameInfo: embedded };
+  }
+
+  if (/create\s+game\(match\s+sucess\)\s+notify/i.test(decodedText)) {
+    return { kind: 'match-success' };
+  }
+
+  const legacy = extractMatchEvents(decodedText);
+  if (legacy && isLikelyCreateGamePayload(legacy)) {
+    return { kind: 'legacy-create-game', data: legacy };
+  }
+  return null;
+}
+
+export interface PerfectLogEventEntry {
+  event: PerfectMatchEvent;
+  logLine: LogLine;
+}
+
+/** Return the latest recoverable session, not merely the latest JSON-bearing line. */
+export function findLatestPerfectSessionInLogLines(
+  lines: string[],
+  maxAgeMs = BOOTSTRAP_MATCH_MAX_AGE_MS,
+  now = Date.now(),
+): PerfectLogEventEntry[] {
+  const entries: PerfectLogEventEntry[] = [];
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const logLine = parseLogLine(raw);
+    if (!isLogLineWithinMaxAge(logLine, maxAgeMs, now)) continue;
+    const event = extractPerfectMatchEvent(logLine.decoded);
+    if (event) entries.push({ event, logLine });
+  }
+  let start = -1;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const kind = entries[index].event.kind;
+    if (kind === 'match-success' || kind === 'legacy-create-game') {
+      start = index;
+      if (index > 0 && entries[index - 1].event.kind === 'match-id') start = index - 1;
+      break;
+    }
+  }
+  if (start < 0) {
+    start = entries.findIndex((entry) => entry.event.kind === 'ready' || entry.event.kind === 'game-start');
+  }
+  return start < 0 ? [] : entries.slice(start);
 }
 
 function isLikelyCreateGamePayload(data: Record<string, unknown>): boolean {

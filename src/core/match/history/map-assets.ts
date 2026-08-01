@@ -68,6 +68,8 @@ const ALIAS_TO_SLUG: Record<string, string> = {
   事务所: 'agency',
 };
 
+const HOSTAGE_MAP_SLUGS = new Set(['office', 'italy', 'agency']);
+
 export function resolveMapSlug(mapName?: string | null): string | null {
   if (!mapName) return null;
   const trimmed = mapName.trim();
@@ -118,4 +120,14 @@ export function resolveMapAsset(mapName?: string | null): MapAssetInfo | null {
     zh: raw,
     imageUrl: resolveMapImageUrl(slug),
   };
+}
+
+/** Prefer the engine map id used by logs and APIs, for example de_mirage. */
+export function resolveCanonicalMapName(mapName?: string | null): string | null {
+  if (!mapName?.trim()) return null;
+  const raw = mapName.trim().toLowerCase().replace(/\s+/g, '_');
+  if (/^(?:de|cs)_[a-z0-9_]+$/.test(raw)) return raw;
+  const slug = resolveMapSlug(mapName);
+  if (!slug || !MAP_BY_SLUG[slug]) return mapName.trim();
+  return `${HOSTAGE_MAP_SLUGS.has(slug) ? 'cs' : 'de'}_${slug}`;
 }
