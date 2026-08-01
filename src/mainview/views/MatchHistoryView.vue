@@ -264,8 +264,8 @@ onMounted(() => {
     <!-- 单条删除确认 -->
     <div
       v-if="deleteConfirmItem"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-[2px]"
-      @click.self="deleteConfirmItem = null"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      @pointerdown.self="deleteConfirmItem = null"
     >
       <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl ring-1 ring-black/5">
         <h2 class="text-[15px] font-semibold text-slate-900">{{ l('删除这条对局记录？', 'Delete this match?') }}</h2>

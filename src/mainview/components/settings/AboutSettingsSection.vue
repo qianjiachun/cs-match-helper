@@ -139,7 +139,7 @@ async function copyQqGroup() {
       <div class="flex items-center gap-2">
         <button
           type="button"
-          class="group inline-flex cursor-pointer rounded-md p-1 transition-colors duration-200 hover:bg-elevated"
+          class="group inline-flex cursor-pointer items-center gap-1.5 rounded-md py-px transition-colors duration-200 hover:bg-elevated"
           :aria-label="l('GitHub Issues 反馈', 'Report an issue on GitHub')"
           :title="repoIssuesUrl"
           @click="openIssues"
@@ -150,6 +150,9 @@ async function copyQqGroup() {
             class="h-4 w-4 opacity-50 transition-opacity duration-200 group-hover:opacity-100"
             aria-hidden="true"
           />
+          <span class="text-[13px] font-medium text-accent transition-colors duration-200 group-hover:text-accent-hover">
+            Issue
+          </span>
         </button>
         <button
           type="button"

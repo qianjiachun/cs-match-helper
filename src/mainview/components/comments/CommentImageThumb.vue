@@ -112,7 +112,7 @@ onMounted(() => {
       >
         <button
           type="button"
-          class="absolute inset-0 cursor-pointer border-0 bg-slate-900/72 backdrop-blur-[2px]"
+          class="absolute inset-0 cursor-pointer border-0 bg-slate-900/72"
           :aria-label="l('关闭预览', 'Close preview')"
           @click="closePreview"
         />

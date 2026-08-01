@@ -56,7 +56,7 @@ onUnmounted(() => {
     >
       <div
         v-if="open"
-        class="close-confirm-dialog__root fixed inset-0 z-210 flex items-center justify-center bg-fg/28 p-4 backdrop-blur-[3px]"
+        class="close-confirm-dialog__root fixed inset-0 z-210 flex items-center justify-center bg-fg/32 p-4"
         role="presentation"
       >
         <button

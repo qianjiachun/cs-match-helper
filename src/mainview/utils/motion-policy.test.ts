@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const MAINVIEW_ROOT = path.resolve(process.cwd(), 'src/mainview');
 const STYLE_SOURCE_EXTENSIONS = new Set(['.css', '.html', '.ts', '.vue']);
 const SYSTEM_MOTION_OVERRIDE =
-  /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)|motion-(?:reduce|safe):/;
+  /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)|motion-(?:reduce|safe):|\buseReducedMoti[o]n\s*\(|reducedMoti[o]n\s*=\s*["'](?:user|always)["']/;
 
 function collectStyleSources(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

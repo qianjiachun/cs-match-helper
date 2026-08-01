@@ -423,17 +423,7 @@ function onRetry() {
 
 <style scoped>
 .comment-drawer-backdrop {
-  background-color: rgb(15 23 42 / 0.32);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .comment-drawer-backdrop {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background-color: rgb(15 23 42 / 0.48);
-  }
+  background-color: rgb(15 23 42 / 0.44);
 }
 
 .comment-drawer-enter-active .comment-drawer-backdrop,

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { localize as l, localizeErrorMessage } from '../i18n';
-import type { MatchPlatformId, MatchPlayer } from '@core/match/models';
+import type { MatchPlatformId, MatchPlayer, PerfectPlayerLoadState } from '@core/match/models';
 import {
   addComment,
   CommentApiError,
@@ -114,11 +114,17 @@ function isListCacheFresh(entry: ListCacheEntry): boolean {
   return Date.now() - entry.cachedAt < LIST_CACHE_TTL_MS;
 }
 
-export function useComments(options?: { autoInit?: boolean }) {
+export function useComments(options?: {
+  autoInit?: boolean;
+  onPlayerLoadState?: (steamId: string, patch: Partial<PerfectPlayerLoadState>) => void;
+}) {
   const autoInit = options?.autoInit ?? true;
 
   const counts = ref<Record<string, PlayerCommentCount>>({});
   const countsLoading = ref(false);
+  const internalCountBySteamId = new Map<string, PlayerCommentCount>();
+  const platformCountBySteamId = new Map<string, PlayerCommentCount>();
+  const countRequests = new Map<string, Promise<void>>();
 
   const drawerOpen = ref(false);
   const activePlayer = ref<CommentPlayerTarget | null>(null);
@@ -293,42 +299,87 @@ export function useComments(options?: { autoInit?: boolean }) {
     return isValidSteamId64(steamId);
   }
 
+  function publishPlayerCount(steamId: string) {
+    const internal = internalCountBySteamId.get(steamId);
+    const platform = platformCountBySteamId.get(steamId);
+    counts.value = {
+      ...counts.value,
+      [steamId]: {
+        count: (internal?.count ?? 0) + (platform?.count ?? 0),
+        hasMore: internal?.hasMore || platform?.hasMore || undefined,
+      },
+    };
+  }
+
+  async function loadPlayerCount(player: MatchPlayer, platformId: MatchPlatformId) {
+    if (!isValidSteamId64(player.steamId)) return;
+    if (player.mockInternalCommentCount != null || player.mockPlatformCommentCount != null) {
+      internalCountBySteamId.set(player.steamId, { count: player.mockInternalCommentCount ?? 0 });
+      platformCountBySteamId.set(player.steamId, { count: player.mockPlatformCommentCount ?? 0 });
+      publishPlayerCount(player.steamId);
+      options?.onPlayerLoadState?.(player.steamId, { internalComments: 'loaded', platformComments: 'loaded' });
+      return;
+    }
+    const tasks: Promise<void>[] = [];
+    const internalKey = `internal:${player.steamId}`;
+    if (!internalCountBySteamId.has(player.steamId)) {
+      let request = countRequests.get(internalKey);
+      if (!request) {
+        options?.onPlayerLoadState?.(player.steamId, { internalComments: 'loading', internalCommentsError: undefined });
+        request = fetchCommentBatchCounts([player.steamId]).then((data) => {
+          internalCountBySteamId.set(player.steamId, data[player.steamId] ?? { count: 0 });
+          publishPlayerCount(player.steamId);
+          options?.onPlayerLoadState?.(player.steamId, { internalComments: 'loaded', internalCommentsError: undefined });
+        }).catch((error: unknown) => {
+          options?.onPlayerLoadState?.(player.steamId, {
+            internalComments: 'error',
+            internalCommentsError: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }).finally(() => countRequests.delete(internalKey));
+        countRequests.set(internalKey, request);
+      }
+      tasks.push(request);
+    }
+
+    const boardId = player.platformBoardId?.trim();
+    if (boardId && !platformCountBySteamId.has(player.steamId)) {
+      const platformKey = `platform:${platformId}:${player.steamId}:${boardId}`;
+      let request = countRequests.get(platformKey);
+      if (!request) {
+        options?.onPlayerLoadState?.(player.steamId, { platformComments: 'loading', platformCommentsError: undefined });
+        request = fetchPlatformBoardCount(platformId, boardId).then((data) => {
+          platformCountBySteamId.set(player.steamId, data);
+          publishPlayerCount(player.steamId);
+          options?.onPlayerLoadState?.(player.steamId, { platformComments: 'loaded', platformCommentsError: undefined });
+        }).catch((error: unknown) => {
+          options?.onPlayerLoadState?.(player.steamId, {
+            platformComments: 'error',
+            platformCommentsError: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }).finally(() => countRequests.delete(platformKey));
+        countRequests.set(platformKey, request);
+      }
+      tasks.push(request);
+    }
+
+    if (boardId && drawerOpen.value && activePlayer.value?.steamId === player.steamId && !activePlayer.value.platformBoardId) {
+      activePlayer.value = { ...activePlayer.value, platformBoardId: boardId };
+      tasks.push(fetchPlatformPage(true).then(() => {
+        rebuildMergedList();
+        syncListCache(player.steamId);
+      }));
+    }
+    await Promise.allSettled(tasks);
+  }
+
   async function loadCounts(players: MatchPlayer[], platformId: MatchPlatformId) {
     const valid = players.filter((player) => isValidSteamId64(player.steamId));
-    if (valid.length === 0) return;
-
-    const steamIds = valid.map((player) => player.steamId);
+    if (!valid.length) return;
     countsLoading.value = true;
     try {
-      const [internalData, platformResults] = await Promise.all([
-        fetchCommentBatchCounts(steamIds),
-        Promise.allSettled(
-          valid
-            .filter((player) => player.platformBoardId?.trim())
-            .map(async (player) => ({
-              steamId: player.steamId,
-              platform: await fetchPlatformBoardCount(platformId, player.platformBoardId!),
-            })),
-        ),
-      ]);
-
-      const next: Record<string, PlayerCommentCount> = { ...counts.value };
-      for (const id of steamIds) {
-        next[id] = { count: internalData[id]?.count ?? 0 };
-      }
-      for (const result of platformResults) {
-        if (result.status === 'fulfilled') {
-          const { steamId, platform } = result.value;
-          const prev = next[steamId] ?? { count: 0 };
-          next[steamId] = {
-            count: prev.count + platform.count,
-            hasMore: platform.hasMore ?? prev.hasMore,
-          };
-        }
-      }
-      counts.value = next;
-    } catch {
-      // batch 失败时静默，不影响主流程
+      await Promise.allSettled(valid.map((player) => loadPlayerCount(player, platformId)));
     } finally {
       countsLoading.value = false;
     }
@@ -1068,6 +1119,7 @@ export function useComments(options?: { autoInit?: boolean }) {
     getCountHasMore,
     canComment,
     loadCounts,
+    loadPlayerCount,
     openPlayer,
     openMockDrawer,
     closeDrawer,

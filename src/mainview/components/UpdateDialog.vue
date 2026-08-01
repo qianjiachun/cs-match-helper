@@ -134,11 +134,9 @@ const copyDownloadLabel = computed(() =>
   props.downloadUrl?.trim() ? l('复制下载地址', 'Copy download URL') : l('复制发布页链接', 'Copy release URL'),
 );
 
-function onBackdropClick(event: MouseEvent) {
+function onBackdropPointerDown() {
   if (!canClose.value) return;
-  if (event.target === event.currentTarget) {
-    emit('close');
-  }
+  emit('close');
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -182,9 +180,9 @@ onUnmounted(() => {
     <Transition name="update-dialog">
       <div
         v-if="open"
-        class="fixed inset-0 z-200 flex items-center justify-center bg-fg/28 p-4 backdrop-blur-[3px]"
+        class="fixed inset-0 z-200 flex items-center justify-center bg-fg/32 p-4"
         role="presentation"
-        @click="onBackdropClick"
+        @pointerdown.self="onBackdropPointerDown"
       >
         <div
           class="flex max-h-[min(82vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-fg/8"
