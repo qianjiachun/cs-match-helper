@@ -1,13 +1,13 @@
 ---
 name: git-commit
 description: >-
-  CS 对局助手项目的 Git 提交规范与流程。Conventional Commits 英文前缀 + 中文说明。
+  CS 匹配助手项目的 Git 提交规范与流程。Conventional Commits 英文前缀 + 中文说明。
   仅负责分析变更、暂存、commit，可选 push；不涉及发版、构建 exe 或 GitHub Release。
   Use when the user asks to commit, 提交, git commit, or mentions @git-commit without
   release/发版 intent.
 ---
 
-# CS 对局助手 — Git 提交
+# CS 匹配助手 — Git 提交
 
 > **发版、构建 exe、GitHub Release** 请使用 `git-release` skill，本 skill 不涵盖。
 
