@@ -5,6 +5,7 @@ import AiSparklesIcon from './AiSparklesIcon.vue';
 import PlatformLogo from './PlatformLogo.vue';
 import type { MatchRecord, MatchPlayer } from '@core/match/models';
 import { isAiAnalysisActive } from '@core/ai/types';
+import { isPerfectAiAnalysisReady } from '@core/ai/perfect-readiness';
 import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
 import type { useComments } from '../composables/useComments';
@@ -16,7 +17,7 @@ import AiAnalysisPanel from './AiAnalysisPanel.vue';
 import TeamDataBoard from './TeamDataBoard.vue';
 import TeamCompareBoard from './TeamCompareBoard.vue';
 import { currentLocale, localize as l } from '../i18n';
-import { resolveMapAsset } from '@core/match/history/map-assets';
+import { resolveCanonicalMapName } from '@core/match/history/map-assets';
 
 const props = defineProps<{
   match: MatchRecord;
@@ -50,11 +51,14 @@ const {
 
 const columnCustomizerOpen = ref(false);
 
+function isProvisionalPerfectMatchId(value?: string): boolean {
+  return Boolean(value?.startsWith('perfect-'));
+}
+
 const mapName = computed(() => {
   const raw = detail.value.mapName || props.match.summary.mapName;
   if (!raw) return l('未知地图', 'Unknown map');
-  const asset = resolveMapAsset(raw);
-  return currentLocale() === 'en-US' ? (asset?.en ?? raw) : (asset?.zh ?? raw);
+  return resolveCanonicalMapName(raw) ?? raw;
 });
 
 const teamA = computed(() => teams.value.find((t) => t.side === 'A'));
@@ -117,9 +121,17 @@ const activeTab = ref<'team-data' | 'compare' | 'ai'>('team-data');
 const highlightedSide = ref<'A' | 'B' | null>(null);
 const highlightedSteamId = ref<string | null>(null);
 
-const { timeLeftSec: timeLeft, isUrgent: isCountdownUrgent } = useMatchCountdown(
+const { timeLeftSec: timeLeft, isActive: isCountdownActive, isUrgent: isCountdownUrgent } = useMatchCountdown(
   () => detail.value.readyDeadlineAt,
 );
+
+const showReadyCountdown = computed(() => (
+  !isHistory.value
+  && isCountdownActive.value
+  && (platformId.value !== 'perfect'
+    || detail.value.source !== 'ladder-events'
+    || detail.value.perfectSessionPhase === 'accepting')
+));
 
 const isAiLoading = computed(() => {
   const s = props.ai.status.value;
@@ -176,12 +188,34 @@ watch(
     }
     const players = teams.value.flatMap((t) => t.players);
     void props.comments.loadCounts(players, platformId.value);
-    if (prevId !== undefined && nextId !== prevId) {
+    const correctedProvisionalId = platformId.value === 'perfect'
+      && isProvisionalPerfectMatchId(prevId)
+      && !isProvisionalPerfectMatchId(nextId);
+    if (prevId !== undefined && nextId !== prevId && !correctedProvisionalId) {
       await nextTick();
       void playReveal();
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => [...detail.value.unassigned, ...teams.value.flatMap((team) => team.players)]
+    .map((player) => `${player.steamId}:${player.platformBoardId ?? ''}`)
+    .join('|'),
+  () => {
+    const players = [...detail.value.unassigned, ...teams.value.flatMap((team) => team.players)];
+    void props.comments.loadCounts(players, platformId.value);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => isPerfectAiAnalysisReady(props.match),
+  (ready, wasReady) => {
+    if (!ready || wasReady || isHistory.value || platformId.value !== 'perfect') return;
+    void props.ai.analyzeMatch(props.match);
+  },
 );
 
 const resolvedMapName = computed(
@@ -260,12 +294,12 @@ function eloCompareTitle(
         ref="metaRowRef"
         class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2.5 overflow-hidden text-[12px]"
       >
-        <div data-match-reveal="meta" class="flex items-center gap-1.5 text-slate-600">
+        <div data-match-reveal="meta" class="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-600">
           <PlatformLogo :platform-id="platformId" size="sm" />
           <span class="font-medium text-slate-800">{{ mapName }}</span>
         </div>
 
-        <template v-if="!isHistory">
+        <template v-if="showReadyCountdown">
           <span class="text-slate-200">|</span>
 
           <div
@@ -379,7 +413,7 @@ function eloCompareTitle(
           class="relative inline-flex h-[30px] cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-600 shadow-sm transition-colors duration-200 hover:border-blue-200 hover:bg-blue-50/60 hover:text-blue-700"
           :title="l('自定义列', 'Customize columns')"
           :aria-label="l('自定义列', 'Customize columns')"
-          @click="columnCustomizerOpen = true"
+          @click.stop="columnCustomizerOpen = true"
         >
           <Columns3 class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span class="hidden sm:inline">{{ l('列', 'Columns') }}</span>
@@ -454,6 +488,12 @@ function eloCompareTitle(
           key="team-data"
           v-model:customizer-open="columnCustomizerOpen"
           :teams="teams"
+          :unassigned="detail.unassigned"
+          :map-name="detail.mapName"
+          :ready-count="detail.readyCount"
+          :expected-player-count="detail.expectedPlayerCount"
+          :stats-loaded-count="detail.statsLoadedCount"
+          :session-phase="detail.perfectSessionPhase"
           :columns="visibleColumns"
           :visible-keys="visibleKeys"
           :customizer-items="customizerItems"

@@ -1,5 +1,6 @@
 import type { MatchRecord } from '@core/match/models';
 import { buildAiAnalysisRequest, parseAiAnalysisResult } from '@core/ai/prompt';
+import { isPerfectAiAnalysisReady } from '@core/ai/perfect-readiness';
 import {
   addTokenUsage,
   buildP5eMapSupplementRequest,
@@ -81,6 +82,8 @@ export function useAiAnalysis(options?: {
   let settingsLoadPromise: Promise<void> | null = null;
   let listenersReady = false;
   let listenersPromise: Promise<void> | null = null;
+  let pendingAutoMatchId: string | null = null;
+  let analysisRequestVersion = 0;
 
   async function refreshSettings() {
     try {
@@ -308,45 +311,56 @@ export function useAiAnalysis(options?: {
   }
 
   async function analyzeMatch(record: MatchRecord, force = false) {
+    if (!isPerfectAiAnalysisReady(record)) return;
     if (
       !force &&
-      activeMatchId.value === record.id &&
-      (status.value === 'loading' || status.value === 'streaming' || status.value === 'done')
+      (pendingAutoMatchId === record.id || (
+        activeMatchId.value === record.id
+        && (status.value === 'loading' || status.value === 'streaming' || status.value === 'done')
+      ))
     ) {
       return;
     }
 
-    await ensureSettingsLoaded();
-    await ensureAnalysisListeners();
-
-    if (!isAiAnalysisActive(settings.value)) {
-      if (force && settings.value?.analysisEnabled && !settings.value?.hasApiKey) {
-        status.value = 'no-key';
-        error.value = getMissingApiKeyMessage(settings.value?.providerMode);
-        return;
-      }
-      status.value = 'idle';
-      error.value = null;
-      return;
-    }
-
-    resetForMatch(record.id);
-    activeAnalysisLocale = currentLocale();
-    resultLocale.value = activeAnalysisLocale;
-    analysisPhase.value = shouldAwaitLiveMapSupplement(record, force) ? 'base' : null;
-    if (force || hasP5eMapReady(record)) {
-      const mapName = resolveP5eMapName(record);
-      if (mapName) supplementedMap.value = mapName;
-    }
+    const requestVersion = ++analysisRequestVersion;
+    if (!force) pendingAutoMatchId = record.id;
 
     try {
+      await ensureSettingsLoaded();
+      await ensureAnalysisListeners();
+      if (requestVersion !== analysisRequestVersion || !isPerfectAiAnalysisReady(record)) return;
+
+      if (!isAiAnalysisActive(settings.value)) {
+        if (force && settings.value?.analysisEnabled && !settings.value?.hasApiKey) {
+          status.value = 'no-key';
+          error.value = getMissingApiKeyMessage(settings.value?.providerMode);
+          return;
+        }
+        status.value = 'idle';
+        error.value = null;
+        return;
+      }
+
+      resetForMatch(record.id);
+      activeAnalysisLocale = currentLocale();
+      resultLocale.value = activeAnalysisLocale;
+      analysisPhase.value = shouldAwaitLiveMapSupplement(record, force) ? 'base' : null;
+      if (force || hasP5eMapReady(record)) {
+        const mapName = resolveP5eMapName(record);
+        if (mapName) supplementedMap.value = mapName;
+      }
+
       await cancelAiAnalysis();
+      if (requestVersion !== analysisRequestVersion) return;
       const request = buildAiAnalysisRequest(record, activeAnalysisLocale);
       await startAiAnalysis(request);
     } catch (e) {
+      if (requestVersion !== analysisRequestVersion) return;
       status.value = 'error';
       error.value = localizeErrorMessage(e);
       analysisPhase.value = null;
+    } finally {
+      if (pendingAutoMatchId === record.id) pendingAutoMatchId = null;
     }
   }
 
@@ -368,6 +382,8 @@ export function useAiAnalysis(options?: {
   }
 
   async function stop() {
+    analysisRequestVersion += 1;
+    pendingAutoMatchId = null;
     await cancelAiAnalysis();
     if (status.value === 'loading' || status.value === 'streaming') {
       status.value = 'cancelled';

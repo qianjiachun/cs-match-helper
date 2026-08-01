@@ -1,210 +1,189 @@
-import type { MatchPlayer, MatchRecord, MatchTeam } from '@core/match/models';
-import { RADAR_LABELS } from '@core/match/insights';
+import type { MatchPlayer, MatchRecord, MatchTeam, PerfectHotMap } from '@core/match/models';
 import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, getAiUserPromptSchema, type AiOutputLocale } from './ai-prompt-schema';
 import { METRIC_BASELINES_TEXT, mapFitHint } from './baselines';
 import { buildP5eAiAnalysisRequest } from './p5e-prompt';
 import { sanitizeAiAnalysisResult } from './sanitize-result';
 import type { StartAiAnalysisInput } from './types';
+import { findPerfectHotMap, getPerfectMapFamiliarity, getPerfectMapMetrics, isPerfectMapStrong } from '@platforms/perfect/map-pool';
 
-export const PERFECT_SYSTEM_PROMPT = `你是 CS2 完美世界匹配赛前分析助手。你只能基于输入数据做概率判断，不要编造缺失字段。
-所有 player 在输出文案中必须称为「玩家」，禁止使用「球员」。
-请结合 CS2 对局理解：地图控制、首杀/补枪、道具、狙击、残局、组排协同、近期状态与当前地图适配度。
-输出必须是严格 JSON，不要 Markdown，不要代码块。
-胜率不是确定结果，winProbability.A + winProbability.B 必须等于 100。
-confidence 为 0-100 整数，表示你对本次判断的数据把握度（不是胜率），样本不足时必须降低。
-判断时同时参考：绝对指标基准线、双方相对差距、地图样本量、组排结构。
-不要把单项过线直接等同于胜率；必须说明该项如何影响当前地图与对局结构。
-地图适配理解须融入 headline、quickReasons、keyFactors（type: map），不要单独输出地图区块。
-keyFactors 最多 5 条，risks 最多 3 条，quickReasons 2-3 条短句。
-playerNotes：仅列出对本局判断有实质影响的玩家，数量随对局而定（可 0 人，也可多人）；不要为了凑数强行点评平庸玩家。每名玩家附 1 句具体依据（指标/角色/地图/状态），可选 role 字段标注定位（entry/awp/lurk/anchor/support/risk）。
+export const PERFECT_SYSTEM_PROMPT = `你是 CS2 完美世界匹配赛前分析助手。只能基于输入数据做概率判断，不得编造缺失字段。
+输出必须是严格 JSON，不要 Markdown 或代码块；winProbability.A + winProbability.B 必须等于 100，confidence 为 0-100 的数据把握度。
+以双方和队内相对差异为主，绝不能把任何单项绝对值直接等同于胜率。
+优先分析当前地图匹配度、图池专精或短板、组排协同、Rating、近期相对赛季变化、ADR、K/D、RWS 与角色互补。
+hotWeapons 只能推断 AWP、突破或步枪倾向，不能单独判定强弱。
+地图 familiarityScore 只衡量当前赛季场次与占比，是本赛季熟悉程度的证据，不代表跨赛季经验或强弱；只有 strongPerformance 才表示有足够样本支持的地图表现优势。
+recentWe、recentRws 和 eloTrend 只能用于判断近期状态，并应与赛季值、样本量和对手差异共同解释。
+shot/victory/breach/snipe/prop 是平台五维风格标签，不得与旧七维雷达混用，也不能直接换算胜率。
+当前地图不足 4 场必须显著降权；4-9 场只能作为弱证据，不能称为强图。
+统计覆盖不足 8/10，或当前地图有效样本普遍不足时，必须降低 confidence，并在 dataQuality 中说明。
+playerNotes 只点评真正影响本局判断的玩家，不为凑数逐人输出。
+不得引用留言内容，不评价玩家人格，不输出或推断 zq_id、留言数量和留言正文。
 
 ${AI_OUTPUT_LANGUAGE_RULES}
 
 ${METRIC_BASELINES_TEXT}`;
 
-function round(n: number | undefined, digits = 2): number | undefined {
-  if (n == null || Number.isNaN(n)) return undefined;
-  const f = 10 ** digits;
-  return Math.round(n * f) / f;
+function round(value: number | undefined, digits = 2): number | undefined {
+  if (value == null || !Number.isFinite(value)) return undefined;
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }
 
-function formatPct(n: number | undefined): string | undefined {
-  if (n == null) return undefined;
-  return `${Math.round(n * 100)}%`;
+function avg(values: Array<number | undefined>): number | undefined {
+  const valid = values.filter((value): value is number => value != null && Number.isFinite(value));
+  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : undefined;
 }
 
-function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  const out: Partial<T> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) continue;
-    out[k as keyof T] = v as T[keyof T];
-  }
-  return out;
+function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => (
+    item != null && item !== '' && (!Array.isArray(item) || item.length > 0)
+  ))) as Partial<T>;
 }
 
-function radarSummary(player: MatchPlayer): Record<string, { score: number; level?: string }> {
-  const out: Record<string, { score: number; level?: string }> = {};
-  for (const [k, v] of Object.entries(player.radar)) {
-    if (v?.score != null) {
-      out[RADAR_LABELS[k] ?? k] = { score: v.score, level: v.level };
-    }
-  }
-  return out;
-}
-
-function topBottomRadar(player: MatchPlayer) {
-  const entries = Object.entries(player.radar)
-    .filter(([, v]) => v?.score != null)
-    .sort((a, b) => (b[1]?.score ?? 0) - (a[1]?.score ?? 0));
-  const top = entries.slice(0, 2).map(([k, v]) => `${RADAR_LABELS[k] ?? k}:${v?.score}`);
-  const bottom = entries.slice(-1).map(([k, v]) => `${RADAR_LABELS[k] ?? k}:${v?.score}`);
-  return { top, bottom };
-}
-
-function summarizePlayer(player: MatchPlayer, side: 'A' | 'B') {
-  const recent = player.recentResults
-    .map((r) => (r === 'win' ? 'W' : r === 'lose' ? 'L' : 'D'))
-    .join('');
-
-  const { top, bottom } = topBottomRadar(player);
-
+function mapSummary(player: MatchPlayer, entry: PerfectHotMap, currentMap?: string) {
+  const seasonMatches = player.seasonTotalNum ?? player.hotMaps?.reduce((sum, map) => sum + map.totalMatch, 0) ?? 0;
+  const metrics = getPerfectMapMetrics(player, entry);
+  const isCurrent = Boolean(currentMap && entry.map === findPerfectHotMap(player, currentMap)?.map);
+  const familiarity = isCurrent ? getPerfectMapFamiliarity(player, currentMap) : undefined;
   return compact({
-    steamId: player.steamId,
-    nickname: player.nickname,
-    side,
-    score: player.score,
-    rating: round(player.rating),
-    adpr: round(player.adpr, 1),
-    kd: round(player.kd),
-    weAvg: round(player.weAvg, 1),
-    weRaw: round(player.weRaw, 1),
-    hsRate: formatPct(player.hsRate),
-    firstKillSuccessRate: formatPct(player.firstKillSuccessRate),
-    rapidStopSuccessRate: formatPct(player.rapidStopSuccessRate),
-    clutchWinRate: formatPct(player.clutchWinRate),
-    recentWinRate: formatPct(player.recentWinRate),
-    seasonWinRate: formatPct(player.seasonWinRate),
-    mapWinRate: formatPct(player.mapWinRate),
-    mapSampleLow: player.mapSampleLow || undefined,
-    isSingle: player.isSingle || undefined,
-    isGreen: player.isGreen || undefined,
-    isVip: player.isVip || undefined,
-    troopTeamId: player.troopTeamId,
-    perfectPower: player.perfectPower,
-    rankDesc: player.rankDesc,
-    tags: player.tags.length ? player.tags : undefined,
-    recentForm: recent || undefined,
-    recentRatings: player.recentRatings.length ? player.recentRatings.slice(-5) : undefined,
-    radarTop: top.length ? top : undefined,
-    radarWeak: bottom.length ? bottom : undefined,
-    radar: Object.keys(player.radar).length > 4 ? undefined : radarSummary(player),
+    map: entry.map,
+    matches: entry.totalMatch,
+    share: seasonMatches > 0 ? round(entry.totalMatch / seasonMatches, 3) : undefined,
+    winRate: entry.totalMatch > 0 ? round(entry.winCount / entry.totalMatch, 3) : undefined,
+    rating: entry.ratingSum != null && entry.totalMatch > 0 ? round(entry.ratingSum / entry.totalMatch) : undefined,
+    adr: entry.totalAdr != null && entry.totalMatch > 0 ? round(entry.totalAdr / entry.totalMatch, 1) : undefined,
+    kd: round(metrics.kd),
+    rws: round(metrics.rws),
+    openingDuelRate: round(metrics.openingDuelRate, 3),
+    hsRate: round(metrics.headshotRate, 3),
+    familiarityScore: familiarity?.score,
+    familiarityTier: familiarity?.tier,
+    strongPerformance: isCurrent ? isPerfectMapStrong(player, currentMap) : undefined,
   });
 }
 
-function summarizeParty(team: MatchTeam): string {
-  const groups = team.partyGroups;
-  if (!groups.length) return '无明显组排';
-  const max = Math.max(...groups);
-  return `${max} 人组排 ×${groups.length} 组`;
+function summarizePlayer(player: MatchPlayer, currentMap?: string) {
+  const current = findPerfectHotMap(player, currentMap);
+  const representative = [...(player.hotMaps ?? [])]
+    .filter((entry) => entry !== current)
+    .sort((a, b) => b.totalMatch - a.totalMatch)
+    .slice(0, current ? 2 : 3);
+  const maps = current ? [current, ...representative] : representative;
+  const recentDelta = player.rating != null && player.seasonRating != null
+    ? player.rating - player.seasonRating
+    : undefined;
+  return compact({
+    steamId: player.steamId,
+    nickname: player.nickname,
+    elo: player.score,
+    rating: round(player.seasonRating),
+    standardRating: round(player.standardRating),
+    recentStandardRating: round(player.recentStandardRating),
+    recentRating: round(player.rating),
+    recentVsSeason: round(recentDelta),
+    recentTrend: recentDelta == null ? undefined : Math.abs(recentDelta) < 0.03 ? 'flat' : recentDelta > 0 ? 'up' : 'down',
+    adr: round(player.adpr, 1),
+    kd: round(player.kd),
+    hsRate: round(player.hsRate, 3),
+    rws: round(player.rws),
+    recentRws: round(player.recentRws),
+    seasonWinRate: round(player.seasonWinRate, 3),
+    entryKillRatio: round(player.entryKillRatio, 3),
+    clutchWinRate: round(player.clutchWinRate, 3),
+    recentWe: round(player.weAvg, 1),
+    seasonWe: round(player.seasonWe, 1),
+    commonRating: round(player.commonRating),
+    eloTrend: round(player.eloTrend, 0),
+    kad: player.kills != null || player.assists != null || player.deaths != null
+      ? { kills: player.kills, assists: player.assists, deaths: player.deaths }
+      : undefined,
+    multiKills: player.multiKill3 != null || player.multiKill4 != null || player.multiKill5 != null
+      ? { k3: player.multiKill3, k4: player.multiKill4, k5: player.multiKill5 }
+      : undefined,
+    clutchWins: player.clutchWins != null
+      ? { total: player.clutchWins, v1: player.clutch1v1, v2: player.clutch1v2, v3: player.clutch1v3, v4: player.clutch1v4, v5: player.clutch1v5 }
+      : undefined,
+    partyId: player.troopTeamId,
+    isSingle: player.isSingle || undefined,
+    currentMap: current ? mapSummary(player, current, currentMap) : currentMap ? { map: currentMap, familiarityScore: 0, familiarityTier: 'none' } : undefined,
+    representativeMaps: maps.map((entry) => mapSummary(player, entry, currentMap)),
+    ability: player.abilityProfile ? compact(player.abilityProfile as Record<string, unknown>) : undefined,
+    hotWeapons: player.primaryWeapons?.slice(0, 2).map((weapon) => compact({
+      name: weapon.nameZh ?? weapon.name,
+      kills: weapon.killNum,
+      headshotRate: round(weapon.headshotRate, 3),
+      firstShotAccuracy: round(weapon.firstShotAccuracy, 3),
+      avgTimeToKillMs: round(weapon.avgTimeToKill, 0),
+    })),
+  });
 }
 
-function summarizeTeam(team: MatchTeam, compactMode = false) {
-  const base = {
-    side: team.side,
-    avgScore: round(team.avgScore, 0),
-    avgRating: round(team.avgRating),
-    avgKd: round(team.avgKd),
-    avgAdpr: round(team.avgAdpr, 1),
-    avgWe: round(team.avgWe, 1),
-    recentWinRate: formatPct(team.recentWinRate),
-    mapWinRate: formatPct(team.mapWinRate),
-    strengthScore: round(team.strengthScore, 0),
-    singleCount: team.singleCount,
-    party: summarizeParty(team),
-    teamRadar: team.teamRadar
-      ? Object.fromEntries(
-          Object.entries(team.teamRadar).map(([k, v]) => [RADAR_LABELS[k] ?? k, v]),
-        )
-      : undefined,
-  };
-
-  if (compactMode) {
-    return base;
+function partyStructure(team: MatchTeam) {
+  const groups = new Map<number, string[]>();
+  for (const player of team.players) {
+    if (player.troopTeamId == null || player.isSingle) continue;
+    groups.set(player.troopTeamId, [...(groups.get(player.troopTeamId) ?? []), player.steamId]);
   }
+  return [...groups.entries()].filter(([, players]) => players.length > 1).map(([id, players]) => ({ id, players }));
+}
 
-  return {
-    ...base,
-    players: team.players.map((p) => summarizePlayer(p, team.side)),
-  };
+function summarizeTeam(team: MatchTeam, currentMap?: string, includePlayers = true) {
+  const mapSamples = team.players.map((player) => findPerfectHotMap(player, currentMap));
+  const validMapSamples = mapSamples.filter((entry) => (entry?.totalMatch ?? 0) >= 3).length;
+  const base = compact({
+    side: team.side,
+    avgElo: round(avg(team.players.map((player) => player.score)), 0),
+    avgRating: round(avg(team.players.map((player) => player.seasonRating))),
+    avgRecentRating: round(avg(team.players.map((player) => player.rating))),
+    avgAdr: round(avg(team.players.map((player) => player.adpr)), 1),
+    avgKd: round(avg(team.players.map((player) => player.kd))),
+    avgRws: round(avg(team.players.map((player) => player.rws))),
+    avgRecentRws: round(avg(team.players.map((player) => player.recentRws))),
+    avgRecentWe: round(avg(team.players.map((player) => player.weAvg)), 1),
+    currentMapCoverage: `${validMapSamples}/${team.players.length}`,
+    parties: partyStructure(team),
+  });
+  return includePlayers
+    ? { ...base, players: team.players.map((player) => summarizePlayer(player, currentMap)) }
+    : base;
 }
 
 export interface MatchSummaryPayload {
   matchId: string;
   mapName?: string;
   mapFitHint?: string;
-  readyLeftSeconds?: number;
-  flags: {
-    isGreen?: boolean;
-    isSingle?: boolean;
-    isGrudgeMatch?: boolean;
-    hasExtraInfo: boolean;
-  };
+  fastSummary: { teams: ReturnType<typeof summarizeTeam>[]; dataQuality: Record<string, unknown> };
+  deepContext: { teams: ReturnType<typeof summarizeTeam>[] };
   dataWarnings: string[];
-  localInsights?: {
-    strongerSide?: 'A' | 'B';
-    scoreDiff: number;
-    ratingDiff: number;
-    highlights: string[];
-    risks: string[];
-    tendencies: string[];
-  };
-  fastSummary: {
-    teams: ReturnType<typeof summarizeTeam>[];
-    localInsights?: MatchSummaryPayload['localInsights'];
-  };
-  deepContext?: {
-    teams: ReturnType<typeof summarizeTeam>[];
-  };
 }
 
 export function buildMatchSummary(record: MatchRecord): MatchSummaryPayload {
-  const { detail } = record;
-  const readyMs = detail.readyLeftTimeMs;
-  const mapName = detail.mapName;
-
-  const localInsights = detail.insights
-    ? {
-        strongerSide: detail.insights.strongerSide,
-        scoreDiff: round(detail.insights.scoreDiff, 0) ?? 0,
-        ratingDiff: round(detail.insights.ratingDiff) ?? 0,
-        highlights: detail.insights.highlights.slice(0, 4),
-        risks: detail.insights.risks.slice(0, 4),
-        tendencies: detail.insights.tendencies.slice(0, 3),
-      }
-    : undefined;
-
-  const teamsCompact = detail.teams.map((t) => summarizeTeam(t, true));
-  const teamsFull = detail.teams.map((t) => summarizeTeam(t, false));
-
+  const players = record.detail.teams.flatMap((team) => team.players);
+  const statsSuccess = players.filter((player) => player.perfectLoadState?.stats === 'loaded' || (
+    record.detail.source !== 'ladder-events' && player.seasonRating != null
+  )).length;
+  const currentMapValid = players.filter((player) => (findPerfectHotMap(player, record.detail.mapName)?.totalMatch ?? 0) >= 3).length;
+  const statsErrors = players.flatMap((player) => player.perfectLoadState?.statsError
+    ? [{ steamId: player.steamId, error: player.perfectLoadState.statsError }]
+    : []);
+  const dataQuality = {
+    statsSuccess,
+    statsTotal: players.length,
+    currentMapValidSamples: currentMapValid,
+    missingStats: players.length - statsSuccess,
+    statsErrors,
+  };
   return {
     matchId: record.id,
-    mapName,
-    mapFitHint: mapFitHint(mapName),
-    readyLeftSeconds: readyMs ? Math.floor(readyMs / 1000) : undefined,
-    flags: compact({
-      isGreen: detail.isGreen,
-      isSingle: detail.isSingle,
-      isGrudgeMatch: detail.isGrudgeMatch,
-      hasExtraInfo: detail.hasExtraInfo,
-    }) as MatchSummaryPayload['flags'],
-    dataWarnings: detail.parseWarnings,
-    localInsights,
+    mapName: record.detail.mapName,
+    mapFitHint: mapFitHint(record.detail.mapName),
+    dataWarnings: record.detail.parseWarnings,
     fastSummary: {
-      teams: teamsCompact,
-      localInsights,
+      teams: record.detail.teams.map((team) => summarizeTeam(team, record.detail.mapName, false)),
+      dataQuality,
     },
     deepContext: {
-      teams: teamsFull,
+      teams: record.detail.teams.map((team) => summarizeTeam(team, record.detail.mapName, true)),
     },
   };
 }
@@ -214,11 +193,10 @@ function localizeSystemPrompt(prompt: string, locale: AiOutputLocale): string {
 }
 
 export function buildPerfectAiAnalysisRequest(record: MatchRecord, locale: AiOutputLocale = 'zh-CN'): StartAiAnalysisInput {
-  const summary = buildMatchSummary(record);
   return {
     matchId: record.id,
     systemPrompt: localizeSystemPrompt(PERFECT_SYSTEM_PROMPT, locale),
-    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify(summary),
+    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify(buildMatchSummary(record)),
   };
 }
 
@@ -231,15 +209,13 @@ export function buildAiAnalysisRequest(record: MatchRecord, locale: AiOutputLoca
 
 export function parseAiAnalysisResult(raw: string): import('./types').AiAnalysisResult | null {
   try {
-    const cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '');
-    const parsed = JSON.parse(cleaned) as import('./types').AiAnalysisResult;
+    const parsed = JSON.parse(raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '')) as import('./types').AiAnalysisResult;
     if (!parsed.predictedWinner || !parsed.winProbability) return null;
     return sanitizeAiAnalysisResult({
       ...parsed,
       keyFactors: parsed.keyFactors ?? [],
       playerNotes: parsed.playerNotes ?? [],
       risks: parsed.risks ?? [],
-      recommendedFocus: parsed.recommendedFocus,
       dataQuality: parsed.dataQuality ?? '',
     });
   } catch {
