@@ -1,5 +1,6 @@
-mod perfect;
 mod admin_relaunch;
+mod perfect;
+mod perfect_player;
 mod platform_5e_cdp;
 mod platform_5e_gate_sign;
 mod platform_5e_launch;
@@ -9,18 +10,19 @@ mod platform_5e_sink;
 mod platform_5e_ws;
 mod platform_board;
 
+pub use admin_relaunch::relaunch_current_exe_as_admin;
+pub use perfect_player::{fetch_perfect_player_stats, search_perfect_board_user};
 pub use platform_5e_cdp::{
     get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector,
     stop_cdp_collector, P5eCdpRuntime, P5eCdpStatus,
 };
 pub use platform_5e_launch::{
-    launch_with_cdp, probe_5e_environment, wait_for_cdp_port, P5E_DEFAULT_CDP_PORT,
-    P5eLaunchResult, P5eProbeResult,
+    launch_with_cdp, probe_5e_environment, wait_for_cdp_port, P5eLaunchResult, P5eProbeResult,
+    P5E_DEFAULT_CDP_PORT,
 };
 pub use platform_5e_match::fetch_5e_match_detail;
 pub use platform_5e_player_home::{fetch_5e_player_home, fetch_5e_player_home_batch};
 pub use platform_board::{fetch_http_json, fetch_proxied_image};
-pub use admin_relaunch::relaunch_current_exe_as_admin;
 
 pub fn find_watchable_parent(target: &std::path::Path) -> std::path::PathBuf {
     perfect::find_watchable_parent(target)

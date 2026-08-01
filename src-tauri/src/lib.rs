@@ -10,17 +10,15 @@ mod shutdown;
 mod update;
 
 use ai::AiAnalysisState;
-use counter_strafing::{
-    CounterStrafingRuntime, ASSESSMENT_HUD_WINDOW_LABEL,
-    HUD_WINDOW_LABEL,
-};
+use counter_strafing::{CounterStrafingRuntime, ASSESSMENT_HUD_WINDOW_LABEL, HUD_WINDOW_LABEL};
 use log_watcher::WatcherState;
 use platform::{
-    fetch_5e_match_detail, fetch_5e_player_home, fetch_5e_player_home_batch,
-    fetch_http_json, fetch_proxied_image, launch_with_cdp,
-    probe_5e_environment, relaunch_current_exe_as_admin, wait_for_cdp_port,
-    P5E_DEFAULT_CDP_PORT, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
-    get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, stop_cdp_collector,
+    fetch_5e_match_detail, fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json,
+    fetch_perfect_player_stats, fetch_proxied_image, get_cdp_status, launch_with_cdp,
+    probe_5e_environment, relaunch_current_exe_as_admin, search_perfect_board_user,
+    set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, stop_cdp_collector,
+    wait_for_cdp_port, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
+    P5E_DEFAULT_CDP_PORT,
 };
 use std::sync::Mutex;
 use std::thread;
@@ -56,19 +54,15 @@ fn read_latest_log_lines(log_dir: String) -> Result<Vec<String>, String> {
 
 /// 预留：批量获取玩家扩展数据（首版未实现）
 #[tauri::command]
-fn fetch_player_enrichment(_steam_ids: Vec<String>) -> Result<(), String> {
-    Err("player enrichment not implemented".to_string())
-}
-
-#[tauri::command]
 async fn launch_5e_with_cdp(
     port: Option<u16>,
     client_root: Option<String>,
 ) -> Result<P5eLaunchResult, String> {
     let preferred = port.unwrap_or(P5E_DEFAULT_CDP_PORT);
-    let mut result = tokio::task::spawn_blocking(move || launch_with_cdp(client_root.as_deref(), preferred))
-        .await
-        .map_err(|e| format!("启动任务失败: {e}"))??;
+    let mut result =
+        tokio::task::spawn_blocking(move || launch_with_cdp(client_root.as_deref(), preferred))
+            .await
+            .map_err(|e| format!("启动任务失败: {e}"))??;
 
     if result.launched && !result.cdp_ready {
         let ready = wait_for_cdp_port(result.port, Duration::from_secs(60)).await;
@@ -168,10 +162,7 @@ fn set_5e_cdp_gate_debug_mode(
 }
 
 #[tauri::command]
-fn set_5e_cdp_ws_debug_mode(
-    state: tauri::State<'_, P5eCdpRuntime>,
-    enabled: bool,
-) -> P5eCdpStatus {
+fn set_5e_cdp_ws_debug_mode(state: tauri::State<'_, P5eCdpRuntime>, enabled: bool) -> P5eCdpStatus {
     set_cdp_ws_debug_mode(state, enabled)
 }
 
@@ -238,7 +229,8 @@ pub fn run() {
             }
 
             update::startup_update_maintenance(app.handle());
-            app.state::<CounterStrafingRuntime>().initialize(app.handle());
+            app.state::<CounterStrafingRuntime>()
+                .initialize(app.handle());
 
             Ok(())
         })
@@ -247,7 +239,8 @@ pub fn run() {
             start_log_watch,
             stop_log_watch,
             read_latest_log_lines,
-            fetch_player_enrichment,
+            fetch_perfect_player_stats,
+            search_perfect_board_user,
             launch_5e_with_cdp,
             start_5e_cdp_collector,
             stop_5e_cdp_collector,
@@ -316,54 +309,50 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            match event {
-                RunEvent::ExitRequested { .. } => {
-                    shutdown_app(app_handle);
-                }
-                RunEvent::WindowEvent { label, event, .. } if label == HUD_WINDOW_LABEL => {
-                    match event {
-                        WindowEvent::CloseRequested { api, .. } => {
-                            if !shutdown::is_app_shutting_down() {
-                                api.prevent_close();
-                            }
-                        }
-                        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
-                            let _ = app_handle
-                                .state::<CounterStrafingRuntime>()
-                                .save_hud_bounds_from_window(app_handle);
-                        }
-                        _ => {}
-                    }
-                }
-                RunEvent::WindowEvent { label, event, .. }
-                    if label == ASSESSMENT_HUD_WINDOW_LABEL =>
-                {
-                    match event {
-                        WindowEvent::CloseRequested { api, .. } => {
-                            if !shutdown::is_app_shutting_down() {
-                                api.prevent_close();
-                            }
-                        }
-                        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
-                            let _ = app_handle
-                                .state::<CounterStrafingRuntime>()
-                                .save_assessment_hud_bounds_from_window(app_handle);
-                        }
-                        _ => {}
-                    }
-                }
-                RunEvent::WindowEvent { label, event, .. } if label == "main" => {
-                    if let WindowEvent::CloseRequested { api, .. } = event {
-                        if shutdown::is_app_shutting_down() {
-                            shutdown_app(app_handle);
-                        } else {
-                            api.prevent_close();
-                            let _ = app_handle.emit("app-close-requested", ());
-                        }
-                    }
-                }
-                _ => {}
+        .run(|app_handle, event| match event {
+            RunEvent::ExitRequested { .. } => {
+                shutdown_app(app_handle);
             }
+            RunEvent::WindowEvent { label, event, .. } if label == HUD_WINDOW_LABEL => {
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        if !shutdown::is_app_shutting_down() {
+                            api.prevent_close();
+                        }
+                    }
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                        let _ = app_handle
+                            .state::<CounterStrafingRuntime>()
+                            .save_hud_bounds_from_window(app_handle);
+                    }
+                    _ => {}
+                }
+            }
+            RunEvent::WindowEvent { label, event, .. } if label == ASSESSMENT_HUD_WINDOW_LABEL => {
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        if !shutdown::is_app_shutting_down() {
+                            api.prevent_close();
+                        }
+                    }
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                        let _ = app_handle
+                            .state::<CounterStrafingRuntime>()
+                            .save_assessment_hud_bounds_from_window(app_handle);
+                    }
+                    _ => {}
+                }
+            }
+            RunEvent::WindowEvent { label, event, .. } if label == "main" => {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    if shutdown::is_app_shutting_down() {
+                        shutdown_app(app_handle);
+                    } else {
+                        api.prevent_close();
+                        let _ = app_handle.emit("app-close-requested", ());
+                    }
+                }
+            }
+            _ => {}
         });
 }

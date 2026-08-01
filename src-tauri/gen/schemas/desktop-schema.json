@@ -567,6 +567,12 @@
           "markdownDescription": "允许更新对局历史某一 section"
         },
         {
+          "description": "Allow fetching Perfect World player stats and resolving board identities",
+          "type": "string",
+          "const": "allow-perfect-player-data",
+          "markdownDescription": "Allow fetching Perfect World player stats and resolving board identities"
+        },
+        {
           "description": "允许检测 5E 是否已在外部运行",
           "type": "string",
           "const": "allow-probe-5e-cdp-active",
