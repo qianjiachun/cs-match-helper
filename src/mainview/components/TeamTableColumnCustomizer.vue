@@ -91,10 +91,6 @@ function isVisible(key: TeamTableColumnKey) {
   return props.visibleKeys.includes(key);
 }
 
-function onBackdropClick(event: MouseEvent) {
-  if (event.target === event.currentTarget) emit('close');
-}
-
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') emit('close');
 }
@@ -136,9 +132,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
     <Transition name="column-customizer">
       <div
         v-if="open"
-        class="fixed inset-0 z-200 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-[2px]"
+        class="fixed inset-0 z-200 flex items-center justify-center bg-slate-900/35 p-4"
         role="presentation"
-        @click="onBackdropClick"
+        @pointerdown.self="emit('close')"
       >
         <div
           class="flex max-h-[min(86vh,640px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10"
@@ -298,10 +294,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 <style scoped>
 .column-customizer-scroll {
   overflow-anchor: none;
-}
-
-.column-customizer-row {
-  will-change: transform;
 }
 
 .column-customizer-enter-active,

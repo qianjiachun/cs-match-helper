@@ -41,6 +41,18 @@ function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | nu
       return player.rating ?? -Infinity;
     case 'seasonRating':
       return player.seasonRating ?? -Infinity;
+    case 'standardRating':
+      return player.standardRating ?? -Infinity;
+    case 'recentStandardRating':
+      return player.recentStandardRating ?? -Infinity;
+    case 'commonRating':
+      return player.commonRating ?? -Infinity;
+    case 'rws':
+      return player.rws ?? -Infinity;
+    case 'recentRws':
+      return player.recentRws ?? -Infinity;
+    case 'entryKillRatio':
+      return player.entryKillRatio ?? -Infinity;
     case 'kd':
       return player.kd ?? -Infinity;
     case 'hsRate':
@@ -55,6 +67,18 @@ function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | nu
       return player.weRaw ?? -Infinity;
     case 'weAvg':
       return player.weAvg ?? -Infinity;
+    case 'seasonWe':
+      return player.seasonWe ?? -Infinity;
+    case 'eloTrend':
+      return player.eloTrend ?? -Infinity;
+    case 'kad':
+      return player.kills ?? -Infinity;
+    case 'multiKills':
+      return (player.multiKill5 ?? 0) * 1000 + (player.multiKill4 ?? 0) * 100 + (player.multiKill3 ?? 0) * 10 + (player.multiKill2 ?? 0);
+    case 'mvpCount':
+      return player.mvpCount ?? -Infinity;
+    case 'clutchWins':
+      return player.clutchWins ?? -Infinity;
     case 'recentWinRate':
       return player.recentWinRate ?? -Infinity;
     case 'recentDrawCount':
@@ -238,10 +262,21 @@ export function cellValueClass(key: TeamTableColumnKey, player: MatchPlayer): st
       return ratingClass(player.rating);
     case 'seasonRating':
       return ratingClass(player.seasonRating);
-    case 'kd':
+    case 'standardRating':
+      return ratingClass(player.standardRating);
+    case 'recentStandardRating':
+      return ratingClass(player.recentStandardRating);
+    case 'commonRating':
+      return ratingClass(player.commonRating);
     case 'weRaw':
+      return weClass(player.weRaw);
     case 'weAvg':
-      return cellClassForColumn(key);
+      return weClass(player.weAvg);
+    case 'seasonWe':
+      return weClass(player.seasonWe);
+    case 'eloTrend':
+      if (player.eloTrend == null || player.eloTrend === 0) return 'text-slate-600 tabular-nums';
+      return player.eloTrend > 0 ? 'text-emerald-600 font-semibold tabular-nums' : 'text-rose-500 font-semibold tabular-nums';
     default:
       return cellClassForColumn(key);
   }
@@ -257,12 +292,23 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
       return formatNum(player.rating, 2);
     case 'seasonRating':
       return formatNum(player.seasonRating, 2);
+    case 'standardRating':
+      return formatNum(player.standardRating, 2);
+    case 'recentStandardRating':
+      return formatNum(player.recentStandardRating, 2);
+    case 'commonRating':
+      return formatNum(player.commonRating, 2);
+    case 'rws':
+      return formatNum(player.rws, 2);
+    case 'recentRws':
+      return formatNum(player.recentRws, 2);
     case 'kd':
       return formatNum(player.kd, 2);
     case 'hsRate':
     case 'firstKillSuccessRate':
     case 'rapidStopSuccessRate':
     case 'clutchWinRate':
+    case 'entryKillRatio':
     case 'recentWinRate':
     case 'seasonWinRate':
     case 'mapWinRate':
@@ -273,6 +319,10 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
       return formatWeAvg(player.weRaw);
     case 'weAvg':
       return formatWeAvg(player.weAvg);
+    case 'seasonWe':
+      return formatWeAvg(player.seasonWe);
+    case 'eloTrend':
+      return player.eloTrend == null ? '—' : `${player.eloTrend > 0 ? '+' : ''}${Math.round(player.eloTrend)}`;
     case 'recentDrawCount':
     case 'latest10WinNum':
     case 'latest10TotalNum':
@@ -283,6 +333,8 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
     case 'continuedWins':
     case 'eloChange':
     case 'perfectPower':
+    case 'mvpCount':
+    case 'clutchWins':
       return formatInteger(player[key]);
     case 'rankDesc':
     case 'rankLevel':

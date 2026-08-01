@@ -11,7 +11,7 @@ import {
   type TeamTablePlatformId,
 } from '../components/team-table-columns';
 
-const STORAGE_VERSION = 7;
+const STORAGE_VERSION = 9;
 
 interface StoredColumnPrefs {
   version: number;
@@ -30,14 +30,37 @@ function isColumnKey(value: unknown, platformId: TeamTablePlatformId): value is 
 function normalizePrefs(raw: StoredColumnPrefs, platformId: TeamTablePlatformId): StoredColumnPrefs {
   const allKeys = getDefaultColumnOrder(platformId);
   const known = new Set(allKeys);
+  const migratePerfectWe = platformId === 'perfect' && raw.version < 8;
+  const migratePerfectLayout = platformId === 'perfect' && raw.version < STORAGE_VERSION;
+  const previousSeasonWeVisible = migratePerfectWe && raw.visible.includes('weAvg');
+  let migratedOrder = migratePerfectWe
+    ? raw.order.filter((key) => key !== 'weAvg' && key !== 'seasonWe')
+    : raw.order;
+  if (migratePerfectWe) {
+    const mapPoolIndex = migratedOrder.indexOf('mapPool');
+    migratedOrder.splice(mapPoolIndex >= 0 ? mapPoolIndex + 1 : migratedOrder.length, 0, 'weAvg');
+  }
+  if (migratePerfectLayout) {
+    migratedOrder = migratedOrder.filter((key) => key !== 'primaryWeapon' && key !== 'seasonWinRate');
+    const mapPoolIndex = migratedOrder.indexOf('mapPool');
+    migratedOrder.splice(mapPoolIndex >= 0 ? mapPoolIndex + 1 : migratedOrder.length, 0, 'primaryWeapon');
+    const seasonTotalIndex = migratedOrder.indexOf('seasonTotalNum');
+    migratedOrder.splice(seasonTotalIndex >= 0 ? seasonTotalIndex + 1 : migratedOrder.length, 0, 'seasonWinRate');
+  }
 
   const order = [
-    ...raw.order.filter((key) => known.has(key)),
-    ...allKeys.filter((key) => !raw.order.includes(key)),
+    ...migratedOrder.filter((key) => known.has(key)),
+    ...allKeys.filter((key) => !migratedOrder.includes(key)),
   ];
 
-  const visibleSet = new Set(raw.visible.filter((key) => known.has(key) && key !== 'nickname'));
+  const visibleSet = new Set(raw.visible.filter((key) => known.has(key) && key !== 'nickname' && (!migratePerfectWe || key !== 'weAvg')));
   visibleSet.add('nickname');
+  if (migratePerfectWe) visibleSet.add('weAvg');
+  if (previousSeasonWeVisible) visibleSet.add('seasonWe');
+  if (migratePerfectLayout) {
+    visibleSet.delete('seasonWinRate');
+    visibleSet.add('primaryWeapon');
+  }
 
   const visible = order.filter((key) => visibleSet.has(key));
   if (!visible.length) {
@@ -59,13 +82,15 @@ function loadPrefs(platformId: TeamTablePlatformId): StoredColumnPrefs {
   };
 
   try {
-    const raw = localStorage.getItem(getStorageKeyForPlatform(platformId));
+    const raw = localStorage.getItem(getStorageKeyForPlatform(platformId))
+      ?? localStorage.getItem(`cs-match-helper.team-table-columns-v8.${platformId}`)
+      ?? localStorage.getItem(`cs-match-helper.team-table-columns-v7.${platformId}`);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<StoredColumnPrefs>;
     if (!Array.isArray(parsed.order) || !Array.isArray(parsed.visible)) return fallback;
     return normalizePrefs(
       {
-        version: STORAGE_VERSION,
+        version: typeof parsed.version === 'number' ? parsed.version : 0,
         order: parsed.order.filter((key) => isColumnKey(key, platformId)),
         visible: parsed.visible.filter((key) => isColumnKey(key, platformId)),
       },

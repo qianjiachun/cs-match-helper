@@ -33,6 +33,21 @@ export type TeamTableColumnKey =
   | 'rankLevel'
   | 'rankNum'
   | 'isVip'
+  | 'standardRating'
+  | 'recentStandardRating'
+  | 'commonRating'
+  | 'rws'
+  | 'recentRws'
+  | 'entryKillRatio'
+  | 'seasonWe'
+  | 'eloTrend'
+  | 'kad'
+  | 'multiKills'
+  | 'mvpCount'
+  | 'clutchWins'
+  | 'abilityProfile'
+  | 'primaryWeapon'
+  | 'mapPool'
   | 'radar_fire_power'
   | 'radar_marksmanship'
   | 'radar_follow_up_shot'
@@ -76,7 +91,7 @@ const EN_CATEGORY_LABELS: Record<TeamTableColumnCategory, string> = {
 
 const EN_COLUMN_LABELS: Partial<Record<TeamTableColumnKey, string>> = {
   nickname: 'Player', score: 'ELO', recentWins: 'Recent W/L', adpr: 'ADR', rating: 'Recent rating',
-  seasonRating: 'Season rating', kd: 'K/D', hsRate: 'HS%', firstKillSuccessRate: 'Opening kill %',
+  seasonRating: 'Rating', kd: 'K/D', hsRate: 'HS%', firstKillSuccessRate: 'Opening kill %',
   rapidStopSuccessRate: 'Counter-strafe %', reactionTime: 'Reaction time', weRaw: 'WE', weAvg: 'Recent WE',
   recentWinRate: 'Recent win %', recentDrawCount: 'Recent draws', latest10WinNum: 'Last 10 wins',
   latest10TotalNum: 'Last 10 matches', seasonWinRate: 'Season win %', seasonWinNum: 'Season wins',
@@ -85,13 +100,56 @@ const EN_COLUMN_LABELS: Partial<Record<TeamTableColumnKey, string>> = {
   rankDesc: 'Regional rank', rankLevel: 'Rank', rankNum: 'Leaderboard', isVip: 'VIP', radar_fire_power: 'Firepower',
   radar_marksmanship: 'Aim', radar_follow_up_shot: 'Trade fragging', radar_first: 'Entry fragging',
   radar_item: 'Utility', radar_1vn: 'Clutch', radar_sniper: 'AWP',
+  standardRating: 'Standard rating', recentStandardRating: 'Recent standard rating', rws: 'RWS', entryKillRatio: 'Entry rate',
+  commonRating: 'Common rating', recentRws: 'Recent RWS', seasonWe: 'Season WE', eloTrend: 'ELO trend',
+  kad: 'K/A/D', multiKills: 'Multi-kills', mvpCount: 'MVPs', clutchWins: 'Clutch wins',
+  abilityProfile: 'Playstyle', primaryWeapon: 'Favored weapons', mapPool: 'Map familiarity',
 };
+
+const PERFECT_CURRENT_TEAM_TABLE_COLUMN_DEFS: TeamTableColumnDef[] = [
+  { key: 'nickname', label: '玩家', category: 'basic', align: 'left', width: 'auto', fixed: true, defaultVisible: true, sortable: true },
+  { key: 'score', label: 'ELO', category: 'basic', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  { key: 'seasonRating', label: 'Rating', category: 'season', align: 'center', width: '8%', defaultVisible: true, sortable: true },
+  { key: 'rating', label: '近期 Rating', category: 'recent', align: 'center', width: '10%', defaultVisible: true, sortable: true },
+  { key: 'adpr', label: 'ADR', category: 'combat', align: 'center', width: '6%', defaultVisible: true, sortable: true },
+  { key: 'kd', label: 'K/D', category: 'combat', align: 'center', width: '6%', defaultVisible: true, sortable: true },
+  { key: 'hsRate', label: '爆头率', category: 'combat', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  { key: 'rws', label: 'RWS', category: 'combat', align: 'center', width: '6%', defaultVisible: true, sortable: true },
+  { key: 'mapPool', label: '地图熟练度', description: '熟练度由当前地图场次与赛季占比计算；达到强图标准时合并显示在熟练度标签中', category: 'season', align: 'left', width: '11%', defaultVisible: true, sortable: false },
+  { key: 'primaryWeapon', label: '擅长武器', description: '仅显示击杀最多的武器，重点展示平均击杀耗时与爆头率', category: 'other', align: 'left', width: '13%', defaultVisible: true, sortable: false },
+  { key: 'weAvg', label: '近期WE', description: 'weList 最新 10 个有效值的平均值', category: 'recent', align: 'center', width: '7%', defaultVisible: true, sortable: true },
+  { key: 'standardRating', label: '标准 Rating', category: 'season', align: 'center', width: '8%', defaultVisible: false, sortable: true },
+  { key: 'recentStandardRating', label: '近期标准 Rating', description: 'historyRatings 最新 10 个有效值的平均值', category: 'recent', align: 'center', width: '10%', defaultVisible: false, sortable: true },
+  { key: 'commonRating', label: '通用 Rating', category: 'season', align: 'center', width: '8%', defaultVisible: false, sortable: true },
+  { key: 'seasonTotalNum', label: '赛季场次', category: 'season', align: 'center', width: '7%', defaultVisible: false, sortable: true },
+  { key: 'seasonWinRate', label: '赛季胜率', category: 'season', align: 'center', width: '7%', defaultVisible: false, sortable: true },
+  { key: 'entryKillRatio', label: '突破率', category: 'combat', align: 'center', width: '7%', defaultVisible: false, sortable: true },
+  { key: 'clutchWinRate', label: '1v1 残局', description: 'vs1WinRate：1v1 残局胜率；同时显示由 vs1 胜场推算的样本局数', category: 'combat', align: 'center', width: '8%', defaultVisible: false, sortable: true },
+  { key: 'seasonWe', label: '赛季WE', description: '当前赛季 avgWe', category: 'season', align: 'center', width: '7%', defaultVisible: false, sortable: true },
+  { key: 'recentRws', label: '近期 RWS', description: 'historyRws 最新 10 个有效值的平均值', category: 'recent', align: 'center', width: '8%', defaultVisible: false, sortable: true },
+  { key: 'eloTrend', label: 'ELO趋势', description: '最新有效 ELO 与近 10 条中最早有效 ELO 的差值', category: 'recent', align: 'center', width: '7%', defaultVisible: false, sortable: true },
+  { key: 'kad', label: 'K/A/D', category: 'combat', align: 'center', width: '10%', defaultVisible: false, sortable: true },
+  { key: 'multiKills', label: '多杀', description: '三杀、四杀和五杀次数；悬停可看二杀', category: 'combat', align: 'center', width: '12%', defaultVisible: false, sortable: true },
+  { key: 'mvpCount', label: 'MVP', category: 'combat', align: 'center', width: '6%', defaultVisible: false, sortable: true },
+  { key: 'clutchWins', label: '残局获胜', description: '显示残局获胜总数，并区分 1v1 与难度更高的 1v2 以上残局', category: 'combat', align: 'center', width: '10%', defaultVisible: false, sortable: true },
+  { key: 'abilityProfile', label: '打法特点', category: 'other', align: 'left', width: '10%', defaultVisible: false, sortable: false },
+];
 
 const EN_DESCRIPTION_BY_ZH: Record<string, string> = {
   '赛季 Rating Pro 均值': 'Average season Rating Pro',
   '近 10 场 Rating 均值': 'Average rating over the last 10 matches',
   '近 5 场 W/L/D': 'W/L/D over the last 5 matches',
   '近 10 场 WE 均值': 'Average WE over the last 10 matches',
+  'weList 最新 10 个有效值的平均值': 'Average of the latest 10 valid weList values',
+  '当前赛季 avgWe': 'Current-season avgWe',
+  'historyRws 最新 10 个有效值的平均值': 'Average of the latest 10 valid historyRws values',
+  'historyRatings 最新 10 个有效值的平均值': 'Average of the latest 10 valid historyRatings values',
+  '最新有效 ELO 与近 10 条中最早有效 ELO 的差值': 'Latest valid ELO minus the oldest of the latest 10 valid values',
+  '三杀、四杀和五杀次数；悬停可看二杀': '3K, 4K and 5K counts; hover for 2K',
+  '显示残局获胜总数，并区分 1v1 与难度更高的 1v2 以上残局': 'Shows total clutch wins, split into 1v1 and harder 1v2+ situations',
+  '熟练度由当前地图场次与赛季占比计算；达到强图标准时合并显示在熟练度标签中': 'Familiarity uses current-map matches and season share; strong performance is merged into the familiarity badge',
+  'vs1WinRate：1v1 残局胜率；同时显示由 vs1 胜场推算的样本局数': 'vs1WinRate: 1v1 clutch win rate, with the sample size inferred from vs1 wins',
+  '仅显示击杀最多的武器，重点展示平均击杀耗时与爆头率': 'Shows only the top weapon, emphasizing average time to kill and headshot rate',
   '当前地图胜率（map-ext）': 'Win rate on the current map (map-ext)',
   'level_info.level_name 或赛季 Lv': 'level_info.level_name or season level',
   'sts.rank / elo.rank': 'sts.rank / elo.rank',
@@ -574,7 +632,7 @@ export type TeamTablePlatformId = 'perfect' | '5e';
 
 export function getTeamTableColumnDefs(platformId: TeamTablePlatformId = 'perfect'): TeamTableColumnDef[] {
   void i18n.global.locale.value;
-  const definitions = platformId === '5e' ? P5E_TEAM_TABLE_COLUMN_DEFS : PERFECT_TEAM_TABLE_COLUMN_DEFS;
+  const definitions = platformId === '5e' ? P5E_TEAM_TABLE_COLUMN_DEFS : PERFECT_CURRENT_TEAM_TABLE_COLUMN_DEFS;
   if (currentLocale() !== 'en-US') return definitions;
   return definitions.map((definition) => ({
     ...definition,
@@ -598,7 +656,7 @@ export function getDefaultVisibleColumnKeys(platformId: TeamTablePlatformId = 'p
 }
 
 export function getStorageKeyForPlatform(platformId: TeamTablePlatformId): string {
-  return `cs-match-helper.team-table-columns-v7.${platformId}`;
+  return `cs-match-helper.team-table-columns-v9.${platformId}`;
 }
 
 export const RADAR_COLUMN_DIM: Partial<Record<TeamTableColumnKey, string>> = {
