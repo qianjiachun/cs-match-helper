@@ -22,6 +22,8 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, 'dist'),
     emptyOutDir: true,
+    // Tauri loads assets locally; main chunk routinely exceeds Vite's 500 kB web default.
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
         main: path.resolve(rootDir, 'src/mainview/index.html'),
