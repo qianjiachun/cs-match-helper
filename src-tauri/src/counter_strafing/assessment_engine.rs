@@ -1,6 +1,6 @@
 use crate::counter_strafing::types::{
-    BindingRole, CounterStrafingAssessmentRecord, CounterStrafingAssessmentSnapshot,
-    CounterStrafingSettings, AssessmentAxis, AssessmentTiming, InputBinding, SampleContextMode,
+    AssessmentAxis, AssessmentTiming, BindingRole, CounterStrafingAssessmentRecord,
+    CounterStrafingAssessmentSnapshot, CounterStrafingSettings, InputBinding, SampleContextMode,
 };
 
 const MIN_RECORD_INTERVAL_SECS: f64 = 0.05;
@@ -133,7 +133,11 @@ impl CounterStrafingAssessmentEngine {
         }
     }
 
-    fn on_key_up(&mut self, key: MovementKey, time: f64) -> Option<CounterStrafingAssessmentRecord> {
+    fn on_key_up(
+        &mut self,
+        key: MovementKey,
+        time: f64,
+    ) -> Option<CounterStrafingAssessmentRecord> {
         let idx = key.index();
         self.key_states[idx].pressed = false;
 
@@ -154,7 +158,11 @@ impl CounterStrafingAssessmentEngine {
         None
     }
 
-    fn on_key_down(&mut self, key: MovementKey, time: f64) -> Option<CounterStrafingAssessmentRecord> {
+    fn on_key_down(
+        &mut self,
+        key: MovementKey,
+        time: f64,
+    ) -> Option<CounterStrafingAssessmentRecord> {
         let idx = key.index();
         self.key_states[idx].pressed = true;
         self.key_states[idx].press_time = time;

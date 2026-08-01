@@ -381,7 +381,7 @@ export function sampleState(record: ShootingErrorRecord): SampleState {
   if (record.crouchGraceActive || record.reason === 'crouchGrace') return 'stable';
   if (record.reason === 'crouching') return 'stable';
   if (record.reason === 'lowSpeedMovement' || record.speedRatio <= 1) return 'stable';
-  if (record.axisConflict || record.speedRatio > 1.5) return 'run';
+  if (record.speedRatio > 1.5) return 'run';
   if (record.speedRatio > 1) return 'micro';
   return 'run';
 }
@@ -594,7 +594,7 @@ function yellowVisualFill(speedRatio: number): number {
     : 0;
 }
 
-/** 自底向上堆叠柱：绿=阈值内占用，黄=微动超阈，红=跑打/方向冲突 */
+/** 自底向上堆叠柱：绿=阈值内占用，黄=微动超阈，红=跑打 */
 export function shotBarSegments(record: ShootingErrorRecord): ShotBarSegments {
   const state = sampleState(record);
   const speedRatio = record.speedRatio;
@@ -622,12 +622,10 @@ export function shotBarSegments(record: ShootingErrorRecord): ShotBarSegments {
     greenRatio = SHOT_BAR_THRESHOLD_LINE_RATIO;
     yellowRatio = yellowVisualFill(speedRatio) * upperZone;
   } else {
-    const severity = record.axisConflict
-      ? Math.max(0.5, clamp01((speedRatio - 1) / (SHOT_BAR_RED_FULL_RATIO - 1)))
-      : Math.max(
-          SHOT_BAR_MIN_YELLOW_RATIO,
-          clamp01((speedRatio - SHOT_BAR_MICRO_RATIO) / (SHOT_BAR_RED_FULL_RATIO - SHOT_BAR_MICRO_RATIO)),
-        );
+    const severity = Math.max(
+      SHOT_BAR_MIN_YELLOW_RATIO,
+      clamp01((speedRatio - SHOT_BAR_MICRO_RATIO) / (SHOT_BAR_RED_FULL_RATIO - SHOT_BAR_MICRO_RATIO)),
+    );
     redRatio = Math.max(
       SHOT_BAR_MIN_VISIBLE_RATIO,
       SHOT_BAR_THRESHOLD_LINE_RATIO + severity * upperZone,

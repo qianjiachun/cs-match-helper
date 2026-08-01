@@ -1078,13 +1078,20 @@ fn drain_engine_shots_locked(
     }
 }
 
-fn event_triggers_intermediate_drain(event: &InputEvent, inner: &RuntimeInner) -> bool {
-    let binding = event_to_binding(event);
-    inner
-        .settings
-        .key_map
-        .role_for_binding(&binding)
-        .is_some_and(|role| role == BindingRole::Fire)
+fn process_timeline_event_locked(
+    inner: &mut RuntimeInner,
+    event: &InputEvent,
+    pending_shots: &mut Vec<PendingShot>,
+    ready_shots: &mut Vec<ShootingErrorRecord>,
+) -> Option<CounterStrafingAssessmentRecord> {
+    // Settle samples due before this event while the previous input state is still active.
+    drain_engine_shots_locked(inner, event.time_secs, pending_shots, ready_shots);
+
+    let (shot, assessment) = process_single_event_locked(inner, event);
+    if let Some(record) = shot {
+        stage_shot(inner, record, event.time_secs, pending_shots, ready_shots);
+    }
+    assessment
 }
 
 fn dispatch_consumer_events(
@@ -1100,32 +1107,13 @@ fn dispatch_consumer_events(
     let now = win_input::qpc_secs();
     let mut had_any_record = false;
 
-    for (idx, event) in events.iter().enumerate() {
+    for event in &events {
         let mut drained_shots = Vec::new();
         let (assessment, ready_shots) = {
             let runtime = app.state::<CounterStrafingRuntime>();
             let mut inner = runtime.inner.lock().unwrap();
-            let (shot, assessment) = process_single_event_locked(&mut inner, event);
-            if let Some(record) = shot {
-                stage_shot(
-                    &mut inner,
-                    record,
-                    event.time_secs,
-                    pending_shots,
-                    &mut drained_shots,
-                );
-            }
-            let should_drain = event_triggers_intermediate_drain(event, &inner)
-                || (idx + 1) % MAX_EVENT_BATCH == 0;
-            if should_drain {
-                let sample_now = event.time_secs.max(now);
-                drain_engine_shots_locked(
-                    &mut inner,
-                    sample_now,
-                    pending_shots,
-                    &mut drained_shots,
-                );
-            }
+            let assessment =
+                process_timeline_event_locked(&mut inner, event, pending_shots, &mut drained_shots);
             (assessment, drained_shots)
         };
 
@@ -2091,4 +2079,122 @@ pub fn save_counter_strafing_assessment_hud_bounds(
     height: f64,
 ) -> Result<(), String> {
     state.save_assessment_hud_bounds(x, y, width, height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(source: InputSource, is_down: bool, time_secs: f64) -> InputEvent {
+        InputEvent {
+            source,
+            is_down,
+            time_secs,
+        }
+    }
+
+    fn test_inner() -> RuntimeInner {
+        let settings = CounterStrafingSettings::default();
+        RuntimeInner {
+            engine: Some(CounterStrafingEngine::new(settings.clone())),
+            settings,
+            ..Default::default()
+        }
+    }
+
+    fn process_chunk(
+        inner: &mut RuntimeInner,
+        events: &[InputEvent],
+        now: f64,
+        pending_shots: &mut Vec<PendingShot>,
+    ) -> Vec<ShootingErrorRecord> {
+        let mut ready = Vec::new();
+        for event in events {
+            process_timeline_event_locked(inner, event, pending_shots, &mut ready);
+        }
+        drain_engine_shots_locked(inner, now, pending_shots, &mut ready);
+        ready
+    }
+
+    fn delayed_reverse_timeline() -> [InputEvent; 3] {
+        [
+            event(InputSource::Keyboard(0x41), true, 0.0),
+            event(InputSource::Mouse(0), true, 0.073),
+            event(InputSource::Keyboard(0x44), true, 0.078),
+        ]
+    }
+
+    #[test]
+    fn reverse_before_delayed_sample_is_applied_before_grading() {
+        let mut inner = test_inner();
+        let mut pending = Vec::new();
+        let ready = process_chunk(&mut inner, &delayed_reverse_timeline(), 0.1, &mut pending);
+
+        assert!(pending.is_empty());
+        assert_eq!(ready.len(), 1);
+        assert!(ready[0].axis_conflict);
+        assert!(ready[0].speed_ratio <= 1.0);
+        assert!(ready[0].is_stable);
+    }
+
+    #[test]
+    fn batching_and_incremental_dispatch_produce_same_grading() {
+        let events = delayed_reverse_timeline();
+
+        let mut batched = test_inner();
+        let mut batched_pending = Vec::new();
+        let batched_ready = process_chunk(&mut batched, &events, 0.1, &mut batched_pending);
+
+        let mut incremental = test_inner();
+        let mut incremental_pending = Vec::new();
+        let mut incremental_ready = Vec::new();
+        incremental_ready.extend(process_chunk(
+            &mut incremental,
+            &events[0..1],
+            events[0].time_secs,
+            &mut incremental_pending,
+        ));
+        incremental_ready.extend(process_chunk(
+            &mut incremental,
+            &events[1..2],
+            events[1].time_secs,
+            &mut incremental_pending,
+        ));
+        incremental_ready.extend(process_chunk(
+            &mut incremental,
+            &events[2..3],
+            0.1,
+            &mut incremental_pending,
+        ));
+
+        assert!(batched_pending.is_empty());
+        assert!(incremental_pending.is_empty());
+        assert_eq!(batched_ready.len(), 1);
+        assert_eq!(incremental_ready.len(), 1);
+        assert_eq!(batched_ready[0].is_stable, incremental_ready[0].is_stable);
+        assert_eq!(
+            batched_ready[0].axis_conflict,
+            incremental_ready[0].axis_conflict
+        );
+        assert_eq!(
+            batched_ready[0].speed_ratio,
+            incremental_ready[0].speed_ratio
+        );
+    }
+
+    #[test]
+    fn reverse_after_delayed_sample_does_not_change_earlier_grading() {
+        let mut inner = test_inner();
+        let mut pending = Vec::new();
+        let events = [
+            event(InputSource::Keyboard(0x41), true, 0.0),
+            event(InputSource::Mouse(0), true, 0.2),
+            event(InputSource::Keyboard(0x44), true, 0.225),
+        ];
+        let ready = process_chunk(&mut inner, &events, 0.23, &mut pending);
+
+        assert_eq!(ready.len(), 1);
+        assert!(!ready[0].axis_conflict);
+        assert!(!ready[0].is_stable);
+    }
 }

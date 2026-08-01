@@ -24,8 +24,7 @@ pub struct IpcPortDiscovery {
 }
 
 pub fn discovery_dir() -> Result<PathBuf, String> {
-    let local =
-        std::env::var("LOCALAPPDATA").map_err(|e| format!("无法获取 LOCALAPPDATA: {e}"))?;
+    let local = std::env::var("LOCALAPPDATA").map_err(|e| format!("无法获取 LOCALAPPDATA: {e}"))?;
     Ok(PathBuf::from(local)
         .join("CSMatchHelper")
         .join("gamebar-widget"))
@@ -60,8 +59,7 @@ fn write_ipc_port_discovery_with_active(port: u16, active: bool) -> Result<(), S
         updated_at: unix_ms(),
         active,
     };
-    let json =
-        serde_json::to_string(&info).map_err(|e| format!("序列化端口发现信息失败: {e}"))?;
+    let json = serde_json::to_string(&info).map_err(|e| format!("序列化端口发现信息失败: {e}"))?;
     fs::write(discovery_path()?, json).map_err(|e| format!("写入端口发现文件失败: {e}"))
 }
 

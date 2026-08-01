@@ -582,11 +582,10 @@ namespace CSMatchHelperWidget
             var crouchGrace = JsonHelpers.GetBool(record, "crouchGraceActive");
             var reason = JsonHelpers.GetString(record, "reason", "");
             var speedRatio = JsonHelpers.GetNumber(record, "speedRatio", 0);
-            var axisConflict = JsonHelpers.GetBool(record, "axisConflict");
             if (crouchGrace || reason == "crouchGrace") return "stable";
             if (reason == "crouching") return "stable";
             if (reason == "lowSpeedMovement" || speedRatio <= 1) return "stable";
-            if (axisConflict || speedRatio > 1.5) return "run";
+            if (speedRatio > 1.5) return "run";
             if (speedRatio > 1) return "micro";
             return "run";
         }
@@ -665,8 +664,6 @@ namespace CSMatchHelperWidget
             var isLowRiskStable = isCrouchGrace || isCrouching;
             var sampleKind = JsonHelpers.GetString(record, "sampleKind", "fireDown");
             var fireHeld = JsonHelpers.GetBool(record, "fireHeld");
-            var axisConflict = JsonHelpers.GetBool(record, "axisConflict");
-
             var greenRatio = 0.0;
             var yellowRatio = 0.0;
             var redRatio = 0.0;
@@ -684,11 +681,9 @@ namespace CSMatchHelperWidget
             }
             else
             {
-                var severity = axisConflict
-                    ? Math.Max(0.5, Clamp01((speedRatio - 1) / (RedFullRatio - 1)))
-                    : Math.Max(
-                        MinYellowRatio,
-                        Clamp01((speedRatio - MicroRatio) / (RedFullRatio - MicroRatio)));
+                var severity = Math.Max(
+                    MinYellowRatio,
+                    Clamp01((speedRatio - MicroRatio) / (RedFullRatio - MicroRatio)));
                 redRatio = Math.Max(
                     MinVisibleRatio,
                     ThresholdLineRatio + severity * upperZone);

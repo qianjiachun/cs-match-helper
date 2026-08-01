@@ -14,7 +14,7 @@ pub fn harden_hud_window(window: &WebviewWindow) {
 fn disable_windows_system_menu(window: &WebviewWindow) {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetSystemMenu, GetWindowLongPtrW, SetWindowLongPtrW, GWL_STYLE, MF_BYCOMMAND, RemoveMenu,
+        GetSystemMenu, GetWindowLongPtrW, RemoveMenu, SetWindowLongPtrW, GWL_STYLE, MF_BYCOMMAND,
         SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, WS_SYSMENU,
     };
 

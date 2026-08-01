@@ -26,7 +26,7 @@ const barLegend = computed(() => [
   {
     color: 'bg-rose-400',
     label: l('红色 · 跑打', 'Red · Running accuracy'),
-    desc: l('明显移动中开枪、方向键冲突，或制动未完成即开火。', 'The shot was fired while moving, with conflicting movement keys, or before braking completed.'),
+    desc: l('明显移动中开枪，或制动未完成且估算速度仍高于跑打线。', 'The shot was fired while moving, or braking was incomplete and estimated speed remained above the running threshold.'),
   },
   {
     color: 'bg-teal-300',

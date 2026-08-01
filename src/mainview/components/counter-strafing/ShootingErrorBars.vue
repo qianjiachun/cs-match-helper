@@ -51,7 +51,7 @@ const latestFeedback = computed(() => (latest.value ? shotFeedback(latest.value,
 const legendItems = computed(() => [
   { color: SHOT_BAR_COLORS.stable, label: l('阈值内', 'Accurate') },
   { color: SHOT_BAR_COLORS.micro, label: l('微动超阈', 'Slight movement') },
-  { color: SHOT_BAR_COLORS.run, label: l('跑打/冲突', 'Moving/conflict') },
+  { color: SHOT_BAR_COLORS.run, label: l('跑打', 'Moving') },
   { color: SHOT_BAR_COLORS.crouchGrace, label: l('蹲起宽限', 'Crouch grace') },
 ]);
 

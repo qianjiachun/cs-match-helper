@@ -121,10 +121,41 @@ describe('shotBarSegments', () => {
     expect(seg.redRatio).toBeGreaterThan(SHOT_BAR_THRESHOLD_LINE_RATIO);
   });
 
-  it('方向冲突：整柱纯红', () => {
+  it('方向冲突但仅轻微超速时显示黄色', () => {
     const seg = shotBarSegments(
       baseRecord({
         speedRatio: 1.2,
+        error: 0.4,
+        axisConflict: true,
+        isStable: false,
+        reason: 'axisConflict',
+        scoreLabel: '微动',
+      }),
+    );
+    expect(seg.state).toBe('micro');
+    expect(seg.greenRatio).toBeGreaterThan(0);
+    expect(seg.yellowRatio).toBeGreaterThan(0);
+    expect(seg.redRatio).toBe(0);
+  });
+
+  it('同轴冲突在准确速度内仍显示绿色', () => {
+    const seg = shotBarSegments(
+      baseRecord({
+        speedRatio: 1,
+        axisConflict: true,
+        reason: 'axisConflict',
+      }),
+    );
+    expect(seg.state).toBe('stable');
+    expect(seg.greenRatio).toBeGreaterThan(0);
+    expect(seg.yellowRatio).toBe(0);
+    expect(seg.redRatio).toBe(0);
+  });
+
+  it('同轴冲突超过跑打速度线时仍显示红色', () => {
+    const seg = shotBarSegments(
+      baseRecord({
+        speedRatio: 1.6,
         axisConflict: true,
         isStable: false,
         reason: 'axisConflict',
