@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -200,18 +201,19 @@ fn settings_path() -> Result<PathBuf, String> {
     Ok(parent.join(SETTINGS_FILENAME))
 }
 
-pub fn parse_settings_json(content: &str) -> Result<AiSettings, String> {
-    serde_json::from_str(content).map_err(|e| format!("解析设置失败: {e}"))
-}
-
-pub fn load_settings_file() -> Result<AiSettings, String> {
+fn read_settings_json() -> Result<Value, String> {
     let path = settings_path()?;
     if !path.exists() {
-        return Ok(AiSettings::default());
+        return Ok(json!({}));
     }
     let content =
         fs::read_to_string(&path).map_err(|e| format!("读取设置失败 ({path:?}): {e}"))?;
-    parse_settings_json(&content)
+    serde_json::from_str(&content).map_err(|e| format!("解析设置失败: {e}"))
+}
+
+pub fn load_settings_file() -> Result<AiSettings, String> {
+    let root = read_settings_json()?;
+    serde_json::from_value(root).map_err(|e| format!("解析设置失败: {e}"))
 }
 
 /// 将保存补丁合并到已有设置，未出现在补丁中的字段保持不变。
@@ -272,8 +274,20 @@ pub fn apply_settings_patch(settings: &mut AiSettings, input: &SaveAiSettingsInp
 
 pub fn save_settings_file(settings: &AiSettings) -> Result<(), String> {
     let path = settings_path()?;
+    let mut root = read_settings_json()?;
+    let ai_value =
+        serde_json::to_value(settings).map_err(|e| format!("序列化设置失败: {e}"))?;
+    let Some(ai_obj) = ai_value.as_object() else {
+        return Err("序列化设置失败: 期望对象".to_string());
+    };
+    let root_obj = root.as_object_mut().ok_or_else(|| {
+        "设置文件根节点不是对象".to_string()
+    })?;
+    for (key, value) in ai_obj {
+        root_obj.insert(key.clone(), value.clone());
+    }
     let content =
-        serde_json::to_string_pretty(settings).map_err(|e| format!("序列化设置失败: {e}"))?;
+        serde_json::to_string_pretty(&root).map_err(|e| format!("序列化设置失败: {e}"))?;
     fs::write(&path, content).map_err(|e| format!("保存设置失败 ({path:?}): {e}"))
 }
 
@@ -567,7 +581,8 @@ mod tests {
             "thinkingEnabled": true
         }"#;
 
-        let settings = parse_settings_json(legacy).expect("legacy json should parse");
+        let settings: AiSettings =
+            serde_json::from_str(legacy).expect("legacy json should parse");
 
         assert!(!settings.analysis_enabled);
         assert_eq!(settings.provider_mode, PROVIDER_DEEPSEEK);

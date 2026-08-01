@@ -1,7 +1,7 @@
+use crate::counter_strafing::settings::{load_gsi_metadata, save_gsi_metadata, GsiMetadata};
 use crate::counter_strafing::types::{
     GsiConnectionState, GsiIgnoredCounts, GsiStatus, SampleContextMode,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
@@ -15,7 +15,6 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 const CONFIG_FILENAME: &str = "gamestate_integration_cs_match_helper.cfg";
-const METADATA_FILENAME: &str = "cs-match-helper-gsi.json";
 const ENDPOINT_PATH: &str = "/cs-match-helper-gsi";
 const PORT_START: u16 = 31980;
 const PORT_END: u16 = 31989;
@@ -84,15 +83,6 @@ struct SharedState {
     context: Option<GameContext>,
     last_ammo_drop: Option<(Instant, String, bool)>,
     ignored: GsiIgnoredCounts,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GsiMetadata {
-    port: u16,
-    token: String,
-    #[serde(default)]
-    config_path: Option<PathBuf>,
 }
 
 struct GsiServer {
@@ -200,7 +190,7 @@ impl GsiService {
 
         self.stop_server();
         let (listener, port) = bind_first_available()?;
-        let mut metadata = load_metadata().unwrap_or_else(|_| GsiMetadata {
+        let mut metadata = load_gsi_metadata().unwrap_or_else(|_| GsiMetadata {
             port,
             token: Uuid::new_v4().to_string(),
             config_path: None,
@@ -211,7 +201,7 @@ impl GsiService {
         }
         write_gsi_config(&config_path, port, &metadata.token)?;
         metadata.config_path = Some(config_path.clone());
-        save_metadata(&metadata)?;
+        save_gsi_metadata(&metadata)?;
 
         {
             let mut shared = self
@@ -301,7 +291,7 @@ impl GsiService {
 
     fn enable_existing(&mut self, app: &AppHandle) -> Result<(), String> {
         self.stop_server();
-        let metadata = match load_metadata() {
+        let metadata = match load_gsi_metadata() {
             Ok(metadata) => metadata,
             Err(_) => {
                 let mut shared = self
@@ -364,7 +354,7 @@ impl GsiService {
     }
 
     fn remove_owned_config(&self) -> Result<(), String> {
-        let Ok(metadata) = load_metadata() else {
+        let Ok(metadata) = load_gsi_metadata() else {
             return Ok(());
         };
         let Some(path) = metadata.config_path else {
@@ -787,26 +777,6 @@ fn is_non_firearm(weapon: &ActiveWeapon) -> bool {
                 | "weapon_healthshot"
                 | "weapon_bumpmine"
         )
-}
-
-fn metadata_path() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("无法获取程序路径: {e}"))?;
-    let parent = exe
-        .parent()
-        .ok_or_else(|| "无法获取程序所在目录".to_string())?;
-    Ok(parent.join(METADATA_FILENAME))
-}
-
-fn load_metadata() -> Result<GsiMetadata, String> {
-    let path = metadata_path()?;
-    let content = fs::read_to_string(&path).map_err(|e| format!("读取 GSI 配置元数据失败: {e}"))?;
-    serde_json::from_str(&content).map_err(|e| format!("解析 GSI 配置元数据失败: {e}"))
-}
-
-fn save_metadata(metadata: &GsiMetadata) -> Result<(), String> {
-    let path = metadata_path()?;
-    let content = serde_json::to_string_pretty(metadata).map_err(|e| e.to_string())?;
-    fs::write(path, content).map_err(|e| format!("保存 GSI 配置元数据失败: {e}"))
 }
 
 fn bind_first_available() -> Result<(TcpListener, u16), String> {
