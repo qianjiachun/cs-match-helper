@@ -62,6 +62,10 @@ const sortedPlayers = computed(() =>
     : sortTeamPlayers(props.team.players, sortKey.value, sortDir.value),
 );
 
+const assignmentMotionReady = computed(() => (
+  !props.neutral || props.waitingProgress?.phase === 'all-ready'
+));
+
 const troopTeamSizes = computed(() => buildTroopTeamSizes(props.team.players));
 const troopColorMap = computed(() => buildTroopColorMap(props.team.players));
 
@@ -285,14 +289,12 @@ function waitingRemainingText(): string {
           <motion.tr
             v-for="(player, idx) in sortedPlayers"
             :key="player.steamId"
-            layout
-            :layout-id="`perfect-player-${player.steamId}`"
+            :layout="!neutral"
+            :layout-id="assignmentMotionReady ? `perfect-player-${player.steamId}` : undefined"
             :initial="neutral ? false : { opacity: 0, y: 8 }"
-            :animate="{ opacity: 1, y: 0 }"
-            :exit="neutral
-              ? { opacity: 1, y: 0 }
-              : { opacity: 0, y: -4 }"
-            :transition="motionTransition()"
+            :animate="neutral ? undefined : { opacity: 1, y: 0 }"
+            :exit="neutral ? undefined : { opacity: 0, y: -4 }"
+            :transition="assignmentMotionReady ? motionTransition() : undefined"
             :data-match-reveal="neutral ? undefined : 'row'"
             class="border-b border-slate-100/80 transition-colors duration-200 last:border-b-0 group"
             :class="[

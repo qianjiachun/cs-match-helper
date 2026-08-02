@@ -18,6 +18,7 @@ import TeamDataBoard from './TeamDataBoard.vue';
 import TeamCompareBoard from './TeamCompareBoard.vue';
 import { currentLocale, localize as l } from '../i18n';
 import { resolveCanonicalMapName } from '@core/match/history/map-assets';
+import { shouldReplayMatchReveal } from '../utils/match-reveal-policy';
 
 const props = defineProps<{
   match: MatchRecord;
@@ -50,10 +51,6 @@ const {
 } = useTeamTableColumns(platformId);
 
 const columnCustomizerOpen = ref(false);
-
-function isProvisionalPerfectMatchId(value?: string): boolean {
-  return Boolean(value?.startsWith('perfect-'));
-}
 
 const mapName = computed(() => {
   const raw = detail.value.mapName || props.match.summary.mapName;
@@ -188,10 +185,7 @@ watch(
     }
     const players = teams.value.flatMap((t) => t.players);
     void props.comments.loadCounts(players, platformId.value);
-    const correctedProvisionalId = platformId.value === 'perfect'
-      && isProvisionalPerfectMatchId(prevId)
-      && !isProvisionalPerfectMatchId(nextId);
-    if (prevId !== undefined && nextId !== prevId && !correctedProvisionalId) {
+    if (shouldReplayMatchReveal(props.match, nextId, prevId)) {
       await nextTick();
       void playReveal();
     }
