@@ -26,6 +26,7 @@ import {
   onCounterStrafingStatus,
   onCounterStrafingGsiStatus,
   installOrRepairCounterStrafingGsi,
+  locateCounterStrafingHud,
   relaunchAsAdmin,
   resetKeyMap,
   resetCounterStrafingSettings,
@@ -34,6 +35,7 @@ import {
   showCounterStrafingAssessmentHud,
   showCounterStrafingHud,
   startBindingCapture,
+  type CounterStrafingHudKind,
 } from '@core/counter-strafing/native';
 import {
   appendAssessmentRecord,
@@ -377,6 +379,15 @@ export function useCounterStrafing() {
     }
   }
 
+  async function locateHud(kind: CounterStrafingHudKind) {
+    error.value = null;
+    try {
+      await locateCounterStrafingHud(kind);
+    } catch (e) {
+      error.value = localizeErrorMessage(e);
+    }
+  }
+
   async function clearAssessmentRecords() {
     assessmentSnapshot.value = await clearCounterStrafingAssessmentRecords();
     lastAssessmentRecord.value = null;
@@ -580,6 +591,7 @@ export function useCounterStrafing() {
     toggleListening,
     toggleHud,
     toggleAssessmentHud,
+    locateHud,
     clearRecords,
     clearAssessmentRecords,
     clearAllRecords,

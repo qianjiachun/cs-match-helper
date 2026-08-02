@@ -52,6 +52,8 @@
     "early": "Early",
     "late": "Late",
     "drag": "Move HUD",
+    "dragToMove": "Drag the bottom-right handle to move",
+    "locatedLocked": "HUD locked · Unlock it in settings",
     "initError": "Could not initialize the HUD",
     "assessmentInitError": "Could not initialize the counter-strafing HUD",
     "error": "Error",

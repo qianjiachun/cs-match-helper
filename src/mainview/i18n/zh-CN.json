@@ -52,6 +52,8 @@
     "early": "偏早",
     "late": "偏晚",
     "drag": "拖动 HUD",
+    "dragToMove": "拖动右下角把手调整位置",
+    "locatedLocked": "窗口已锁定 · 可在设置中解锁",
     "initError": "HUD 初始化失败",
     "assessmentInitError": "急停评估 HUD 初始化失败",
     "error": "误差",

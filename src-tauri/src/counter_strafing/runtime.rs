@@ -21,6 +21,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder
 
 pub const HUD_WINDOW_LABEL: &str = "counter-strafing-hud";
 pub const ASSESSMENT_HUD_WINDOW_LABEL: &str = "counter-strafing-assessment-hud";
+const HUD_LOCATE_EVENT: &str = "counter-strafing-hud-locate";
 const HUD_WIDTH: f64 = 360.0;
 const HUD_HEIGHT: f64 = 116.0;
 const HUD_MAX_WIDTH: f64 = 960.0;
@@ -1563,6 +1564,7 @@ fn show_hud_inner(app: &AppHandle) -> Result<CounterStrafingSnapshot, String> {
         .show()
         .map_err(|e| format!("显示 HUD 失败: {e}"))?;
     sync_hud_window(&window, &settings);
+    let _ = app.emit_to(HUD_WINDOW_LABEL, HUD_LOCATE_EVENT, ());
 
     let snap = {
         let runtime = app.state::<CounterStrafingRuntime>();
@@ -1595,6 +1597,7 @@ fn show_assessment_hud_inner(app: &AppHandle) -> Result<CounterStrafingAssessmen
         .map_err(|e| format!("显示急停评估 HUD 失败: {e}"))?;
     settings.assessment_hud_visible = true;
     sync_assessment_hud_window(&window, &settings);
+    let _ = app.emit_to(ASSESSMENT_HUD_WINDOW_LABEL, HUD_LOCATE_EVENT, ());
 
     let shooting_visible = {
         let runtime = app.state::<CounterStrafingRuntime>();

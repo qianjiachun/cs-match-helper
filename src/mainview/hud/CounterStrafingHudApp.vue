@@ -21,6 +21,7 @@ import {
 } from '@core/counter-strafing/types';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useHudWindow, onHudDragPointerDown } from './useHudWindow';
+import { useHudLocateHighlight } from './useHudLocateHighlight';
 import {
   shootingHudStatsVisibility,
   useHudChartStatsVisibility,
@@ -115,6 +116,7 @@ let unlisteners: UnlistenFn[] = [];
 let resizeObserver: ResizeObserver | null = null;
 
 useHudWindow();
+const { isLocating } = useHudLocateHighlight();
 
 function stableRateColor(rate: number): string {
   if (rate >= 70) return '#4ade80';
@@ -196,9 +198,21 @@ onUnmounted(() => {
   <div
     ref="hudRootRef"
     class="hud-root group/hud relative h-full w-full select-none"
-    :class="snapshot.hudLocked ? 'pointer-events-none' : ''"
+    :class="{
+      'pointer-events-none': snapshot.hudLocked,
+      'hud-root--editable': !snapshot.hudLocked,
+      'hud-root--locating': isLocating,
+    }"
   >
+    <div class="hud-locate-surface pointer-events-none absolute inset-0 z-9" aria-hidden="true" />
     <div class="hud-frame pointer-events-none absolute inset-0 z-10" aria-hidden="true" />
+
+    <div class="hud-locate-banner pointer-events-none absolute left-1/2 top-1/2 z-30" aria-hidden="true">
+      <span class="hud-locate-title">{{ t('hud.shooting') }}</span>
+      <span class="hud-locate-hint">
+        {{ t(snapshot.hudLocked ? 'hud.locatedLocked' : 'hud.dragToMove') }}
+      </span>
+    </div>
 
     <div
       v-if="!snapshot.hudLocked"

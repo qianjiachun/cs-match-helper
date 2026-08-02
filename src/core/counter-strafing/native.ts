@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   BindingRole,
   CounterStrafingAssessmentRecord,
@@ -9,6 +9,14 @@ import type {
   GsiStatus,
   ShootingErrorRecord,
 } from '@core/counter-strafing/types';
+
+const HUD_LOCATE_EVENT = 'counter-strafing-hud-locate';
+const HUD_WINDOW_LABELS = {
+  shooting: 'counter-strafing-hud',
+  assessment: 'counter-strafing-assessment-hud',
+} as const;
+
+export type CounterStrafingHudKind = keyof typeof HUD_WINDOW_LABELS;
 
 export async function loadCounterStrafingSettings(): Promise<CounterStrafingSettings> {
   return invoke<CounterStrafingSettings>('load_counter_strafing_settings_cmd');
@@ -95,6 +103,14 @@ export async function showCounterStrafingAssessmentHud(): Promise<CounterStrafin
 
 export async function hideCounterStrafingAssessmentHud(): Promise<CounterStrafingAssessmentSnapshot> {
   return invoke<CounterStrafingAssessmentSnapshot>('hide_counter_strafing_assessment_hud');
+}
+
+export async function locateCounterStrafingHud(kind: CounterStrafingHudKind): Promise<void> {
+  return emitTo(HUD_WINDOW_LABELS[kind], HUD_LOCATE_EVENT);
+}
+
+export async function onCounterStrafingHudLocate(handler: () => void): Promise<UnlistenFn> {
+  return listen(HUD_LOCATE_EVENT, handler);
 }
 
 export async function onCounterStrafingAssessmentRecord(

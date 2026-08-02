@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ChartColumn, Eye, EyeOff, Info, Layers, LineChart, Lock, LockOpen } from 'lucide-vue-next';
+import { ChartColumn, Crosshair, Eye, EyeOff, Info, Layers, LineChart, Lock, LockOpen } from 'lucide-vue-next';
 import HudDisplaySettingsControls from './HudDisplaySettingsControls.vue';
 import type { useCounterStrafing } from '../../composables/useCounterStrafing';
 import { localize as l } from '../../i18n';
@@ -22,6 +22,7 @@ const panels = computed(() => [
     icon: LineChart,
     visible: () => assessmentSnapshot.value.hudVisible,
     toggle: () => props.cs.toggleAssessmentHud(),
+    locate: () => props.cs.locateHud('assessment'),
     locked: () => settings.value.assessmentHudLocked,
     toggleLock: () =>
       props.cs.applySettings({ assessmentHudLocked: !settings.value.assessmentHudLocked }),
@@ -33,6 +34,7 @@ const panels = computed(() => [
     icon: ChartColumn,
     visible: () => snapshot.value.hudVisible,
     toggle: () => props.cs.toggleHud(),
+    locate: () => props.cs.locateHud('shooting'),
     locked: () => settings.value.hudLocked,
     toggleLock: () => props.cs.applySettings({ hudLocked: !settings.value.hudLocked }),
   },
@@ -95,6 +97,16 @@ const visibleCount = computed(() => panels.value.filter((panel) => panel.visible
             @click="panel.toggle()"
           >
             <component :is="panel.visible() ? EyeOff : Eye" class="size-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="relative inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-fg-muted transition-[background-color,color,scale] duration-150 after:absolute after:-inset-0.5 after:content-[''] hover:bg-elevated hover:text-fg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:not-disabled:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35"
+            :disabled="busy || !panel.visible()"
+            :aria-label="l(`定位${panel.title}`, `Locate ${panel.title}`)"
+            :title="panel.visible() ? l('定位悬浮窗', 'Locate HUD') : l('请先显示悬浮窗', 'Show the HUD first')"
+            @click="panel.locate()"
+          >
+            <Crosshair class="size-4" aria-hidden="true" />
           </button>
           <button
             type="button"
