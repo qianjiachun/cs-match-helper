@@ -11,7 +11,7 @@ import {
   type TeamTablePlatformId,
 } from '../components/team-table-columns';
 
-const STORAGE_VERSION = 9;
+const STORAGE_VERSION = 10;
 
 interface StoredColumnPrefs {
   version: number;
@@ -27,75 +27,87 @@ function isColumnKey(value: unknown, platformId: TeamTablePlatformId): value is 
   return typeof value === 'string' && getTeamTableColumnMap(platformId).has(value as TeamTableColumnKey);
 }
 
+function defaultPrefs(platformId: TeamTablePlatformId): StoredColumnPrefs {
+  return {
+    version: STORAGE_VERSION,
+    order: getDefaultColumnOrder(platformId),
+    visible: getDefaultVisibleColumnKeys(platformId),
+  };
+}
+
+/** Soft-merge: keep known keys, append missing ones. Used for 5E and already-migrated prefs. */
 function normalizePrefs(raw: StoredColumnPrefs, platformId: TeamTablePlatformId): StoredColumnPrefs {
   const allKeys = getDefaultColumnOrder(platformId);
   const known = new Set(allKeys);
-  const migratePerfectWe = platformId === 'perfect' && raw.version < 8;
-  const migratePerfectLayout = platformId === 'perfect' && raw.version < STORAGE_VERSION;
-  const previousSeasonWeVisible = migratePerfectWe && raw.visible.includes('weAvg');
-  let migratedOrder = migratePerfectWe
-    ? raw.order.filter((key) => key !== 'weAvg' && key !== 'seasonWe')
-    : raw.order;
-  if (migratePerfectWe) {
-    const mapPoolIndex = migratedOrder.indexOf('mapPool');
-    migratedOrder.splice(mapPoolIndex >= 0 ? mapPoolIndex + 1 : migratedOrder.length, 0, 'weAvg');
-  }
-  if (migratePerfectLayout) {
-    migratedOrder = migratedOrder.filter((key) => key !== 'primaryWeapon' && key !== 'seasonWinRate');
-    const mapPoolIndex = migratedOrder.indexOf('mapPool');
-    migratedOrder.splice(mapPoolIndex >= 0 ? mapPoolIndex + 1 : migratedOrder.length, 0, 'primaryWeapon');
-    const seasonTotalIndex = migratedOrder.indexOf('seasonTotalNum');
-    migratedOrder.splice(seasonTotalIndex >= 0 ? seasonTotalIndex + 1 : migratedOrder.length, 0, 'seasonWinRate');
-  }
 
   const order = [
-    ...migratedOrder.filter((key) => known.has(key)),
-    ...allKeys.filter((key) => !migratedOrder.includes(key)),
+    ...raw.order.filter((key) => known.has(key)),
+    ...allKeys.filter((key) => !raw.order.includes(key)),
   ];
 
-  const visibleSet = new Set(raw.visible.filter((key) => known.has(key) && key !== 'nickname' && (!migratePerfectWe || key !== 'weAvg')));
+  const visibleSet = new Set(raw.visible.filter((key) => known.has(key) && key !== 'nickname'));
   visibleSet.add('nickname');
-  if (migratePerfectWe) visibleSet.add('weAvg');
-  if (previousSeasonWeVisible) visibleSet.add('seasonWe');
-  if (migratePerfectLayout) {
-    visibleSet.delete('seasonWinRate');
-    visibleSet.add('primaryWeapon');
-  }
 
   const visible = order.filter((key) => visibleSet.has(key));
   if (!visible.length) {
-    return {
-      version: STORAGE_VERSION,
-      order: allKeys,
-      visible: getDefaultVisibleColumnKeys(platformId),
-    };
+    return defaultPrefs(platformId);
   }
 
   return { version: STORAGE_VERSION, order, visible };
 }
 
+function readLegacyRaw(platformId: TeamTablePlatformId): string | null {
+  return localStorage.getItem(`cs-match-helper.team-table-columns-v9.${platformId}`)
+    ?? localStorage.getItem(`cs-match-helper.team-table-columns-v8.${platformId}`)
+    ?? localStorage.getItem(`cs-match-helper.team-table-columns-v7.${platformId}`);
+}
+
+function parseStoredPrefs(raw: string, platformId: TeamTablePlatformId): StoredColumnPrefs | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredColumnPrefs>;
+    if (!Array.isArray(parsed.order) || !Array.isArray(parsed.visible)) return null;
+    return {
+      version: typeof parsed.version === 'number' ? parsed.version : 0,
+      order: parsed.order.filter((key) => isColumnKey(key, platformId)),
+      visible: parsed.visible.filter((key) => isColumnKey(key, platformId)),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function loadPrefs(platformId: TeamTablePlatformId): StoredColumnPrefs {
-  const fallback: StoredColumnPrefs = {
-    version: STORAGE_VERSION,
-    order: getDefaultColumnOrder(platformId),
-    visible: getDefaultVisibleColumnKeys(platformId),
-  };
+  const fallback = defaultPrefs(platformId);
 
   try {
-    const raw = localStorage.getItem(getStorageKeyForPlatform(platformId))
-      ?? localStorage.getItem(`cs-match-helper.team-table-columns-v8.${platformId}`)
-      ?? localStorage.getItem(`cs-match-helper.team-table-columns-v7.${platformId}`);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<StoredColumnPrefs>;
-    if (!Array.isArray(parsed.order) || !Array.isArray(parsed.visible)) return fallback;
-    return normalizePrefs(
-      {
-        version: typeof parsed.version === 'number' ? parsed.version : 0,
-        order: parsed.order.filter((key) => isColumnKey(key, platformId)),
-        visible: parsed.visible.filter((key) => isColumnKey(key, platformId)),
-      },
-      platformId,
-    );
+    const currentRaw = localStorage.getItem(getStorageKeyForPlatform(platformId));
+    if (currentRaw) {
+      const parsed = parseStoredPrefs(currentRaw, platformId);
+      if (!parsed) return fallback;
+      // Perfect: one-time hard reset for any pre-v10 prefs still under the current key.
+      if (platformId === 'perfect' && parsed.version < STORAGE_VERSION) {
+        savePrefs(platformId, fallback);
+        return fallback;
+      }
+      return normalizePrefs(parsed, platformId);
+    }
+
+    const legacyRaw = readLegacyRaw(platformId);
+    if (!legacyRaw) return fallback;
+
+    const legacy = parseStoredPrefs(legacyRaw, platformId);
+    if (!legacy) return fallback;
+
+    // Perfect: one-time hard reset to current defaults when migrating from pre-v10 storage.
+    if (platformId === 'perfect') {
+      savePrefs(platformId, fallback);
+      return fallback;
+    }
+
+    // 5E: soft-migrate legacy prefs into v10 without wiping customizations.
+    const migrated = normalizePrefs(legacy, platformId);
+    savePrefs(platformId, migrated);
+    return migrated;
   } catch {
     return fallback;
   }

@@ -656,7 +656,7 @@ export function getDefaultVisibleColumnKeys(platformId: TeamTablePlatformId = 'p
 }
 
 export function getStorageKeyForPlatform(platformId: TeamTablePlatformId): string {
-  return `cs-match-helper.team-table-columns-v9.${platformId}`;
+  return `cs-match-helper.team-table-columns-v10.${platformId}`;
 }
 
 export const RADAR_COLUMN_DIM: Partial<Record<TeamTableColumnKey, string>> = {

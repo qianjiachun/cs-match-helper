@@ -17,7 +17,7 @@ describe('team table columns by platform', () => {
     expect(getTeamTableColumnDefs('perfect').find((column) => column.key === 'seasonRating')?.label).toBe('Rating');
     expect(getTeamTableColumnDefs('perfect').find((column) => column.key === 'rating')?.label).toBe('近期 Rating');
     expect(getTeamTableColumnDefs('perfect').find((column) => column.key === 'mapPool')?.width).toBe('11%');
-    expect(getStorageKeyForPlatform('perfect')).toContain('v9');
+    expect(getStorageKeyForPlatform('perfect')).toContain('v10');
   });
 
   it('does not color-code K/D', () => {
