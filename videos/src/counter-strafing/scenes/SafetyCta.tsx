@@ -129,7 +129,7 @@ export const SafetyCta: React.FC = () => {
               color: theme.accent,
             }}
           >
-            CS 匹配助手 · 急停助手
+            CS 匹配助手 · 急停 HUD
           </div>
 
           {/* Title */}
@@ -235,7 +235,7 @@ export const SafetyCta: React.FC = () => {
               boxShadow: "0 14px 36px rgba(56,189,248,0.32)",
             }}
           >
-            打开急停助手，练一次看得见的急停
+            打开急停 HUD，练一次看得见的急停
           </div>
         </div>
       </AbsoluteFill>

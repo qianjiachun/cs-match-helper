@@ -132,7 +132,7 @@ export const ProductIntro: React.FC = () => {
                   letterSpacing: "0.1em",
                 }}
               >
-                CS 匹配助手 · 急停助手
+                CS 匹配助手 · 急停 HUD
               </div>
               <div
                 style={{
@@ -162,7 +162,7 @@ export const ProductIntro: React.FC = () => {
               WebkitFontSmoothing: "antialiased",
             }}
           >
-            开启急停助手
+            开启急停 HUD
             <br />
             <span
               style={{

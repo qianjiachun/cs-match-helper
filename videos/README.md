@@ -25,7 +25,7 @@ npm run video:render -- CounterStrafingDemo
 src/
   shared/                 # 品牌色、字体、通用组件、共用素材
     assets/app-icon.svg
-  counter-strafing/       # 急停助手这一支（整夹自包含）
+  counter-strafing/       # 急停 HUD 这一支（整夹自包含）
     assets/               # 本片录屏、截图
     meta.ts
     composition.tsx
@@ -46,7 +46,7 @@ out/
 
 ## 当前 Compositions
 
-- `CounterStrafingDemo` — 急停助手完整演示（约 33s，字幕已按配音节奏对齐）
+- `CounterStrafingDemo` — 急停 HUD 完整演示（约 33s，字幕已按配音节奏对齐）
 - `StabilitySlice` — 开枪稳定垂直切片（样式锁定用）
 
 ## 配音
