@@ -207,7 +207,6 @@ onUnmounted(() => {
     class="hud-root group/hud relative h-full w-full select-none"
     :class="{
       'pointer-events-none': snapshot.hudLocked,
-      'hud-root--editable': !snapshot.hudLocked,
       'hud-root--locating': isLocating,
     }"
   >
