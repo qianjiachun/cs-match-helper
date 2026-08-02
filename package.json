@@ -27,7 +27,9 @@
     "icon": "tauri icon src/mainview/assets/icons/app-icon.svg && cargo build --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "video:studio": "npm run studio --prefix videos",
+    "video:render": "npm run render --prefix videos --"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",
