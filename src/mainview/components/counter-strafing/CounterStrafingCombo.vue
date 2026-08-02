@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { comboLabel, assessmentRecordColor, type CounterStrafingRecord } from '@core/counter-strafing/types';
+import { currentLocale } from '../../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -16,7 +17,9 @@ const visible = ref(false);
 const displayRecord = ref<CounterStrafingRecord | null>(null);
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-const label = computed(() => (displayRecord.value ? comboLabel(displayRecord.value) : ''));
+const label = computed(() =>
+  displayRecord.value ? comboLabel(displayRecord.value, currentLocale()) : '',
+);
 const diffText = computed(() =>
   displayRecord.value ? `${displayRecord.value.diffMs > 0 ? '+' : ''}${displayRecord.value.diffMs.toFixed(1)}ms` : '',
 );

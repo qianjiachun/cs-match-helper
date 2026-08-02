@@ -739,9 +739,13 @@ export function timingColor(
   return ASSESSMENT_COLORS.late;
 }
 
-export function comboLabel(record: CounterStrafingAssessmentRecord): string {
-  if (record.isPerfect || record.timing === 'perfect') return '完美';
-  if (record.isSuccess) return '优秀';
-  if (record.timing === 'early') return '偏早';
-  return '偏晚';
+export function comboLabel(
+  record: CounterStrafingAssessmentRecord,
+  locale: 'zh-CN' | 'en-US' = 'zh-CN',
+): string {
+  const en = locale === 'en-US';
+  if (record.isPerfect || record.timing === 'perfect') return en ? 'Perfect' : '完美';
+  if (record.isSuccess) return en ? 'Good' : '优秀';
+  if (record.timing === 'early') return en ? 'Early' : '偏早';
+  return en ? 'Late' : '偏晚';
 }
