@@ -354,6 +354,54 @@ h2 {
   z-index: 1;
 }
 
+.hero__notice {
+  width: fit-content;
+  max-width: min(600px, 100%);
+  margin: 22px auto 0;
+  padding: 9px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 6px 18px rgba(17, 24, 39, 0.05);
+  font-size: 0.8rem;
+  font-style: normal;
+  line-height: 1.6;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.hero__notice svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--accent);
+  opacity: 0.72;
+}
+
+.hero__notice a {
+  color: var(--accent-deep);
+  font-weight: 520;
+  text-decoration: underline;
+  text-decoration-color: rgba(59, 125, 216, 0.35);
+  text-underline-offset: 3px;
+  transition: color 180ms var(--ease), text-decoration-color 180ms var(--ease);
+}
+
+.hero__notice a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
+.hero__notice a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .hero__title {
   font-family: var(--display);
   font-size: clamp(2.25rem, 6.5vw, 3.25rem);
@@ -1243,6 +1291,12 @@ h2 {
 
   .hero__title {
     font-size: clamp(1.9rem, 9vw, 2.4rem);
+  }
+
+  .hero__notice {
+    margin-top: 18px;
+    padding: 8px 10px;
+    font-size: 0.76rem;
   }
 
   .hero__desc {

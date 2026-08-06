@@ -4,6 +4,34 @@
   const nav = document.querySelector("[data-nav]");
   const progress = document.querySelector("[data-progress]");
   const scrollHint = document.querySelector("[data-scroll-hint]");
+  const widgetDownloadLinks = document.querySelectorAll("[data-widget-download]");
+
+  const resolveLatestWidgetDownload = async () => {
+    if (!widgetDownloadLinks.length) return;
+
+    const latestUrl =
+      "https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/CSMatchHelperGameBarWidget.zip?download";
+
+    try {
+      const response = await fetch(latestUrl);
+      if (response.ok) return;
+
+      const message = await response.text();
+      const version = message.match(/not found in version\s+v?(\d+(?:\.\d+){1,3})/i)?.[1];
+      if (!version) return;
+
+      const downloadUrl =
+        `https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/` +
+        `CSMatchHelperGameBarWidget-${version}.zip?download`;
+      widgetDownloadLinks.forEach((link) => {
+        link.href = downloadUrl;
+      });
+    } catch {
+      // Keep the stable CDN URL when version discovery is unavailable.
+    }
+  };
+
+  resolveLatestWidgetDownload();
 
   let hintDismissed = false;
 
