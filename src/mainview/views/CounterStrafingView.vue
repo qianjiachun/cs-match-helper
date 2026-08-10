@@ -82,7 +82,7 @@ const {
 } = cs;
 
 onMounted(() => {
-  void widget.refreshStatus();
+  void Promise.all([widget.refreshStatus(), widget.refreshConnectionStatus()]);
   widget.ensureSessionUpdateCheck();
 });
 

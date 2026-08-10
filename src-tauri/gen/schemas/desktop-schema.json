@@ -471,6 +471,12 @@
           "markdownDescription": "允许获取急停快照"
         },
         {
+          "description": "允许获取 Game Bar Widget 实时连接状态",
+          "type": "string",
+          "const": "allow-get-gamebar-widget-connection-status",
+          "markdownDescription": "允许获取 Game Bar Widget 实时连接状态"
+        },
+        {
           "description": "允许获取 Game Bar Widget 安装状态",
           "type": "string",
           "const": "allow-get-gamebar-widget-status",
@@ -561,6 +567,12 @@
           "markdownDescription": "允许打开应用内 WebView 开发者工具"
         },
         {
+          "description": "允许打开 Windows 智能应用控制设置",
+          "type": "string",
+          "const": "allow-open-smart-app-control-settings",
+          "markdownDescription": "允许打开 Windows 智能应用控制设置"
+        },
+        {
           "description": "允许更新对局历史某一 section",
           "type": "string",
           "const": "allow-patch-match-history-section",
@@ -595,6 +607,12 @@
           "type": "string",
           "const": "allow-remove-counter-strafing-gsi-config",
           "markdownDescription": "允许移除急停助手 GSI 配置"
+        },
+        {
+          "description": "允许修复 Game Bar Widget 本机连接配置",
+          "type": "string",
+          "const": "allow-repair-gamebar-widget-connection",
+          "markdownDescription": "允许修复 Game Bar Widget 本机连接配置"
         },
         {
           "description": "允许恢复急停默认设置",
@@ -727,6 +745,12 @@
           "type": "string",
           "const": "allow-upsert-match-history-entry",
           "markdownDescription": "允许写入/合并对局历史"
+        },
+        {
+          "description": "允许运行 Game Bar Widget 进程与代码完整性验证",
+          "type": "string",
+          "const": "allow-verify-gamebar-widget-runtime",
+          "markdownDescription": "允许运行 Game Bar Widget 进程与代码完整性验证"
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

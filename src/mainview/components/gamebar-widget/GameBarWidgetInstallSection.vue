@@ -9,6 +9,8 @@ import {
   Github,
   Loader2,
   RefreshCw,
+  ShieldAlert,
+  Trash2,
 } from 'lucide-vue-next';
 import { useGameBarWidgetInstallUi } from '../../composables/useGameBarWidgetInstallUi';
 import { showToast } from '../../composables/useCopyFeedback';
@@ -47,11 +49,20 @@ const actionsDisabledRef = computed(() => props.actionsDisabled);
 const {
   showInstallPanel,
   selectedInstallSource,
+  uninstalling,
   widgetStatus,
   widgetBusy,
+  widgetConnectionRepairing,
   widgetStatusRefreshing,
   widgetDetecting,
   widgetError,
+  widgetIssueCode,
+  widgetRequiredAction,
+  blockingPackageLabels,
+  trust,
+  smartAppControlOn,
+  smartAppControlEvaluation,
+  codeIntegrityBlocked,
   gameBarInstalled,
   downloadSources,
   widgetReady,
@@ -61,6 +72,7 @@ const {
   widgetStep2Badge,
   widgetInstallCtaLabel,
   installPanelHint,
+  installIssueGuidance,
   showInstallWaitingHint,
   widgetProgressLabel,
   showInstallFailure,
@@ -68,12 +80,14 @@ const {
   widgetDetectHint,
   installActionsDisabled,
   redetectWidget,
+  openSmartAppControlSettings,
   onInstallCtaClick,
   installFromSelectedSource,
   installFromSource,
   copySourceUrl,
   pickLocalPackage,
   pickLocalFolder,
+  uninstallWidget,
   copyDiagnostics,
   openInstallPanel,
 } = useGameBarWidgetInstallUi(props.widget, {
@@ -92,7 +106,9 @@ defineExpose({ openInstallPanel });
     :class="[
       widgetDetecting
         ? 'border-accent/40 bg-accent/8 ring-1 ring-accent/20'
-        : widgetNeedsUpdate
+        : smartAppControlOn || codeIntegrityBlocked
+          ? 'border-danger/30 bg-danger/5'
+          : widgetNeedsUpdate
           ? 'border-warning/30 bg-warning/5'
           : widgetReady
             ? 'border-emerald-500/25 bg-emerald-500/6'
@@ -110,7 +126,9 @@ defineExpose({ openInstallPanel });
           :class="
             widgetDetecting
               ? 'bg-accent/15 text-accent'
-              : widgetNeedsUpdate
+              : smartAppControlOn || codeIntegrityBlocked
+                ? 'bg-danger/12 text-danger'
+                : widgetNeedsUpdate
                 ? 'bg-warning/15 text-amber-700'
                 : widgetReady
                   ? 'bg-emerald-500/15 text-emerald-700'
@@ -131,7 +149,9 @@ defineExpose({ openInstallPanel });
         :class="
           widgetDetecting
             ? 'bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent'
-            : widgetNeedsUpdate
+            : smartAppControlOn || codeIntegrityBlocked
+              ? 'bg-danger/12 text-danger'
+              : widgetNeedsUpdate
               ? 'bg-warning/12 text-amber-700'
               : widgetReady
                 ? 'bg-emerald-500/12 text-emerald-700'
@@ -149,22 +169,62 @@ defineExpose({ openInstallPanel });
       </span>
     </div>
 
+    <div
+      v-if="smartAppControlOn"
+      class="mt-3 border-l-2 border-danger bg-danger/5 px-3 py-2.5 text-[11px] leading-relaxed text-danger"
+      :class="showStepNumber ? 'sm:ml-10.5' : ''"
+    >
+      <p class="text-pretty font-semibold">{{ l('智能应用控制已开启，安装已停止', 'Smart App Control is on; setup has stopped') }}</p>
+      <p class="mt-1 text-pretty">
+        {{ l('程序不会自动关闭安全功能。请在 Windows 安全中心手动关闭，返回后点击「重新检测」。', 'The app will not disable security controls. Turn it off manually in Windows Security, then select “Detect again”.') }}
+      </p>
+      <button
+        type="button"
+        class="mt-2 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-danger px-3 text-[12px] font-medium text-white transition-[background-color,transform] duration-200 hover:bg-danger/90 active:scale-[0.96]"
+        @click="openSmartAppControlSettings()"
+      >
+        <ShieldAlert class="h-4 w-4" aria-hidden="true" />
+        {{ l('打开 Windows 安全中心', 'Open Windows Security') }}
+      </button>
+    </div>
+
+    <p
+      v-else-if="smartAppControlEvaluation"
+      class="mt-3 border-l-2 border-warning bg-warning/5 px-3 py-2.5 text-pretty text-[11px] leading-relaxed text-amber-900"
+      :class="showStepNumber ? 'sm:ml-10.5' : ''"
+    >
+      {{ l('智能应用控制处于评估模式。可以继续安装，但 Windows 后续仍可能阻止自签小组件。', 'Smart App Control is in evaluation mode. You can continue, but Windows may still block this self-signed Widget later.') }}
+    </p>
+
+    <div
+      v-if="codeIntegrityBlocked"
+      class="mt-3 border-l-2 border-danger bg-danger/5 px-3 py-2.5 text-[11px] leading-relaxed text-danger"
+      :class="showStepNumber ? 'sm:ml-10.5' : ''"
+    >
+      <p class="text-pretty font-semibold">
+        {{ trust?.wdacState === 'enforced' ? l('企业代码完整性策略已阻止小组件', 'Enterprise Code Integrity blocked the Widget') : l('Windows 代码完整性已阻止小组件', 'Windows Code Integrity blocked the Widget') }}
+      </p>
+      <p class="mt-1 text-pretty">
+        {{ trust?.wdacState === 'enforced' ? l('该策略不能由本程序绕过，请联系系统管理员允许发布者 CN=CSMatchHelperDev。', 'This policy cannot be bypassed by the app. Ask your administrator to allow publisher CN=CSMatchHelperDev.') : l('请确认 Smart App Control 已关闭后重试，并复制诊断信息查看拦截事件。', 'Confirm Smart App Control is off, retry, and copy diagnostics for the blocking event.') }}
+      </p>
+    </div>
+
     <div class="mt-3 flex flex-wrap gap-2" :class="showStepNumber ? 'sm:pl-10.5' : ''">
       <button
         type="button"
-        class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 text-[13px] font-medium text-white transition-[background-color,transform] duration-200 hover:bg-accent-hover active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="installActionsDisabled || !gameBarInstalled"
         @click="onInstallCtaClick()"
       >
         <Loader2
-          v-if="widgetBusy"
+          v-if="(widgetBusy || widgetConnectionRepairing) && !uninstalling"
           class="h-4 w-4 animate-spin"
           aria-hidden="true"
         />
-        <Download v-else class="h-4 w-4" aria-hidden="true" />
+        <Download v-else-if="!uninstalling" class="h-4 w-4" aria-hidden="true" />
         {{ widgetInstallCtaLabel }}
         <ChevronDown
-          v-if="!widgetBusy"
+          v-if="!widgetBusy && !widgetConnectionRepairing"
           class="h-4 w-4 transition-transform duration-200 ease-out"
           :class="showInstallPanel ? 'rotate-180' : ''"
           aria-hidden="true"
@@ -173,8 +233,8 @@ defineExpose({ openInstallPanel });
       <button
         v-if="showRedetect"
         type="button"
-        class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-[13px] font-medium text-fg-secondary transition-colors duration-200 hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="widgetStatusRefreshing || !gameBarInstalled"
+        class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-[13px] font-medium text-fg-secondary transition-[background-color,border-color,transform] duration-200 hover:bg-elevated active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="widgetStatusRefreshing || widgetBusy || widgetConnectionRepairing || !gameBarInstalled"
         @click="redetectWidget()"
       >
         <RefreshCw
@@ -183,6 +243,18 @@ defineExpose({ openInstallPanel });
           aria-hidden="true"
         />
         {{ l('重新检测', 'Detect again') }}
+      </button>
+      <button
+        v-if="widgetStatus?.installed"
+        type="button"
+        class="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary shadow-sm transition-[background-color,border-color,color,transform] duration-200 hover:border-danger/30 hover:bg-danger/8 hover:text-danger active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="actionsDisabled || widgetBusy || widgetConnectionRepairing"
+        :aria-label="l('卸载小组件', 'Uninstall Widget')"
+        :title="l('卸载小组件', 'Uninstall Widget')"
+        @click="uninstallWidget()"
+      >
+        <Loader2 v-if="uninstalling" class="h-4 w-4 animate-spin" aria-hidden="true" />
+        <Trash2 v-else class="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
 
@@ -216,18 +288,30 @@ defineExpose({ openInstallPanel });
       :class="showStepNumber ? 'sm:ml-10.5' : ''"
     >
       <p class="font-medium">{{ l('安装失败', 'Installation failed') }}</p>
+      <p v-if="installIssueGuidance" class="mt-1 text-pretty font-medium">{{ installIssueGuidance }}</p>
+      <ul
+        v-if="blockingPackageLabels.length"
+        class="mt-2 list-disc space-y-1 pl-4 text-fg-secondary"
+      >
+        <li v-for="packageLabel in blockingPackageLabels" :key="packageLabel">
+          {{ packageLabel }}
+        </li>
+      </ul>
       <p class="mt-1 whitespace-pre-wrap">{{ widgetError }}</p>
+      <p v-if="widgetIssueCode" class="mt-1 font-mono text-[10px] text-fg-muted">
+        {{ widgetIssueCode }} · {{ widgetRequiredAction || '-' }}
+      </p>
       <div class="mt-2 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
+          class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
           @click="copyDiagnostics()"
         >
           {{ l('复制问题信息', 'Copy diagnostics') }}
         </button>
         <button
           type="button"
-          class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
+          class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 text-[11px] font-medium text-fg-secondary underline-offset-2 hover:underline"
           @click="openWidgetFeedback()"
         >
           {{ l('去反馈', 'Report issue') }}
@@ -274,7 +358,7 @@ defineExpose({ openInstallPanel });
               <div class="mt-3 flex flex-wrap gap-2 pl-6">
                 <button
                   type="button"
-                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                  class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-3 text-[11px] font-medium text-white transition-[background-color,transform] duration-200 hover:bg-accent-hover active:scale-[0.96] disabled:opacity-50"
                   :disabled="widgetBusy || !source.url"
                   @click.stop="installFromSource(source.id)"
                 >
@@ -282,7 +366,7 @@ defineExpose({ openInstallPanel });
                 </button>
                 <button
                   type="button"
-                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-base px-3 py-1.5 text-[11px] font-medium text-fg-secondary disabled:opacity-50"
+                  class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-base px-3 text-[11px] font-medium text-fg-secondary transition-[background-color,border-color,transform] duration-200 hover:bg-elevated active:scale-[0.96] disabled:opacity-50"
                   :disabled="widgetBusy"
                   @click.stop="copySourceUrl(source.id)"
                 >
@@ -306,7 +390,7 @@ defineExpose({ openInstallPanel });
             <div class="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
-                class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-[12px] font-medium text-fg-secondary hover:bg-elevated disabled:opacity-50"
+                class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-[12px] font-medium text-fg-secondary transition-[background-color,border-color,transform] duration-200 hover:bg-elevated active:scale-[0.96] disabled:opacity-50"
                 :disabled="widgetBusy"
                 @click="pickLocalPackage()"
               >
@@ -315,7 +399,7 @@ defineExpose({ openInstallPanel });
               </button>
               <button
                 type="button"
-                class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-[12px] font-medium text-fg-secondary hover:bg-elevated disabled:opacity-50"
+                class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-[12px] font-medium text-fg-secondary transition-[background-color,border-color,transform] duration-200 hover:bg-elevated active:scale-[0.96] disabled:opacity-50"
                 :disabled="widgetBusy"
                 @click="pickLocalFolder()"
               >
@@ -326,7 +410,7 @@ defineExpose({ openInstallPanel });
           </div>
           <button
             type="button"
-            class="mt-3 w-full cursor-pointer rounded-xl bg-accent/10 py-2.5 text-[12px] font-semibold text-accent hover:bg-accent/15 disabled:opacity-50"
+            class="mt-3 min-h-10 w-full cursor-pointer rounded-xl bg-accent/10 px-3 text-[12px] font-semibold text-accent transition-[background-color,transform] duration-200 hover:bg-accent/15 active:scale-[0.96] disabled:opacity-50"
             :disabled="widgetBusy || !downloadSources.length"
             @click="installFromSelectedSource()"
           >
@@ -367,4 +451,5 @@ defineExpose({ openInstallPanel });
   min-height: 0;
   overflow: hidden;
 }
+
 </style>

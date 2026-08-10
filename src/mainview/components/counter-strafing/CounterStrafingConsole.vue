@@ -18,6 +18,10 @@ import CounterStrafingHudSettings from './CounterStrafingHudSettings.vue';
 import GameBarWidgetDisplaySettings from './GameBarWidgetDisplaySettings.vue';
 import GameBarWidgetInstallSection from '../gamebar-widget/GameBarWidgetInstallSection.vue';
 import GameBarShortcutKbd from '../gamebar-widget/GameBarShortcutKbd.vue';
+import {
+  getGameBarWidgetSetupBlocker,
+  isGameBarWidgetReady,
+} from '@core/gamebar-widget/types';
 import { DEFAULT_GAME_BAR_OPEN_SHORTCUT } from '@core/gamebar-widget/shortcut';
 import { openExternalUrl } from '../../native';
 import { showToast } from '../../composables/useCopyFeedback';
@@ -57,6 +61,8 @@ const recordSessionSummary = computed(() => {
 
 const widgetStatus = props.widget.status;
 const widgetDetecting = props.widget.isDetecting;
+const widgetConnectionStatus = props.widget.connectionStatus;
+const widgetConnectionRepairing = props.widget.connectionRepairing;
 
 const gameBarOpenShortcut = computed(
   () => widgetStatus.value?.gameBarOpenShortcut?.trim() || DEFAULT_GAME_BAR_OPEN_SHORTCUT,
@@ -66,11 +72,15 @@ const gameBarOpenShortcutFromRegistry = computed(
   () => widgetStatus.value?.gameBarOpenShortcutFromRegistry ?? false,
 );
 
-const widgetReady = computed(
+const widgetReady = computed(() =>
+  isGameBarWidgetReady(widgetStatus.value, widgetConnectionStatus.value),
+);
+
+const widgetConnectionRecovering = computed(
   () =>
-    Boolean(widgetStatus.value?.gameBarInstalled) &&
-    Boolean(widgetStatus.value?.installed) &&
-    Boolean(widgetStatus.value?.loopbackConfigured),
+    snapshot.value.listening &&
+    displayMode.value === 'widget' &&
+    ['starting', 'recovering'].includes(widgetConnectionStatus.value?.state ?? ''),
 );
 
 const showInstallFailure = computed(
@@ -132,9 +142,15 @@ async function openGameBarStore() {
   await openExternalUrl('https://apps.microsoft.com/detail/9NZKPSTSNW4P');
 }
 
-const showWidgetInstallReminder = computed(
-  () => displayMode.value === 'widget' && !widgetReady.value && !widgetDetecting.value,
-);
+const showWidgetInstallReminder = computed(() => {
+  if (displayMode.value !== 'widget' || widgetDetecting.value) return false;
+  return getGameBarWidgetSetupBlocker(
+    widgetStatus.value,
+    widgetConnectionStatus.value,
+    snapshot.value.listening,
+    props.widget.installIssueCode.value,
+  ) !== null;
+});
 
 const widgetInstallReminderText = computed(() => {
   const status = widgetStatus.value;
@@ -144,11 +160,48 @@ const widgetInstallReminderText = computed(() => {
   if (!status.installed) {
     return l('全屏模式下建议在下方安装小组件，才能在游戏里看到实时数据。', 'Install the Widget below to view live data in exclusive fullscreen.');
   }
-  if (!status.loopbackConfigured) {
-    return l('小组件连接未就绪，建议在下方重新安装以在游戏中显示数据。', 'The Widget connection is not ready. Reinstall it below.');
+  if (status.trust.runtimeState === 'blockedBySmartAppControl') {
+    return l('智能应用控制正在阻止自签小组件，请在下方按引导处理。', 'Smart App Control is blocking the self-signed Widget. Follow the guidance below.');
   }
-  return l('建议在下方完成小组件安装，以便在游戏中查看数据。', 'Complete Widget setup below to view data in game.');
+  if (status.trust.runtimeState === 'blockedByCodeIntegrity') {
+    return l('Windows 代码完整性已阻止小组件，请在下方查看诊断。', 'Windows Code Integrity blocked the Widget. Review diagnostics below.');
+  }
+  if (!status.trust.trustedPeople || status.trust.msixStatus !== 'Valid' || status.trust.catalogStatus !== 'Valid') {
+    return l('小组件信任配置未就绪，建议在下方重新安装。', 'The Widget trust configuration is not ready. Reinstall it below.');
+  }
+  if (props.widget.installIssueCode.value === 'uacCancelled') {
+    return l('管理员授权已取消，小组件连接修复未执行。记录会继续；请在下方重新尝试修复。', 'Administrator approval was cancelled, so Widget connection repair did not run. Recording continues; retry the repair below.');
+  }
+  if (props.widget.installIssueCode.value === 'loopbackRepairFailed') {
+    return l('自动修复小组件本机连接失败，请稍后重试；持续失败时再重新安装。', 'Automatic local connection repair failed. Retry later; reinstall only if it keeps failing.');
+  }
+  if (widgetConnectionStatus.value?.issueCode === 'ipcPortsUnavailable') {
+    const ports = widgetConnectionStatus.value.occupiedPorts.join('、');
+    const owners = widgetConnectionStatus.value.blockingProcesses.join('；');
+    return l(
+      `自动重连仍未成功，端口 ${ports || '39281–39290'} 正被占用${owners ? `（${owners}）` : ''}。请关闭占用程序后重试。`,
+      `Automatic reconnect is still unsuccessful because ports ${ports || '39281–39290'} are in use${owners ? ` (${owners})` : ''}. Close the blocking apps and retry.`,
+    );
+  }
+  return l('自动重连仍未成功，请保持主程序运行并重新开始记录。', 'Automatic reconnect is still unsuccessful. Keep the app open and start recording again.');
 });
+
+async function toggleListeningWithWidgetRecovery() {
+  const wasListening = snapshot.value.listening;
+  await props.cs.toggleListening();
+  if (wasListening || !snapshot.value.listening || displayMode.value !== 'widget') return;
+
+  await props.widget.refreshStatus();
+  const status = widgetStatus.value;
+  if (
+    status?.installed &&
+    status.loopbackState === 'missing' &&
+    status.trust.runtimeState !== 'blockedBySmartAppControl' &&
+    status.trust.runtimeState !== 'blockedByCodeIntegrity'
+  ) {
+    await props.widget.repairConnection();
+  }
+}
 
 function scrollToWidgetInstall() {
   widgetInstallSectionRef.value?.openInstallPanel();
@@ -279,8 +332,8 @@ const modePanelLayerClass =
                 ? 'bg-danger/10 text-danger hover:bg-danger/15'
                 : 'bg-accent text-white hover:bg-accent-hover'
             "
-            :disabled="busy"
-            @click="cs.toggleListening()"
+            :disabled="busy || widgetConnectionRepairing"
+            @click="toggleListeningWithWidgetRecovery()"
           >
             <component :is="snapshot.listening ? Square : Play" class="h-4 w-4" aria-hidden="true" />
             {{ snapshot.listening ? l('停止记录', 'Stop recording') : l('开始记录', 'Start recording') }}
@@ -304,6 +357,15 @@ const modePanelLayerClass =
               </button>
             </div>
           </div>
+        </div>
+
+        <div
+          v-if="widgetConnectionRecovering"
+          class="flex items-center gap-2 px-0.5 text-[11px] text-fg-muted"
+          role="status"
+        >
+          <Loader2 class="h-3.5 w-3.5 animate-spin text-accent" aria-hidden="true" />
+          {{ l('正在自动恢复小组件连接…', 'Automatically restoring the Widget connection…') }}
         </div>
 
         <div

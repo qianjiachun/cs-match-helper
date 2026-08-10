@@ -4,6 +4,11 @@ description = "允许获取 Game Bar Widget 安装状态"
 commands.allow = ["get_gamebar_widget_status"]
 
 [[permission]]
+identifier = "allow-get-gamebar-widget-connection-status"
+description = "允许获取 Game Bar Widget 实时连接状态"
+commands.allow = ["get_gamebar_widget_connection_status"]
+
+[[permission]]
 identifier = "allow-check-gamebar-widget-update"
 description = "允许检查 Game Bar Widget 更新"
 commands.allow = ["check_gamebar_widget_update"]
@@ -27,3 +32,18 @@ commands.allow = ["find_gamebar_widget_dev_dist"]
 identifier = "allow-uninstall-gamebar-widget"
 description = "允许卸载 Game Bar Widget"
 commands.allow = ["uninstall_gamebar_widget"]
+
+[[permission]]
+identifier = "allow-repair-gamebar-widget-connection"
+description = "允许修复 Game Bar Widget 本机连接配置"
+commands.allow = ["repair_gamebar_widget_connection"]
+
+[[permission]]
+identifier = "allow-open-smart-app-control-settings"
+description = "允许打开 Windows 智能应用控制设置"
+commands.allow = ["open_smart_app_control_settings"]
+
+[[permission]]
+identifier = "allow-verify-gamebar-widget-runtime"
+description = "允许运行 Game Bar Widget 进程与代码完整性验证"
+commands.allow = ["verify_gamebar_widget_runtime"]

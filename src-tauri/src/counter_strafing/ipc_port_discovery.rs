@@ -75,11 +75,15 @@ pub fn bind_ipc_listener() -> Result<(TcpListener, u16), String> {
         match TcpListener::bind(&addr) {
             Ok(listener) => return Ok((listener, port)),
             Err(e) if e.kind() == io::ErrorKind::AddrInUse => continue,
-            Err(e) => return Err(format!("绑定快照接口失败 ({addr}): {e}")),
+            Err(e) => {
+                return Err(format!(
+                    "ipcServerStartFailed: failed to bind Widget IPC ({addr}): {e}"
+                ))
+            }
         }
     }
     Err(format!(
-        "端口 {}-{} 均被占用，无法启动快照接口",
+        "ipcPortsUnavailable: ports {}-{} are all in use",
         IPC_PORT_RANGE.start(),
         IPC_PORT_RANGE.end()
     ))

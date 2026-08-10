@@ -118,6 +118,7 @@ const MAX_RECV_TIMEOUT: Duration = Duration::from_millis(50);
 #[derive(Default)]
 pub struct CounterStrafingRuntime {
     inner: Mutex<RuntimeInner>,
+    ipc_connection: ipc_server::IpcConnectionTracker,
 }
 
 #[derive(Default)]
@@ -137,7 +138,7 @@ struct RuntimeInner {
     last_assessment_snapshot_emit: Option<Instant>,
     capturing_binding: Option<BindingRole>,
     capture_only_input: bool,
-    ipc_server: Option<ipc_server::IpcServer>,
+    ipc_server: Option<ipc_server::IpcSupervisor>,
     snapshot_signal: Option<ipc_server::SnapshotSignal>,
     gsi: GsiService,
     context_mode: SampleContextMode,
@@ -191,6 +192,12 @@ impl CounterStrafingRuntime {
     pub fn snapshot(&self) -> CounterStrafingSnapshot {
         let inner = self.inner.lock().unwrap();
         build_snapshot(&inner)
+    }
+
+    pub fn gamebar_widget_connection_status(
+        &self,
+    ) -> ipc_server::GameBarWidgetConnectionStatus {
+        self.ipc_connection.snapshot()
     }
 
     pub fn start(&self, app: AppHandle, show_hud: bool) -> Result<CounterStrafingSnapshot, String> {
@@ -257,25 +264,25 @@ impl CounterStrafingRuntime {
         let app_for_ipc = app.clone();
         let app_for_layout = app_for_ipc.clone();
         let signal_for_layout = snapshot_signal.clone();
-        match ipc_server::IpcServer::start(
+        match ipc_server::IpcSupervisor::start(
             app_for_ipc.clone(),
-            move || {
+            self.ipc_connection.clone(),
+            Arc::new(move || {
                 app_for_ipc
                     .state::<CounterStrafingRuntime>()
                     .gamebar_ipc_snapshot()
-            },
+            }),
             snapshot_signal,
             ipc_stream_queue,
-            move |ratio| {
+            Arc::new(move |ratio| {
                 app_for_layout
                     .state::<CounterStrafingRuntime>()
                     .update_gamebar_assessment_ratio(ratio)?;
                 signal_for_layout.bump();
                 Ok(())
-            },
+            }),
         ) {
-            Ok((server, port)) => {
-                eprintln!("[counter-strafing] Game Bar IPC listening on 127.0.0.1:{port}");
+            Ok(server) => {
                 inner.ipc_server = Some(server);
             }
             Err(e) => {
@@ -1923,6 +1930,13 @@ pub fn reset_counter_strafing_settings_cmd(
 #[tauri::command]
 pub fn get_counter_strafing_snapshot(state: State<'_, CounterStrafingRuntime>) -> CounterStrafingSnapshot {
     state.snapshot()
+}
+
+#[tauri::command]
+pub fn get_gamebar_widget_connection_status(
+    state: State<'_, CounterStrafingRuntime>,
+) -> ipc_server::GameBarWidgetConnectionStatus {
+    state.gamebar_widget_connection_status()
 }
 
 #[tauri::command]

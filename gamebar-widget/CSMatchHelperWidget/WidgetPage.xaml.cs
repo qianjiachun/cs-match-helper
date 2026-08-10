@@ -21,7 +21,7 @@ namespace CSMatchHelperWidget
 {
     public sealed partial class WidgetPage : Page
     {
-        private const int PollFailureThreshold = 5;
+        private static readonly TimeSpan AutoReconnectGuidanceDelay = TimeSpan.FromSeconds(16);
         private static readonly TimeSpan PrimaryRequestTimeout = TimeSpan.FromMilliseconds(350);
         private static readonly TimeSpan FallbackRequestTimeout = TimeSpan.FromMilliseconds(150);
         private static readonly TimeSpan StreamReconnectDelay = TimeSpan.FromMilliseconds(300);
@@ -34,6 +34,7 @@ namespace CSMatchHelperWidget
         private readonly ShootingChartRenderer _shootingChart;
         private bool _streamLoopRunning;
         private int _consecutiveFailures;
+        private DateTimeOffset? _reconnectStartedAt;
         private JsonObject _lastRoot;
         private ulong _lastRecordTimestamp;
         private ChartFingerprint _lastChartFingerprint;
@@ -109,7 +110,10 @@ namespace CSMatchHelperWidget
                     try
                     {
                         await ReadStreamUntilDisconnectedAsync(_streamCts.Token).ConfigureAwait(false);
-                        _consecutiveFailures = 0;
+                        if (!_streamCts.IsCancellationRequested)
+                        {
+                            throw new InvalidOperationException("Widget IPC stream disconnected.");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -120,7 +124,12 @@ namespace CSMatchHelperWidget
 
                         Debug.WriteLine($"[CSMatchHelperWidget] stream failed: {ex}");
                         _consecutiveFailures++;
-                        if (_consecutiveFailures >= PollFailureThreshold)
+                        if (!_reconnectStartedAt.HasValue)
+                        {
+                            _reconnectStartedAt = DateTimeOffset.UtcNow;
+                        }
+
+                        if (DateTimeOffset.UtcNow - _reconnectStartedAt.Value >= AutoReconnectGuidanceDelay)
                         {
                             await RunOnUiThreadAsync(() =>
                             {
@@ -128,10 +137,10 @@ namespace CSMatchHelperWidget
                                 SetLinkState(WidgetLinkState.Offline, L("请确认 CS 匹配助手已启动并开始记录", "Make sure CS Match Helper is running and recording"));
                             });
                         }
-                        else if (!_hasLiveSnapshot)
+                        else
                         {
                             await RunOnUiThreadAsync(() =>
-                                SetLinkState(WidgetLinkState.Preparing, L("请打开 CS 匹配助手开始记录", "Open CS Match Helper and start recording")));
+                                SetLinkState(WidgetLinkState.Reconnecting, L("正在自动重新连接…", "Reconnecting automatically…")));
                         }
                     }
 
@@ -209,6 +218,7 @@ namespace CSMatchHelperWidget
                 var reader = new DataReader(stream);
                 reader.InputStreamOptions = InputStreamOptions.Partial;
                 var lineBytes = new List<byte>();
+                var rememberedPort = false;
 
                 while (!ct.IsCancellationRequested)
                 {
@@ -238,7 +248,12 @@ namespace CSMatchHelperWidget
                             lineBytes.Clear();
                             if (!string.IsNullOrEmpty(line))
                             {
-                                await DispatchSnapshotLineAsync(line).ConfigureAwait(false);
+                                var applied = await DispatchSnapshotLineAsync(line).ConfigureAwait(false);
+                                if (applied && !rememberedPort)
+                                {
+                                    IpcPortDiscovery.RememberSuccessfulUrl(url);
+                                    rememberedPort = true;
+                                }
                             }
                         }
                         else
@@ -250,30 +265,34 @@ namespace CSMatchHelperWidget
             }
         }
 
-        private Task DispatchSnapshotLineAsync(string line)
+        private async Task<bool> DispatchSnapshotLineAsync(string line)
         {
             var priority = _hasLiveSnapshot
                 ? CoreDispatcherPriority.High
                 : CoreDispatcherPriority.Normal;
-            return Dispatcher.RunAsync(priority, () =>
+            var applied = false;
+            await Dispatcher.RunAsync(priority, () =>
             {
                 try
                 {
                     var json = JsonObject.Parse(line);
                     if (TryApplyStreamDelta(json))
                     {
-                        _consecutiveFailures = 0;
+                        MarkStreamHealthy();
+                        applied = true;
                         return;
                     }
 
                     ApplySnapshot(json);
-                    _consecutiveFailures = 0;
+                    MarkStreamHealthy();
+                    applied = true;
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[CSMatchHelperWidget] snapshot parse failed: {ex}");
                 }
-            }).AsTask();
+            }).AsTask().ConfigureAwait(false);
+            return applied;
         }
 
         private bool TryApplyStreamDelta(JsonObject json)
@@ -331,6 +350,12 @@ namespace CSMatchHelperWidget
             return Dispatcher.RunAsync(
                 CoreDispatcherPriority.Normal,
                 () => action()).AsTask();
+        }
+
+        private void MarkStreamHealthy()
+        {
+            _consecutiveFailures = 0;
+            _reconnectStartedAt = null;
         }
 
         private bool _hasLiveSnapshot;
@@ -877,6 +902,7 @@ namespace CSMatchHelperWidget
         private enum WidgetLinkState
         {
             Preparing,
+            Reconnecting,
             Live,
             Offline,
         }
@@ -892,6 +918,11 @@ namespace CSMatchHelperWidget
                 case WidgetLinkState.Offline:
                     StatusText.Text = L("未连接", "Offline");
                     StatusHintText.Text = hint ?? L("请确认 CS 匹配助手已启动并开始记录", "Make sure CS Match Helper is running and recording");
+                    StatusOverlay.Visibility = Visibility.Visible;
+                    return;
+                case WidgetLinkState.Reconnecting:
+                    StatusText.Text = L("正在自动重连…", "Reconnecting automatically…");
+                    StatusHintText.Text = hint ?? L("正在自动尝试其他本机端口", "Automatically trying other local ports");
                     StatusOverlay.Visibility = Visibility.Visible;
                     return;
                 default:

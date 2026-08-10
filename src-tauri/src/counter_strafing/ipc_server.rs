@@ -9,12 +9,209 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 const READ_BUF_SIZE: usize = 1024;
 const ACCEPT_POLL: Duration = Duration::from_millis(5);
 const SHUTDOWN_IO_TIMEOUT: Duration = Duration::from_millis(200);
 const STREAM_KEEPALIVE: Duration = Duration::from_millis(1000);
+const SUPERVISOR_POLL: Duration = Duration::from_millis(100);
+const IPC_RETRY_DELAYS: [Duration; 6] = [
+    Duration::from_millis(250),
+    Duration::from_millis(500),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(4),
+    Duration::from_secs(8),
+];
+const IPC_BACKGROUND_RETRY_DELAY: Duration = Duration::from_secs(10);
+pub const CONNECTION_STATUS_EVENT: &str = "gamebar-widget-connection-status";
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GameBarWidgetConnectionStatus {
+    pub state: String,
+    pub port: Option<u16>,
+    pub retry_attempt: u32,
+    pub issue_code: Option<String>,
+    pub last_error: Option<String>,
+    pub last_connected_at: Option<u64>,
+    pub occupied_ports: Vec<u16>,
+    pub blocking_processes: Vec<String>,
+    pub discovery_warning: Option<String>,
+}
+
+impl Default for GameBarWidgetConnectionStatus {
+    fn default() -> Self {
+        Self {
+            state: "stopped".to_string(),
+            port: None,
+            retry_attempt: 0,
+            issue_code: None,
+            last_error: None,
+            last_connected_at: None,
+            occupied_ports: Vec::new(),
+            blocking_processes: Vec::new(),
+            discovery_warning: None,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct IpcConnectionTracker {
+    inner: Arc<Mutex<GameBarWidgetConnectionStatus>>,
+}
+
+impl IpcConnectionTracker {
+    pub fn snapshot(&self) -> GameBarWidgetConnectionStatus {
+        self.inner.lock().map(|value| value.clone()).unwrap_or_default()
+    }
+
+    fn update(
+        &self,
+        app: &AppHandle,
+        apply: impl FnOnce(&mut GameBarWidgetConnectionStatus),
+    ) {
+        let next = {
+            let Ok(mut status) = self.inner.lock() else {
+                return;
+            };
+            apply(&mut status);
+            status.clone()
+        };
+        let _ = app.emit(CONNECTION_STATUS_EVENT, next);
+    }
+
+    fn set_starting(&self, app: &AppHandle) {
+        self.update(app, |status| {
+            status.state = "starting".to_string();
+            status.port = None;
+            status.retry_attempt = 0;
+            status.issue_code = None;
+            status.last_error = None;
+            status.last_connected_at = None;
+            status.occupied_ports.clear();
+            status.blocking_processes.clear();
+            status.discovery_warning = None;
+        });
+    }
+
+    fn set_retrying(&self, app: &AppHandle, attempt: u32, error: &str, failed: bool) {
+        let issue_code = if error.starts_with("ipcPortsUnavailable:") {
+            "ipcPortsUnavailable"
+        } else {
+            "ipcServerStartFailed"
+        };
+        self.update(app, |status| {
+            status.state = if failed { "failed" } else { "recovering" }.to_string();
+            status.port = None;
+            status.retry_attempt = attempt;
+            status.issue_code = Some(issue_code.to_string());
+            status.last_error = Some(error.to_string());
+            status.occupied_ports = if issue_code == "ipcPortsUnavailable" {
+                ipc_port_discovery::IPC_PORT_RANGE.collect()
+            } else {
+                Vec::new()
+            };
+            status.blocking_processes = if failed && issue_code == "ipcPortsUnavailable" {
+                query_port_owners()
+            } else {
+                Vec::new()
+            };
+        });
+    }
+
+    fn set_listening(&self, app: &AppHandle, port: u16, discovery_warning: Option<String>) {
+        self.update(app, |status| {
+            status.state = "listening".to_string();
+            status.port = Some(port);
+            status.retry_attempt = 0;
+            status.issue_code = None;
+            status.last_error = None;
+            status.occupied_ports.clear();
+            status.blocking_processes.clear();
+            status.discovery_warning = discovery_warning;
+        });
+    }
+
+    fn set_connected(&self, app: &AppHandle, port: u16) {
+        self.update(app, |status| {
+            status.state = "connected".to_string();
+            status.port = Some(port);
+            status.retry_attempt = 0;
+            status.issue_code = None;
+            status.last_error = None;
+            status.occupied_ports.clear();
+            status.blocking_processes.clear();
+            status.last_connected_at = Some(unix_ms());
+        });
+    }
+
+    fn set_disconnected(&self, app: &AppHandle, port: u16) {
+        self.update(app, |status| {
+            if status.state == "connected" && status.port == Some(port) {
+                status.state = "listening".to_string();
+            }
+        });
+    }
+
+    fn set_stopped(&self, app: &AppHandle) {
+        self.update(app, |status| {
+            status.state = "stopped".to_string();
+            status.port = None;
+            status.retry_attempt = 0;
+            status.issue_code = None;
+            status.last_error = None;
+            status.occupied_ports.clear();
+            status.blocking_processes.clear();
+            status.discovery_warning = None;
+        });
+    }
+}
+
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[cfg(windows)]
+fn query_port_owners() -> Vec<String> {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let script = r#"$ports = 39281..39290
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+  Where-Object { $ports -contains $_.LocalPort } |
+  Sort-Object LocalPort, OwningProcess -Unique |
+  ForEach-Object {
+    $owner = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
+    $name = if ($owner) { $owner.ProcessName } else { 'unknown' }
+    Write-Output ("{0}: PID {1} ({2})" -f $_.LocalPort, $_.OwningProcess, $name)
+  }"#;
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| {
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(not(windows))]
+fn query_port_owners() -> Vec<String> {
+    Vec::new()
+}
 
 /// Wakes `/stream` IPC clients when the Game Bar snapshot may have changed.
 #[derive(Clone)]
@@ -104,43 +301,188 @@ pub struct IpcServer {
     port: u16,
 }
 
-impl IpcServer {
+pub struct IpcSupervisor {
+    stop_flag: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+    tracker: IpcConnectionTracker,
+    app: AppHandle,
+}
+
+impl IpcSupervisor {
     pub fn start(
         app: AppHandle,
-        get_snapshot: impl Fn() -> GameBarIpcSnapshot + Send + Sync + 'static,
+        tracker: IpcConnectionTracker,
+        get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
         snapshot_signal: SnapshotSignal,
         ipc_stream_queue: IpcStreamQueue,
-        update_widget_layout: impl Fn(f64) -> Result<(), String> + Send + Sync + 'static,
-    ) -> Result<(Self, u16), String> {
-        let (listener, port) = ipc_port_discovery::bind_ipc_listener()?;
-        ipc_port_discovery::write_ipc_port_discovery(port)?;
-
-        listener
-            .set_nonblocking(true)
-            .map_err(|e| format!("配置快照接口非阻塞模式失败: {e}"))?;
-
+        update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
+    ) -> Result<Self, String> {
+        tracker.set_starting(&app);
         let stop_flag = Arc::new(AtomicBool::new(false));
         let stop_for_thread = Arc::clone(&stop_flag);
-        let listener_slot = Arc::new(Mutex::new(Some(listener)));
-        let listener_for_thread = Arc::clone(&listener_slot);
-        let get_snapshot = Arc::new(get_snapshot);
-        let update_widget_layout = Arc::new(update_widget_layout);
-        let ipc_stream_queue = Arc::new(ipc_stream_queue);
-
-        let handle = thread::Builder::new()
-            .name("counter-strafing-ipc".into())
+        let app_for_thread = app.clone();
+        let tracker_for_thread = tracker.clone();
+        let handle = match thread::Builder::new()
+            .name("counter-strafing-ipc-supervisor".into())
             .spawn(move || {
-                server_loop(
-                    listener_for_thread,
-                    app,
+                supervisor_loop(
+                    app_for_thread,
+                    tracker_for_thread,
                     get_snapshot,
                     snapshot_signal,
                     ipc_stream_queue,
                     update_widget_layout,
                     stop_for_thread,
                 )
-            })
-            .map_err(|e| format!("启动快照接口线程失败: {e}"))?;
+            }) {
+            Ok(handle) => handle,
+            Err(error) => {
+                let message = format!(
+                    "ipcServerStartFailed: failed to start IPC supervisor: {error}"
+                );
+                tracker.set_retrying(&app, 1, &message, true);
+                return Err(message);
+            }
+        };
+
+        Ok(Self {
+            stop_flag,
+            handle: Some(handle),
+            tracker,
+            app,
+        })
+    }
+
+    pub fn stop(&mut self) {
+        self.stop_flag.store(true, Ordering::SeqCst);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+        self.tracker.set_stopped(&self.app);
+    }
+}
+
+impl Drop for IpcSupervisor {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+fn supervisor_loop(
+    app: AppHandle,
+    tracker: IpcConnectionTracker,
+    get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
+    snapshot_signal: SnapshotSignal,
+    ipc_stream_queue: IpcStreamQueue,
+    update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
+    stop_flag: Arc<AtomicBool>,
+) {
+    let mut failure_count = 0usize;
+
+    while !stop_flag.load(Ordering::SeqCst) {
+        match IpcServer::start(
+            app.clone(),
+            Arc::clone(&get_snapshot),
+            snapshot_signal.clone(),
+            ipc_stream_queue.clone(),
+            Arc::clone(&update_widget_layout),
+            tracker.clone(),
+        ) {
+            Ok((mut server, port, discovery_warning)) => {
+                tracker.set_listening(&app, port, discovery_warning);
+                while !stop_flag.load(Ordering::SeqCst) {
+                    thread::sleep(SUPERVISOR_POLL);
+                }
+                server.stop();
+                break;
+            }
+            Err(error) => {
+                failure_count = failure_count.saturating_add(1);
+                let (delay, initial_recovery_exhausted) = retry_policy(failure_count);
+                tracker.set_retrying(
+                    &app,
+                    failure_count as u32,
+                    &error,
+                    initial_recovery_exhausted,
+                );
+                sleep_interruptibly(delay, &stop_flag);
+            }
+        }
+    }
+
+    tracker.set_stopped(&app);
+}
+
+fn retry_policy(failure_count: usize) -> (Duration, bool) {
+    if failure_count > IPC_RETRY_DELAYS.len() {
+        (IPC_BACKGROUND_RETRY_DELAY, true)
+    } else {
+        (IPC_RETRY_DELAYS[failure_count.saturating_sub(1)], false)
+    }
+}
+
+fn sleep_interruptibly(delay: Duration, stop_flag: &AtomicBool) {
+    let mut elapsed = Duration::ZERO;
+    while elapsed < delay && !stop_flag.load(Ordering::SeqCst) {
+        let remaining = delay.saturating_sub(elapsed);
+        let slice = remaining.min(SUPERVISOR_POLL);
+        thread::sleep(slice);
+        elapsed += slice;
+    }
+}
+
+impl IpcServer {
+    pub fn start(
+        app: AppHandle,
+        get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
+        snapshot_signal: SnapshotSignal,
+        ipc_stream_queue: IpcStreamQueue,
+        update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
+        tracker: IpcConnectionTracker,
+    ) -> Result<(Self, u16, Option<String>), String> {
+        let (listener, port) = ipc_port_discovery::bind_ipc_listener()?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|e| format!("ipcServerStartFailed: configure nonblocking listener failed: {e}"))?;
+        let discovery_warning = ipc_port_discovery::write_ipc_port_discovery(port)
+            .err()
+            .map(|error| format!("ipc-port.json unavailable: {error}"));
+        if let Some(warning) = discovery_warning.as_deref() {
+            eprintln!("[counter-strafing-ipc] {warning}");
+        }
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let stop_for_thread = Arc::clone(&stop_flag);
+        let listener_slot = Arc::new(Mutex::new(Some(listener)));
+        let listener_for_thread = Arc::clone(&listener_slot);
+        let ipc_stream_queue = Arc::new(ipc_stream_queue);
+        let app_for_thread = app.clone();
+        let tracker_for_thread = tracker.clone();
+
+        let handle = match thread::Builder::new()
+            .name("counter-strafing-ipc".into())
+            .spawn(move || {
+                server_loop(
+                    listener_for_thread,
+                    app_for_thread,
+                    get_snapshot,
+                    snapshot_signal,
+                    ipc_stream_queue,
+                    update_widget_layout,
+                    stop_for_thread,
+                    tracker_for_thread,
+                    port,
+                )
+            }) {
+            Ok(handle) => handle,
+            Err(error) => {
+                ipc_port_discovery::write_ipc_port_discovery_inactive(port);
+                ipc_port_discovery::clear_ipc_port_discovery();
+                return Err(format!(
+                    "ipcServerStartFailed: failed to start IPC thread: {error}"
+                ));
+            }
+        };
 
         Ok((
             Self {
@@ -150,6 +492,7 @@ impl IpcServer {
                 port,
             },
             port,
+            discovery_warning,
         ))
     }
 
@@ -184,12 +527,14 @@ struct JsonCache {
 
 fn server_loop(
     listener_slot: Arc<Mutex<Option<TcpListener>>>,
-    _app: AppHandle,
+    app: AppHandle,
     get_snapshot: Arc<dyn Fn() -> GameBarIpcSnapshot + Send + Sync>,
     snapshot_signal: SnapshotSignal,
     ipc_stream_queue: Arc<IpcStreamQueue>,
     update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
+    tracker: IpcConnectionTracker,
+    port: u16,
 ) {
     let cache = Arc::new(Mutex::new(JsonCache {
         revision: 0,
@@ -221,6 +566,8 @@ fn server_loop(
                 let stop = Arc::clone(&stop_flag);
                 let generation = Arc::clone(&stream_generation);
                 let update_layout = Arc::clone(&update_widget_layout);
+                let connection_tracker = tracker.clone();
+                let app_for_connection = app.clone();
                 thread::Builder::new()
                     .name("counter-strafing-ipc-conn".into())
                     .spawn(move || {
@@ -233,6 +580,9 @@ fn server_loop(
                             update_layout,
                             stop,
                             generation,
+                            connection_tracker,
+                            app_for_connection,
+                            port,
                         ) {
                             if should_log_connection_error(&e, &Arc::new(AtomicBool::new(false))) {
                                 eprintln!("[counter-strafing-ipc] connection error: {e}");
@@ -263,6 +613,9 @@ fn handle_client(
     update_widget_layout: Arc<dyn Fn(f64) -> Result<(), String> + Send + Sync>,
     stop_flag: Arc<AtomicBool>,
     stream_generation: Arc<AtomicU64>,
+    tracker: IpcConnectionTracker,
+    app: AppHandle,
+    port: u16,
 ) -> std::io::Result<()> {
     if stop_flag.load(Ordering::Relaxed) {
         return Ok(());
@@ -303,7 +656,7 @@ fn handle_client(
         let _ = stream.set_read_timeout(None);
         let _ = stream.set_write_timeout(None);
         let my_generation = stream_generation.fetch_add(1, Ordering::SeqCst) + 1;
-        handle_stream_connection(
+        let result = handle_stream_connection(
             &mut stream,
             get_snapshot.as_ref(),
             snapshot_signal,
@@ -311,7 +664,14 @@ fn handle_client(
             &stop_flag,
             &stream_generation,
             my_generation,
-        )
+            &tracker,
+            &app,
+            port,
+        );
+        if result.is_err() && stream_generation.load(Ordering::Relaxed) == my_generation {
+            tracker.set_disconnected(&app, port);
+        }
+        result
     } else if path == "/snapshot" || path == "/" {
         handle_snapshot_connection(&mut stream, get_snapshot.as_ref(), &cache)
     } else {
@@ -365,6 +725,9 @@ fn handle_stream_connection(
     stop_flag: &Arc<AtomicBool>,
     stream_generation: &Arc<AtomicU64>,
     my_generation: u64,
+    tracker: &IpcConnectionTracker,
+    app: &AppHandle,
+    port: u16,
 ) -> std::io::Result<()> {
     let headers = "HTTP/1.1 200 OK\r\n\
          Content-Type: application/x-ndjson\r\n\
@@ -390,8 +753,10 @@ fn handle_stream_connection(
         }
     };
     write_chunk(stream, initial_json.as_bytes())?;
+    tracker.set_connected(app, port);
 
-    while !stop_flag.load(Ordering::Relaxed) {
+    let result = (|| -> std::io::Result<()> {
+        while !stop_flag.load(Ordering::Relaxed) {
         if stream_generation.load(Ordering::Relaxed) != my_generation {
             break;
         }
@@ -430,9 +795,15 @@ fn handle_stream_connection(
         } else if timed_out && write_chunk(stream, b"\n").is_err() {
             break;
         }
-    }
+        }
 
-    Ok(())
+        Ok(())
+    })();
+
+    if stream_generation.load(Ordering::Relaxed) == my_generation {
+        tracker.set_disconnected(app, port);
+    }
+    result
 }
 
 fn write_chunk(stream: &mut TcpStream, data: &[u8]) -> std::io::Result<()> {
@@ -602,6 +973,23 @@ fn error_json(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supervisor_uses_bounded_fast_recovery_before_background_retry() {
+        assert_eq!(retry_policy(1), (Duration::from_millis(250), false));
+        assert_eq!(retry_policy(6), (Duration::from_secs(8), false));
+        assert_eq!(retry_policy(7), (Duration::from_secs(10), true));
+        assert_eq!(retry_policy(20), (Duration::from_secs(10), true));
+    }
+
+    #[test]
+    fn connection_status_defaults_to_stopped() {
+        let status = GameBarWidgetConnectionStatus::default();
+        assert_eq!(status.state, "stopped");
+        assert_eq!(status.port, None);
+        assert_eq!(status.retry_attempt, 0);
+        assert!(status.last_connected_at.is_none());
+    }
 
     #[test]
     fn snapshot_path_returns_json() {

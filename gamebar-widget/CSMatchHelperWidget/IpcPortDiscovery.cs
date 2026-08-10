@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Windows.Data.Json;
+using Windows.Storage;
 
 namespace CSMatchHelperWidget
 {
@@ -10,22 +11,23 @@ namespace CSMatchHelperWidget
         private const string DefaultHost = "127.0.0.1";
         private const int DefaultPort = 39281;
         private const string DiscoveryFileName = "ipc-port.json";
+        private const string LastSuccessfulPortKey = "LastSuccessfulIpcPort";
 
         public static string GetPrimarySnapshotUrl()
         {
-            var port = ReadDiscoveredPort() ?? DefaultPort;
+            var port = ReadPreferredPort();
             return BuildSnapshotUrl(port);
         }
 
         public static string GetPrimaryStreamUrl()
         {
-            var port = ReadDiscoveredPort() ?? DefaultPort;
+            var port = ReadPreferredPort();
             return BuildStreamUrl(port);
         }
 
         public static string GetPrimaryWidgetLayoutUrl()
         {
-            var port = ReadDiscoveredPort() ?? DefaultPort;
+            var port = ReadPreferredPort();
             return BuildWidgetLayoutUrl(port);
         }
 
@@ -34,7 +36,7 @@ namespace CSMatchHelperWidget
             var urls = new List<string>();
             var seen = new HashSet<int>();
 
-            var primaryPort = ReadDiscoveredPort() ?? DefaultPort;
+            var primaryPort = ReadPreferredPort();
             seen.Add(primaryPort);
 
             TryAddUrl(urls, seen, DefaultPort);
@@ -51,7 +53,7 @@ namespace CSMatchHelperWidget
             var urls = new List<string>();
             var seen = new HashSet<int>();
 
-            var primaryPort = ReadDiscoveredPort() ?? DefaultPort;
+            var primaryPort = ReadPreferredPort();
             seen.Add(primaryPort);
 
             TryAddStreamUrl(urls, seen, DefaultPort);
@@ -66,7 +68,7 @@ namespace CSMatchHelperWidget
         public static IReadOnlyList<string> GetSnapshotUrls()
         {
             var urls = new List<string> { GetPrimarySnapshotUrl() };
-            var seen = new HashSet<int> { ReadDiscoveredPort() ?? DefaultPort };
+            var seen = new HashSet<int> { ReadPreferredPort() };
             foreach (var url in GetFallbackSnapshotUrls())
             {
                 var port = ParsePort(url);
@@ -82,7 +84,7 @@ namespace CSMatchHelperWidget
         public static IReadOnlyList<string> GetStreamUrls()
         {
             var urls = new List<string> { GetPrimaryStreamUrl() };
-            var seen = new HashSet<int> { ReadDiscoveredPort() ?? DefaultPort };
+            var seen = new HashSet<int> { ReadPreferredPort() };
             foreach (var url in GetFallbackStreamUrls())
             {
                 var port = ParsePort(url);
@@ -93,6 +95,48 @@ namespace CSMatchHelperWidget
             }
 
             return urls;
+        }
+
+        public static void RememberSuccessfulUrl(string url)
+        {
+            var port = ParsePort(url);
+            if (!port.HasValue || port.Value < DefaultPort || port.Value > DefaultPort + 9)
+            {
+                return;
+            }
+
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[LastSuccessfulPortKey] = port.Value;
+            }
+            catch
+            {
+                // Port persistence is only an optimization; fixed-range scanning remains available.
+            }
+        }
+
+        private static int ReadPreferredPort()
+        {
+            return ReadLastSuccessfulPort() ?? ReadDiscoveredPort() ?? DefaultPort;
+        }
+
+        private static int? ReadLastSuccessfulPort()
+        {
+            try
+            {
+                var values = ApplicationData.Current.LocalSettings.Values;
+                if (!values.ContainsKey(LastSuccessfulPortKey))
+                {
+                    return null;
+                }
+
+                var port = Convert.ToInt32(values[LastSuccessfulPortKey]);
+                return port >= DefaultPort && port <= DefaultPort + 9 ? port : (int?)null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static int? ReadDiscoveredPort()

@@ -1,13 +1,19 @@
 import {
   checkGameBarWidgetUpdate,
+  getGameBarWidgetConnectionStatus,
   getGameBarWidgetStatus,
   installGameBarWidgetFromLocal,
   installOrUpdateGameBarWidget,
   onGameBarWidgetProgress,
+  onGameBarWidgetConnectionStatus,
+  openSmartAppControlSettings,
+  repairGameBarWidgetConnection,
   uninstallGameBarWidget,
+  verifyGameBarWidgetRuntime,
 } from '@core/gamebar-widget/native';
 import type {
   GameBarWidgetDownloadSource,
+  GameBarWidgetConnectionStatus,
   GameBarWidgetPhase,
   GameBarWidgetProgressEvent,
   GameBarWidgetStatus,
@@ -35,9 +41,20 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
   const lastMessage = ref<string | null>(null);
   const installLogPath = ref<string | null>(null);
   const installLogExcerpt = ref<string | null>(null);
+  const installIssueCode = ref<string | null>(null);
+  const installRequiredAction = ref<string | null>(null);
+  const installRetryable = ref(true);
+  const installBlockingPackages = ref<string[]>([]);
+  const runtimeVerifying = ref(false);
+  const connectionStatus = ref<GameBarWidgetConnectionStatus | null>(null);
+  const connectionRepairing = ref(false);
 
   let unlistenProgress: (() => void) | null = null;
   let progressListenerPromise: Promise<void> | null = null;
+  let unlistenConnectionStatus: (() => void) | null = null;
+  let connectionListenerPromise: Promise<void> | null = null;
+  let statusRefreshPromise: Promise<void> | null = null;
+  let updateCheckRequestId = 0;
 
   async function ensureProgressListener() {
     if (unlistenProgress) return;
@@ -60,13 +77,83 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     await progressListenerPromise;
   }
 
-  async function refreshStatus() {
+  async function ensureConnectionListener() {
+    if (unlistenConnectionStatus) return;
+    if (!connectionListenerPromise) {
+      connectionListenerPromise = onGameBarWidgetConnectionStatus((next) => {
+        connectionStatus.value = next;
+        if (
+          next.state === 'connected' &&
+          ['loopbackRepairFailed', 'uacCancelled', 'ipcPortsUnavailable', 'ipcServerStartFailed'].includes(
+            installIssueCode.value ?? '',
+          )
+        ) {
+          installIssueCode.value = null;
+          installRequiredAction.value = null;
+          error.value = null;
+          if (phase.value === 'error') phase.value = 'idle';
+        }
+        if (next.state === 'connected' && status.value?.loopbackState !== 'configured') {
+          void refreshStatus().catch(() => undefined);
+        }
+      }).then((unlisten) => {
+        unlistenConnectionStatus = unlisten;
+      });
+    }
+    await connectionListenerPromise;
+  }
+
+  function refreshStatus(): Promise<void> {
+    if (statusRefreshPromise) return statusRefreshPromise;
     statusRefreshing.value = true;
+    statusRefreshPromise = (async () => {
+      try {
+        status.value = await getGameBarWidgetStatus();
+      } finally {
+        statusRefreshing.value = false;
+        statusLoaded.value = true;
+        statusRefreshPromise = null;
+      }
+    })();
+    return statusRefreshPromise;
+  }
+
+  async function refreshConnectionStatus() {
+    await ensureConnectionListener();
+    connectionStatus.value = await getGameBarWidgetConnectionStatus();
+  }
+
+  async function refreshStatusUntilSettled() {
+    const delays = [0, 250, 500, 1000, 2000];
+    for (const delay of delays) {
+      if (delay > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
+      }
+      await refreshStatus();
+      if (!status.value?.installed || status.value.loopbackState === 'configured') return;
+    }
+  }
+
+  async function refreshUpdateCheckValue() {
+    const requestId = ++updateCheckRequestId;
+    let next: GameBarWidgetUpdateCheck;
     try {
-      status.value = await getGameBarWidgetStatus();
-    } finally {
-      statusRefreshing.value = false;
-      statusLoaded.value = true;
+      next = await checkGameBarWidgetUpdate();
+    } catch (err) {
+      next = {
+        installedVersion: status.value?.installedVersion ?? null,
+        latestVersion: null,
+        hasUpdate: false,
+        downloadUrl: null,
+        cdnDownloadUrl: null,
+        githubDownloadUrl: null,
+        sha256: null,
+        zipFileName: null,
+        error: localizeErrorMessage(err),
+      };
+    }
+    if (requestId === updateCheckRequestId) {
+      updateCheck.value = next;
     }
   }
 
@@ -78,23 +165,7 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       phase.value = 'checking';
     }
     try {
-      updateCheck.value = await checkGameBarWidgetUpdate();
-      if (!silent) {
-        phase.value = 'idle';
-      }
-      status.value = await getGameBarWidgetStatus();
-    } catch (err) {
-      updateCheck.value = {
-        installedVersion: status.value?.installedVersion ?? null,
-        latestVersion: null,
-        hasUpdate: false,
-        downloadUrl: null,
-        cdnDownloadUrl: null,
-        githubDownloadUrl: null,
-        sha256: null,
-        zipFileName: null,
-        error: localizeErrorMessage(err),
-      };
+      await refreshUpdateCheckValue();
       if (!silent) {
         phase.value = 'idle';
       }
@@ -114,10 +185,18 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     message: string;
     installLogPath?: string | null;
     installLogExcerpt?: string | null;
+    issueCode?: string | null;
+    requiredAction?: string | null;
+    retryable?: boolean;
+    blockingPackages?: string[];
   }): boolean {
     lastMessage.value = localizeErrorMessage(result.message);
     installLogPath.value = result.installLogPath ?? null;
     installLogExcerpt.value = result.installLogExcerpt ?? null;
+    installIssueCode.value = result.issueCode ?? null;
+    installRequiredAction.value = result.requiredAction ?? null;
+    installRetryable.value = result.retryable ?? true;
+    installBlockingPackages.value = result.blockingPackages ?? [];
     phase.value = result.success ? 'complete' : 'error';
     if (!result.success) {
       error.value = localizeErrorMessage(result.message);
@@ -134,16 +213,20 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     lastMessage.value = null;
     installLogPath.value = null;
     installLogExcerpt.value = null;
+    installIssueCode.value = null;
+    installRequiredAction.value = null;
+    installBlockingPackages.value = [];
     phase.value = 'downloading';
     try {
       const downloadUrl = resolveDownloadUrl(sourceOrUrl);
       const result = await installOrUpdateGameBarWidget(downloadUrl, currentLocale());
       const success = applyInstallResult(result);
-      await refreshStatus();
+      if (success) await refreshStatusUntilSettled();
+      else await refreshStatus();
       if (!sessionUpdateCheckStarted) {
         sessionUpdateCheckStarted = true;
       }
-      updateCheck.value = await checkGameBarWidgetUpdate();
+      await refreshUpdateCheckValue();
       return success;
     } catch (err) {
       error.value = localizeErrorMessage(err);
@@ -180,11 +263,16 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     lastMessage.value = null;
     installLogPath.value = null;
     installLogExcerpt.value = null;
+    installIssueCode.value = null;
+    installRequiredAction.value = null;
+    installBlockingPackages.value = [];
     phase.value = 'extracting';
     try {
       const result = await installGameBarWidgetFromLocal(sourcePath, currentLocale());
       const success = applyInstallResult(result);
-      await refreshStatus();
+      if (success) await refreshStatusUntilSettled();
+      else await refreshStatus();
+      await refreshUpdateCheckValue();
       return success;
     } catch (err) {
       error.value = localizeErrorMessage(err);
@@ -195,19 +283,86 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     }
   }
 
-  async function uninstall() {
+  async function uninstall(): Promise<boolean> {
     busy.value = true;
     error.value = null;
+    progress.value = null;
+    lastMessage.value = null;
+    phase.value = 'uninstalling';
     try {
       await uninstallGameBarWidget();
       await refreshStatus();
       lastMessage.value = l('已卸载 Widget', 'Widget uninstalled');
+      installIssueCode.value = null;
+      installRequiredAction.value = null;
+      installBlockingPackages.value = [];
       phase.value = 'idle';
+      return true;
     } catch (err) {
       error.value = localizeErrorMessage(err);
       phase.value = 'error';
+      return false;
     } finally {
       busy.value = false;
+    }
+  }
+
+  async function openSmartAppControl() {
+    try {
+      await openSmartAppControlSettings();
+    } catch (err) {
+      error.value = localizeErrorMessage(err);
+    }
+  }
+
+  async function repairConnection(): Promise<boolean> {
+    if (connectionRepairing.value) return false;
+    connectionRepairing.value = true;
+    error.value = null;
+    installIssueCode.value = null;
+    installRequiredAction.value = null;
+    try {
+      const result = await repairGameBarWidgetConnection();
+      lastMessage.value = localizeErrorMessage(result.message);
+      installIssueCode.value = result.issueCode;
+      installRequiredAction.value = result.requiredAction;
+      installRetryable.value = result.retryable;
+      if (!result.success && result.issueCode !== 'uacCancelled') {
+        error.value = localizeErrorMessage(result.error ?? result.message);
+        phase.value = 'error';
+      } else if (result.success) {
+        phase.value = 'complete';
+      }
+      await refreshStatusUntilSettled();
+      return result.success;
+    } catch (err) {
+      error.value = localizeErrorMessage(err);
+      installIssueCode.value = 'loopbackRepairFailed';
+      installRequiredAction.value = 'retryOrReinstall';
+      phase.value = 'error';
+      return false;
+    } finally {
+      connectionRepairing.value = false;
+    }
+  }
+
+  async function verifyRuntime(): Promise<boolean> {
+    runtimeVerifying.value = true;
+    error.value = null;
+    try {
+      const result = await verifyGameBarWidgetRuntime();
+      lastMessage.value = localizeErrorMessage(result.message);
+      installIssueCode.value = result.issueCode;
+      installRequiredAction.value = result.requiredAction;
+      installRetryable.value = result.retryable;
+      if (!result.success) error.value = localizeErrorMessage(result.message);
+      await refreshStatus();
+      return result.success;
+    } catch (err) {
+      error.value = localizeErrorMessage(err);
+      return false;
+    } finally {
+      runtimeVerifying.value = false;
     }
   }
 
@@ -220,6 +375,28 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       `installed: ${status.value?.installed ?? 'unknown'}`,
       `installedVersion: ${status.value?.installedVersion ?? '-'}`,
       `loopbackConfigured: ${status.value?.loopbackConfigured ?? 'unknown'}`,
+      `loopbackState: ${status.value?.loopbackState ?? 'unknown'}`,
+      `loopbackError: ${status.value?.loopbackError ?? '-'}`,
+      `ipcState: ${connectionStatus.value?.state ?? 'unknown'}`,
+      `ipcPort: ${connectionStatus.value?.port ?? '-'}`,
+      `ipcRetryAttempt: ${connectionStatus.value?.retryAttempt ?? '-'}`,
+      `ipcIssueCode: ${connectionStatus.value?.issueCode ?? '-'}`,
+      `ipcLastError: ${connectionStatus.value?.lastError ?? '-'}`,
+      `ipcLastConnectedAt: ${connectionStatus.value?.lastConnectedAt ?? '-'}`,
+      `ipcOccupiedPorts: ${connectionStatus.value?.occupiedPorts.join(', ') || '-'}`,
+      `ipcBlockingProcesses: ${connectionStatus.value?.blockingProcesses.join(', ') || '-'}`,
+      `ipcDiscoveryWarning: ${connectionStatus.value?.discoveryWarning ?? '-'}`,
+      `publisher: ${status.value?.trust.publisher ?? '-'}`,
+      `signatureThumbprint: ${status.value?.trust.signatureThumbprint ?? '-'}`,
+      `signatureKind: ${status.value?.trust.signatureKind ?? '-'}`,
+      `trustedPeople: ${status.value?.trust.trustedPeople ?? 'unknown'}`,
+      `msixStatus: ${status.value?.trust.msixStatus ?? '-'}`,
+      `catalogStatus: ${status.value?.trust.catalogStatus ?? '-'}`,
+      `smartAppControl: ${status.value?.trust.smartAppControlState ?? 'unknown'}`,
+      `wdac: ${status.value?.trust.wdacState ?? 'unknown'}`,
+      `runtimeState: ${status.value?.trust.runtimeState ?? 'unknown'}`,
+      `runtimeVerified: ${status.value?.trust.runtimeVerified ?? 'unknown'}`,
+      `codeIntegrityEvent: ${status.value?.trust.recentCodeIntegrityEvent ? JSON.stringify(status.value.trust.recentCodeIntegrityEvent) : '-'}`,
       `latestVersion: ${updateCheck.value?.latestVersion ?? '-'}`,
       `cdnDownloadUrl: ${updateCheck.value?.cdnDownloadUrl ?? '-'}`,
       `githubDownloadUrl: ${updateCheck.value?.githubDownloadUrl ?? '-'}`,
@@ -231,6 +408,10 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
       `progress: ${progress.value ? formatWidgetProgressMessage(progress.value, currentLocale()) : '-'}`,
       `installLogPath: ${installLogPath.value ?? '-'}`,
       `installLogExcerpt: ${installLogExcerpt.value ?? '-'}`,
+      `issueCode: ${installIssueCode.value ?? '-'}`,
+      `requiredAction: ${installRequiredAction.value ?? '-'}`,
+      `retryable: ${installRetryable.value}`,
+      `blockingPackages: ${installBlockingPackages.value.length ? installBlockingPackages.value.join(', ') : '-'}`,
     ];
     return navigator.clipboard.writeText(lines.join('\n'));
   }
@@ -280,11 +461,13 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
 
   if (autoInit) {
     void refreshStatus();
+    void refreshConnectionStatus();
     ensureSessionUpdateCheck();
   }
 
   onUnmounted(() => {
     unlistenProgress?.();
+    unlistenConnectionStatus?.();
   });
 
   return {
@@ -301,7 +484,15 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     lastMessage,
     installLogPath,
     installLogExcerpt,
+    installIssueCode,
+    installRequiredAction,
+    installRetryable,
+    installBlockingPackages,
+    runtimeVerifying,
+    connectionStatus,
+    connectionRepairing,
     refreshStatus,
+    refreshConnectionStatus,
     checkUpdate,
     ensureSessionUpdateCheck,
     installOrUpdate,
@@ -309,6 +500,9 @@ export function useGameBarWidget(options?: { autoInit?: boolean }) {
     pickAndInstallFromLocal,
     pickAndInstallFromLocalFolder,
     uninstall,
+    openSmartAppControl,
+    repairConnection,
+    verifyRuntime,
     copyDiagnostics,
     copyDownloadUrl,
     getDownloadUrlForSource,
@@ -566,6 +760,8 @@ export function useDebugGameBarWidget() {
 
   return {
     widget,
+    busy: baseWidget.busy,
+    checkingUpdate: baseWidget.checkingUpdate,
     widgetZipPath,
     actionError,
     useRealInstall,
