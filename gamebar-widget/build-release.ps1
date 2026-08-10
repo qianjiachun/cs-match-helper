@@ -1,4 +1,3 @@
-#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Build signed MSIX for distribution (developer machine only).
@@ -14,8 +13,13 @@ $CertsDir = Join-Path $Root 'certs'
 $DistDir = Join-Path $Root 'dist'
 $PfxPath = Join-Path $CertsDir 'CSMatchHelperWidget.pfx'
 $CerPath = Join-Path $CertsDir 'CSMatchHelperWidget.cer'
-$CertPassword = 'csmatchhelper'
-$CertSubject = 'CN=CSMatchHelperDev'
+$SigningContractPath = Join-Path $Root 'signing-contract.json'
+$SigningContract = Get-Content -LiteralPath $SigningContractPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$CertPassword = if ($env:WIDGET_SIGNING_CERT_PASSWORD) { $env:WIDGET_SIGNING_CERT_PASSWORD } else { 'csmatchhelper' }
+$CertSubject = [string]$SigningContract.publisher
+$CertThumbprint = ([string]$SigningContract.certificateThumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+$TimestampUrl = [string]$SigningContract.timestampUrl
+$TimestampDigestAlgorithm = [string]$SigningContract.timestampDigestAlgorithm
 
 function Find-MsBuild {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -33,29 +37,41 @@ function Find-MsBuild {
     return $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 
-function Ensure-SigningCertificate {
-    if ((Test-Path $PfxPath) -and (Test-Path $CerPath)) {
-        Write-Host "==> Using existing signing cert: $PfxPath"
-        return
+function Assert-SigningCertificate {
+    foreach ($required in @($PfxPath, $CerPath)) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+            throw "Missing fixed signing material: $required`nRestore the backed-up 196D...F8AA certificate. This build never generates a replacement."
+        }
     }
 
-    Write-Host '==> Create self-signed code signing certificate...'
-    New-Item -ItemType Directory -Force -Path $CertsDir | Out-Null
-
     $securePassword = ConvertTo-SecureString -String $CertPassword -Force -AsPlainText
-    $cert = New-SelfSignedCertificate `
-        -Subject $CertSubject `
-        -Type CodeSigningCert `
-        -KeyUsage DigitalSignature `
-        -KeyAlgorithm RSA `
-        -KeyLength 2048 `
-        -CertStoreLocation 'Cert:\CurrentUser\My' `
-        -NotAfter (Get-Date).AddYears(5)
-
-    Export-PfxCertificate -Cert $cert -FilePath $PfxPath -Password $securePassword | Out-Null
-    Export-Certificate -Cert $cert -FilePath $CerPath | Out-Null
-    Write-Host "    PFX: $PfxPath"
-    Write-Host "    CER: $CerPath"
+    $pfx = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        $PfxPath,
+        $securePassword,
+        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+    )
+    $cer = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CerPath)
+    foreach ($item in @($pfx, $cer)) {
+        $thumbprint = ($item.Thumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+        if ($thumbprint -ne $CertThumbprint) {
+            throw "Signing certificate thumbprint changed. Expected $CertThumbprint, actual $thumbprint"
+        }
+        if ($item.Subject -ne $CertSubject) {
+            throw "Signing certificate subject changed. Expected '$CertSubject', actual '$($item.Subject)'"
+        }
+        if ((Get-Date) -lt $item.NotBefore -or (Get-Date) -gt $item.NotAfter) {
+            throw "Signing certificate is outside its validity period: $($item.NotBefore) - $($item.NotAfter)"
+        }
+        $hasCodeSigningEku = @($item.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' } | ForEach-Object {
+            $_.EnhancedKeyUsages | Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' }
+        }).Count -gt 0
+        if (-not $hasCodeSigningEku) { throw 'Signing certificate lacks the Code Signing EKU' }
+    }
+    if (-not $pfx.HasPrivateKey) { throw 'The fixed PFX does not contain its private key' }
+    if (-not $TimestampUrl -or $TimestampDigestAlgorithm -ne 'SHA256') {
+        throw 'signing-contract.json must configure an RFC 3161 timestamp URL and SHA256 digest'
+    }
+    Write-Host "==> Fixed signing certificate verified: $CertThumbprint"
 }
 
 $netCoreRefPath = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETCore\v5.0"
@@ -71,7 +87,7 @@ if (-not $msbuild) {
     throw 'MSBuild not found. Install Visual Studio with UWP workload.'
 }
 
-Ensure-SigningCertificate
+Assert-SigningCertificate
 
 Write-Host '==> Sync widget version to Package.appxmanifest...'
 $RepoRoot = Split-Path -Parent $Root
@@ -93,6 +109,8 @@ $buildArgs = @(
     '/p:AppxPackageSigningEnabled=true',
     "/p:PackageCertificateKeyFile=$PfxPath",
     "/p:PackageCertificatePassword=$CertPassword",
+    "/p:AppxPackageSigningTimestampServerUrl=$TimestampUrl",
+    "/p:AppxPackageSigningTimestampDigestAlgorithm=$TimestampDigestAlgorithm",
     '/p:AppxBundle=Never',
     '/p:GenerateAppInstallerFile=false',
     '/v:minimal'
@@ -122,7 +140,11 @@ if (-not $appx) {
 
 Write-Host "==> Package found: $($appx.FullName)"
 
-New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
+if (Test-Path -LiteralPath $DistDir) {
+    Get-ChildItem -LiteralPath $DistDir -Force | Remove-Item -Recurse -Force
+} else {
+    New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
+}
 $distPackageName = "CSMatchHelperWidget$($appx.Extension)"
 $distAppx = Join-Path $DistDir $distPackageName
 $distCer = Join-Path $DistDir 'CSMatchHelperWidget.cer'
@@ -145,6 +167,12 @@ $installContent = Get-Content -LiteralPath $distInstall -Raw -Encoding UTF8
 $utf8Bom = New-Object System.Text.UTF8Encoding $true
 [System.IO.File]::WriteAllText($distInstall, $installContent, $utf8Bom)
 
+Write-Host '==> Verify signatures and generate release-contract.json...'
+& (Join-Path $Root 'verify-release.ps1') -PayloadDir $DistDir -GenerateReleaseContract
+if ($LASTEXITCODE -ne 0) {
+    throw "release verification failed with exit code $LASTEXITCODE"
+}
+
 Write-Host '==> Package release zip...'
 & (Join-Path $Root 'package-release.ps1')
 
@@ -156,4 +184,5 @@ Write-Host "    - $distPackageName"
 Write-Host '    - CSMatchHelperWidget.cer'
 Write-Host '    - Dependencies\x64\*.appx'
 Write-Host '    - install.ps1'
+Write-Host '    - release-contract.json'
 Write-Host '    - CSMatchHelperGameBarWidget-*.zip'

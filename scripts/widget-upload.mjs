@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -13,6 +14,16 @@ const BASE_URL = 'https://lunaris.win/api/v1';
 const PROJECT_SLUG = 'cs-match-helper-widget';
 const LUNARIS_USERNAME = 'qianjiachun';
 const WIDGET_RELEASE_DIR = join(root, 'release', 'gamebar-widget');
+const WIDGET_VERIFY_SCRIPT = join(root, 'gamebar-widget', 'verify-release.ps1');
+
+function verifyWidgetArchive(zipPath) {
+  console.log('上传前验证 Widget 签名契约、时间戳和文件哈希…');
+  execFileSync(
+    'powershell',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WIDGET_VERIFY_SCRIPT, '-ArchivePath', zipPath],
+    { cwd: root, stdio: 'inherit' },
+  );
+}
 
 function getApiKey() {
   const apiKey = process.env.LUNARIS_API_KEY?.trim();
@@ -141,6 +152,54 @@ async function uploadFile(filePath, versionTag, fileName) {
   return { sha256, file: complete.file };
 }
 
+async function verifyPublishedArtifactOnce(downloadUrl, expectedSha256) {
+  const response = await fetch(downloadUrl, {
+    headers: { 'Cache-Control': 'no-cache' },
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`公开 CDN 校验失败: HTTP ${response.status}`);
+  }
+
+  const headerSha = response.headers.get('x-checksum-sha256')?.trim().toLowerCase();
+  if (headerSha && headerSha !== expectedSha256) {
+    throw new Error(`公开 CDN 响应哈希不一致: expected=${expectedSha256}, header=${headerSha}`);
+  }
+
+  const hash = createHash('sha256');
+  for await (const chunk of response.body) {
+    hash.update(chunk);
+  }
+  const downloadedSha256 = hash.digest('hex');
+  if (downloadedSha256 !== expectedSha256) {
+    throw new Error(
+      `公开 CDN 文件哈希不一致: expected=${expectedSha256}, actual=${downloadedSha256}`,
+    );
+  }
+  return downloadedSha256;
+}
+
+async function verifyPublishedArtifact(downloadUrl, expectedSha256) {
+  console.log(`校验公开 CDN 文件: ${downloadUrl}`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const downloadedSha256 = await verifyPublishedArtifactOnce(
+        downloadUrl,
+        expectedSha256,
+      );
+      console.log(`公开 CDN 文件校验通过: ${downloadedSha256}`);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 4) {
+        console.log(`CDN 尚未同步，2 秒后重试（${attempt}/4）…`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function findWidgetZip(widgetVersion) {
   const expected = buildWidgetZipName(widgetVersion);
   const expectedPath = join(WIDGET_RELEASE_DIR, expected);
@@ -169,16 +228,17 @@ async function main() {
   const { zipPath, zipName } = findWidgetZip(versionTag);
 
   console.log(`Lunaris Widget 上传: ${zipName}`);
+  verifyWidgetArchive(zipPath);
   await ensureVersion(versionTag);
-  await uploadFile(zipPath, versionTag, zipName);
+  const { sha256 } = await uploadFile(zipPath, versionTag, zipName);
 
   await lunarisRequest(`/projects/${PROJECT_SLUG}/versions/${versionTag}/set-latest`, {
     method: 'POST',
   });
 
-  console.log(
-    `Widget CDN: https://cdn.lunaris.win/${LUNARIS_USERNAME}/${PROJECT_SLUG}/${zipName}?download&v=${versionTag}`,
-  );
+  const downloadUrl = `https://cdn.lunaris.win/${LUNARIS_USERNAME}/${PROJECT_SLUG}/${zipName}?download&v=${versionTag}&sha=${sha256.slice(0, 12)}`;
+  await verifyPublishedArtifact(downloadUrl, sha256);
+  console.log(`Widget CDN: ${downloadUrl}`);
   console.log('Widget Lunaris 上传成功。');
 }
 

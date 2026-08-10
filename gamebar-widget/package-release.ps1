@@ -25,11 +25,20 @@ if (-not $msix) {
 
 $cerPath = Join-Path $DistDir 'CSMatchHelperWidget.cer'
 $installPath = Join-Path $DistDir 'install.ps1'
+$releaseContractPath = Join-Path $DistDir 'release-contract.json'
 if (-not (Test-Path $cerPath)) {
     throw "Missing certificate: $cerPath"
 }
 if (-not (Test-Path $installPath)) {
     throw "Missing install.ps1: $installPath"
+}
+if (-not (Test-Path $releaseContractPath)) {
+    throw "Missing release-contract.json: $releaseContractPath"
+}
+
+& (Join-Path $Root 'verify-release.ps1') -PayloadDir $DistDir
+if ($LASTEXITCODE -ne 0) {
+    throw "release verification failed with exit code $LASTEXITCODE"
 }
 
 $version = '1.0.0'
@@ -63,6 +72,7 @@ try {
     Copy-Item -Path $msix.FullName -Destination (Join-Path $staging $msix.Name) -Force
     Copy-Item -Path $cerPath -Destination (Join-Path $staging 'CSMatchHelperWidget.cer') -Force
     Copy-Item -Path $installPath -Destination (Join-Path $staging 'install.ps1') -Force
+    Copy-Item -Path $releaseContractPath -Destination (Join-Path $staging 'release-contract.json') -Force
     $depSource = Join-Path $DistDir 'Dependencies'
     if (Test-Path $depSource) {
         Copy-Item -Path $depSource -Destination (Join-Path $staging 'Dependencies') -Recurse -Force

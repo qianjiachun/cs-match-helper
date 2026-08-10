@@ -6,6 +6,14 @@
 
 在 CS 对局助手主程序中打开「急停助手」→「HUD 显示」→「Game Bar 全屏 HUD」，点击 **安装 CS对局助手 小组件**。主程序会自动下载、校验并请求一次 UAC 完成安装。
 
+这是固定证书签名的自签版本。安装与使用前提：
+
+- 接受 UAC，并允许安装器将固定指纹 `196D5DCC495BCFF5EABCA6C9650FA8975954F8AA` 添加到 `LocalMachine\TrustedPeople`
+- Windows 11 的 Smart App Control 必须关闭，且使用期间保持关闭；程序只检测并打开设置页，不会自动关闭安全功能
+- 企业 WDAC/代码完整性策略必须允许该发布者；安装器不会修改或绕过企业策略
+
+安装完成且包、证书、loopback 与签名状态正常时，主程序会直接显示“已就绪”。用户按 `Win+G` 打开并固定 Widget 即可使用，无需返回主程序确认。
+
 ## 高级用户：手动安装
 
 从 GitHub Release 或 CDN 下载 `CSMatchHelperGameBarWidget-A.B.C.zip`，解压后以管理员身份运行 `install.ps1`。
@@ -16,6 +24,7 @@
 - `CSMatchHelperWidget.cer` — 签名证书（安装时自动信任）
 - `Dependencies/x64/*.appx` — 运行时依赖
 - `install.ps1` — 一键安装（证书 + 卸载旧包 + 装包 + loopback 豁免）
+- `release-contract.json` — 版本、Publisher、固定指纹和所有安装文件的 SHA-256 契约
 
 发版产物仅为 **`CSMatchHelperGameBarWidget-A.B.C.zip`**（zip 内包含上述安装文件）。
 
@@ -43,7 +52,9 @@ npm run widget:ensure-zip
 
 前置：安装 Visual Studio **「通用 Windows 平台开发」** 工作负载。
 
-以管理员身份运行：
+构建机必须保留并备份 `gamebar-widget/certs/CSMatchHelperWidget.pfx` 与对应 CER。构建不会自动生成替代证书，指纹变化会直接失败。
+
+运行：
 
 ```powershell
 cd gamebar-widget
@@ -93,6 +104,8 @@ cd gamebar-widget
 ```
 
 或在主程序侧调用 `uninstall_gamebar_widget`（后续可在设置页暴露）。
+
+卸载会先删除包和 loopback，再只删除上述固定指纹在 `LocalMachine\TrustedPeople` 中的证书以及运行诊断标记；包卸载失败时不会删除证书。
 
 ## 能力边界
 
