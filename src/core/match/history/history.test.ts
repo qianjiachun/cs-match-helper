@@ -164,7 +164,7 @@ describe('match history schema', () => {
     expect(index.entries).toEqual([
       { id: 'a', platformId: 'perfect', savedAt: 1, updatedAt: 2 },
     ]);
-    expect(index.maxEntries).toBeUndefined();
+    expect(index).not.toHaveProperty('maxEntries');
   });
 
   it('marks unsupported high-version known sections', () => {

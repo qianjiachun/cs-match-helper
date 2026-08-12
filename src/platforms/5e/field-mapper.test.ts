@@ -201,6 +201,8 @@ describe('P5e field mapper', () => {
         },
       },
       userInfo: {
+        url: 'test:user-info',
+        requestBody: {},
         responseBody: {
           data: {
             [UUID_JERRY]: {
@@ -213,6 +215,8 @@ describe('P5e field mapper', () => {
         },
       },
       eloInfo: {
+        url: 'test:elo-info',
+        requestBody: {},
         responseBody: {
           data: {
             [UUID_JERRY]: {
@@ -224,6 +228,8 @@ describe('P5e field mapper', () => {
         },
       },
       mapExt: {
+        url: 'test:map-ext',
+        requestBody: {},
         responseBody: {
           data: {
             [UUID_JERRY]: {
@@ -264,6 +270,8 @@ describe('P5e field mapper', () => {
         [uuid]: homeFixture,
       },
       eloInfo: {
+        url: 'test:elo-info',
+        requestBody: {},
         responseBody: {
           data: {
             [uuid]: {
@@ -281,6 +289,8 @@ describe('P5e field mapper', () => {
         },
       },
       mapExt: {
+        url: 'test:map-ext',
+        requestBody: {},
         responseBody: {
           data: {
             [uuid]: {
@@ -297,6 +307,8 @@ describe('P5e field mapper', () => {
         },
       },
       userInfo: {
+        url: 'test:user-info',
+        requestBody: {},
         responseBody: {
           data: {
             [uuid]: { username: '压力队友Die_family', steam_id: '76561198000000001' },

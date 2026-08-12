@@ -118,6 +118,6 @@ describe('P5eMatchParser', () => {
 
     const record = createP5eMatchRecord(enriched);
     expect(record.time).toBe(new Date(Number(epochMs)).toISOString());
-    expect(Number.isNaN(Date.parse(record.time))).toBe(false);
+    expect(Number.isNaN(Date.parse(record.time!))).toBe(false);
   });
 });

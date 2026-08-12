@@ -47,7 +47,16 @@ describe('computeP5eReadyDeadline', () => {
       platformGameId: 'test',
       uuids: [],
       capturedAt: String(ms),
-      wsAnchor: { capturedAt: String(ms), platformGameId: 'g1', uuids: [] },
+      wsAnchor: {
+        gameId: 'g1',
+        team1Uuids: [],
+        team2Uuids: [],
+        teamSideByUuid: {},
+        partyRooms: [],
+        readyUuids: [],
+        capturedAt: String(ms),
+        eventHint: 'test',
+      },
     };
     expect(computeP5eReadyDeadline(bundle)).toBe(ms + P5E_READY_COUNTDOWN_MS);
   });

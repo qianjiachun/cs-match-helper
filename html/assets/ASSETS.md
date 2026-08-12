@@ -17,7 +17,6 @@ html/
         ├── comment.png           ← 预览：留言板
         ├── team-compare.png      ← 预览 02：队伍对比
         ├── ai-analysis.png       ← 预览 03：AI 赛前分析
-        └── counter-strafing.png  ← 急停助手 / Game Bar 小组件
 ```
 
 ## 建议规格
@@ -29,7 +28,6 @@ html/
 | `comment.png` | 宽 ≥ 1400px | PNG / WebP | 留言板侧栏截图 |
 | `team-compare.png` | 宽 ≥ 1400px | PNG / WebP | 队伍对比界面 |
 | `ai-analysis.png` | 宽 ≥ 1400px | PNG / WebP | AI 分析界面 |
-| `counter-strafing.png` | 宽 ≥ 900px，竖图更佳 | PNG / WebP | Game Bar / HUD 截图 |
 
 ### 截图技巧
 
@@ -44,7 +42,7 @@ html/
 仓库 README 已有可用截图，可直接下载后改名放入对应路径：
 
 - Logo：README 顶部图标
-- 对局数据 / 队伍对比 / AI 分析 / 急停助手：README「界面预览」「急停助手」小节
+- 对局数据 / 队伍对比 / AI 分析：README「界面预览」小节
 
 ## 下载链接
 

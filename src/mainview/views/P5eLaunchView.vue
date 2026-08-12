@@ -61,7 +61,7 @@ const PROBE_INTERVAL_MS = 3000;
 
 let alive = false;
 let probing = false;
-let probeTimer: ReturnType<typeof setInterval> | null = null;
+let probeTimer: number | null = null;
 let pathInputTouched = false;
 
 function activeClientRootHint(): string | undefined {

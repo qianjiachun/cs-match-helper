@@ -1,4 +1,4 @@
 [[permission]]
 identifier = "allow-set-app-locale"
-description = "允许主程序同步界面语言到 HUD 与 Game Bar Widget"
+description = "允许主程序同步界面语言与窗口标题"
 commands.allow = ["set_app_locale"]

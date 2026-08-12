@@ -1,6 +1,6 @@
 [package]
 name = "cs-match-helper"
-version = "3.3.1"
+version = "3.4.0"
 description = "CS 匹配助手 - 对局工具集"
 authors = ["cs-match-helper"]
 edition = "2021"
@@ -29,22 +29,14 @@ sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
-crossbeam-channel = "0.5"
-zip = { version = "2", default-features = false, features = ["deflate"] }
-
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
-    "Win32_Graphics_Gdi",
     "Win32_Security",
     "Win32_Security_Authorization",
-    "Win32_System_Performance",
-    "Win32_System_ProcessStatus",
     "Win32_System_Registry",
     "Win32_System_Threading",
-    "Win32_UI_Input",
-    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }

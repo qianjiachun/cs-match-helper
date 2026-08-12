@@ -22,15 +22,5 @@ Thumbs.db
 source
 response.txt
 design-system
-gamebar-widget/.build/
-gamebar-widget/**/bin/
-gamebar-widget/**/obj/
-gamebar-widget/**/AppPackages/
-gamebar-widget/**/*.appx
-gamebar-widget/**/*.appxupload
-gamebar-widget/dist/
-gamebar-widget/certs/*.pfx
-gamebar-widget/certs/*.cer
-gamebar-widget/dist/
-gamebar-widget/certs/*.pfx
-gamebar-widget/certs/*.cer
+/videos/
+/gamebar-widget/

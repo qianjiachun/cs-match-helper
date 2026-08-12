@@ -27,11 +27,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(rootDir, 'src/mainview/index.html'),
-        'counter-strafing-hud': path.resolve(rootDir, 'src/mainview/counter-strafing-hud.html'),
-        'counter-strafing-assessment-hud': path.resolve(
-          rootDir,
-          'src/mainview/counter-strafing-assessment-hud.html',
-        ),
       },
     },
   },

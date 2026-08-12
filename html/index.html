@@ -6,14 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>CS 匹配助手 — 完美/5E 赛前数据分析 · 留言板 · AI 胜率预测 · 急停助手</title>
+    <title>CS 匹配助手 — 完美/5E 赛前数据分析 · 留言板 · AI 胜率预测</title>
     <meta
       name="description"
-      content="CS 匹配助手：完美对战与 5E 准备阶段自动读取双方数据，支持对局留言板互动、队伍对比、AI 胜率预测与急停助手。约 6MB、免安装，不读游戏内存、不注入进程。"
+      content="CS 匹配助手：完美对战与 5E 准备阶段自动读取双方数据，支持对局留言板互动、队伍对比、对局历史与 AI 胜率预测。约 6MB、免安装，不读游戏内存、不注入进程。"
     />
     <meta
       name="keywords"
-      content="CS匹配助手,CS2,完美对战,5E,赛前分析,留言板,对局评论,完美评论,5E评论,胜率预测,急停助手,counter-strafing,对局数据,小淳"
+      content="CS匹配助手,CS2,完美对战,5E,赛前分析,留言板,对局评论,完美评论,5E评论,胜率预测,对局历史,对局数据,小淳"
     />
     <meta name="author" content="小淳" />
     <meta name="creator" content="小淳" />
@@ -38,10 +38,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="CS 匹配助手" />
-    <meta property="og:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与急停助手" />
+    <meta property="og:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与 AI 预测" />
     <meta
       property="og:description"
-      content="准备阶段自动读取双方数据，对局留言板互动，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装，支持完美对战与 5E。"
+      content="准备阶段自动读取双方数据，支持对局留言板、历史记录与 AI 胜率预测。约 6MB、免安装，支持完美对战与 5E。"
     />
     <meta property="og:url" content="https://github.com/qianjiachun/cs-match-helper" />
     <meta
@@ -52,10 +52,10 @@
     <meta property="og:image:alt" content="CS 匹配助手对局数据面板预览" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与急停助手" />
+    <meta name="twitter:title" content="CS 匹配助手 — 完美/5E 赛前数据分析、留言板与 AI 预测" />
     <meta
       name="twitter:description"
-      content="准备阶段自动读取双方数据，对局留言板互动，AI 预测胜率，急停助手量化停稳与急停质量。约 6MB、免安装。"
+      content="准备阶段自动读取双方数据，支持对局留言板、历史记录与 AI 胜率预测。约 6MB、免安装。"
     />
     <meta
       name="twitter:image"
@@ -99,11 +99,11 @@
             "@id": "https://github.com/qianjiachun/cs-match-helper#software",
             "name": "CS 匹配助手",
             "alternateName": ["CS Match Helper", "CS匹配助手"],
-            "description": "在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比与赛前 AI 分析；支持对局留言板互动；内置急停助手，量化开枪稳定与急停质量。",
+            "description": "在匹配准备阶段自动读取对局信息，展示双方选手数据、实力对比、对局留言板、历史记录与赛前 AI 分析。",
             "applicationCategory": "GameApplication",
             "applicationSubCategory": "Utility",
             "operatingSystem": "Windows 10+",
-            "softwareVersion": "3.1.0",
+            "softwareVersion": "3.4.0",
             "inLanguage": "zh-CN",
             "isAccessibleForFree": true,
             "offers": {
@@ -119,7 +119,7 @@
               "对局留言板与互动",
               "双方选手数据与队伍对比",
               "AI 胜率预测与赛前分析",
-              "急停助手与游戏内 HUD"
+              "本地对局历史"
             ],
             "screenshot": [
               "https://github.com/user-attachments/assets/7b4d7716-20bb-4343-9362-54681fd9867e",
@@ -149,7 +149,7 @@
             "@id": "https://github.com/qianjiachun/cs-match-helper#website",
             "name": "CS 匹配助手",
             "url": "https://github.com/qianjiachun/cs-match-helper",
-            "description": "CS 匹配助手官网介绍：完美/5E 赛前数据分析、对局留言板、AI 胜率预测与急停助手。",
+            "description": "CS 匹配助手官网介绍：完美/5E 赛前数据分析、对局留言板、历史记录与 AI 胜率预测。",
             "inLanguage": "zh-CN",
             "publisher": {
               "@type": "Person",
@@ -166,14 +166,6 @@
                 "acceptedAnswer": {
                   "@type": "Answer",
                   "text": "进入准备界面后自动读取对局信息。完美对战平台通过监听客户端本地日志解析建房与选手数据；5E 需从本应用内启动客户端，读取客户端内的对局与选手数据。两种方式都不会读取游戏内存，也不会注入 CS2 进程。"
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "急停助手安全吗？",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "急停助手监听本机键鼠输入并结合移速模型评估停稳与急停时机；可选使用 CS2 官方 GSI 接口过滤无效样本。它不读取 CS2 内存、不向游戏注入代码，只管理自己的 GSI 配置，并在 GSI 断连时自动回退。"
                 }
               },
               {
@@ -215,7 +207,6 @@
         </a>
       </div>
       <nav class="nav__links" aria-label="页面导航">
-        <a href="#aim">急停助手</a>
         <a href="#insight">功能预览</a>
       </nav>
       <div class="nav__actions">
@@ -230,15 +221,6 @@
             <path d="M12.001 2C6.47598 2 2.00098 6.475 2.00098 12C2.00098 16.425 4.86348 20.1625 8.83848 21.4875C9.33848 21.575 9.52598 21.275 9.52598 21.0125C9.52598 20.775 9.51348 19.9875 9.51348 19.15C7.00098 19.6125 6.35098 18.5375 6.15098 17.975C6.03848 17.6875 5.55098 16.8 5.12598 16.5625C4.77598 16.375 4.27598 15.9125 5.11348 15.9C5.90098 15.8875 6.46348 16.625 6.65098 16.925C7.55098 18.4375 8.98848 18.0125 9.56348 17.75C9.65098 17.1 9.91348 16.6625 10.201 16.4125C7.97598 16.1625 5.65098 15.3 5.65098 11.475C5.65098 10.3875 6.03848 9.4875 6.67598 8.7875C6.57598 8.5375 6.22598 7.5125 6.77598 6.1375C6.77598 6.1375 7.61348 5.875 9.52598 7.1625C10.326 6.9375 11.176 6.825 12.026 6.825C12.876 6.825 13.726 6.9375 14.526 7.1625C16.4385 5.8625 17.276 6.1375 17.276 6.1375C17.826 7.5125 17.476 8.5375 17.376 8.7875C18.0135 9.4875 18.401 10.375 18.401 11.475C18.401 15.3125 16.0635 16.1625 13.8385 16.4125C14.201 16.725 14.5135 17.325 14.5135 18.2625C14.5135 19.6 14.501 20.675 14.501 21.0125C14.501 21.275 14.6885 21.5875 15.1885 21.4875C19.259 20.1133 21.9999 16.2963 22.001 12C22.001 6.475 17.526 2 12.001 2Z" />
           </svg>
           GitHub
-        </a>
-        <a
-          class="btn btn--sm nav__source"
-          href="https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/CSMatchHelperGameBarWidget.zip?download"
-          rel="noopener"
-          title="下载最新版 Game Bar 小组件"
-          data-widget-download
-        >
-          小组件下载
         </a>
         <a
           class="btn btn--sm"
@@ -274,20 +256,6 @@
             <div><strong>6 MB</strong><span>🚀 极致轻量</span></div>
             <div><strong>免安装</strong><span>📦 开箱即用</span></div>
           </div>
-          <aside class="hero__notice" data-a="fade-up" data-d="340" aria-label="小组件安装公告">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-              <path d="M12 7.8v4.6l3.1 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span>
-              因 GitHub 账号暂时受限，安装小组件请先
-              <a
-                href="https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/CSMatchHelperGameBarWidget.zip?download"
-                rel="noopener"
-                data-widget-download
-              >手动下载</a>。申诉已提交，预计几天内即可恢复。
-            </span>
-          </aside>
         </div>
         <a
           class="scroll-hint"
@@ -388,30 +356,6 @@
                 loading="lazy"
                 decoding="async"
                 onerror="this.src='https://github.com/user-attachments/assets/fd436175-01e8-410e-865c-e1b5489b77eb'"
-              />
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      <section class="scene scene--stack" id="aim" data-scene aria-labelledby="aim-title">
-        <div class="stack">
-          <div class="stack__copy">
-            <p class="kicker" data-a="fade-up">工具</p>
-            <h2 id="aim-title" data-a="fade-up" data-d="80">急停助手</h2>
-            <p data-a="fade-up" data-d="140">急停评估、射击误差，安全低占用的游戏内 HUD</p>
-            <button type="button" class="info-link" data-info="safety" data-a="fade-up" data-d="180">
-              为何安全
-            </button>
-          </div>
-          <div class="stack__visual" data-a="rise-pop" data-d="160">
-            <figure class="stack__photo">
-              <img
-                src="./assets/screenshots/counter-strafing.png?v=20260714"
-                alt="CS 匹配助手急停助手：开枪稳定与急停评估 HUD 预览"
-                loading="lazy"
-                decoding="async"
-                onerror="this.src='https://github.com/user-attachments/assets/41a1fc5c-44fc-412a-bd38-3e55aca16e8b'"
               />
             </figure>
           </div>

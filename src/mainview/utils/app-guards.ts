@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { debugEnabled } from '../composables/useDebugUnlock';
 import { openAppDevtools } from './devtools';
 
@@ -14,11 +13,7 @@ async function openDevtools(): Promise<void> {
   try {
     await openAppDevtools();
   } catch {
-    try {
-      await getCurrentWindow().openDevtools();
-    } catch {
-      // 非 Tauri 环境或当前构建未启用 devtools API
-    }
+    // 非 Tauri 环境或当前构建未启用 devtools 命令。
   }
 }
 

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile, root } from './load-env.mjs';
@@ -8,6 +8,7 @@ const releaseDir = join(root, 'release');
 const exeSource = join(root, 'src-tauri/target/release/cs-match-helper.exe');
 const appExeName = 'cs-match-helper.exe';
 const exeDest = join(releaseDir, appExeName);
+const legacyWidgetReleaseDir = join(releaseDir, 'gamebar-widget');
 const uploadLunaris =
   process.argv.includes('--upload-lunaris') || process.env.AUTO_UPLOAD_LUNARIS === '1';
 
@@ -18,11 +19,11 @@ if (!existsSync(exeSource)) {
 }
 
 mkdirSync(releaseDir, { recursive: true });
+rmSync(legacyWidgetReleaseDir, { recursive: true, force: true });
 copyFileSync(exeSource, exeDest);
 
 const exeSize = statSync(exeDest).size;
 console.log(`已输出主程序: ${exeDest}  (${exeSize} bytes)`);
-console.log('Widget 请单独构建: npm run build:widget');
 
 if (!uploadLunaris) {
   process.exit(0);

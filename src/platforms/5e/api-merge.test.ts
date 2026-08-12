@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { countApiCoverage, mergeApiPayload } from './api-merge';
 import type { P5eApiPayload } from './types';
 

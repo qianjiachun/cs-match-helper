@@ -1,8 +1,6 @@
 mod ai;
 mod comments;
-mod counter_strafing;
-mod gamebar_shortcut;
-mod gamebar_widget;
+mod legacy_hud_cleanup;
 mod log_watcher;
 mod match_history;
 mod platform;
@@ -10,7 +8,6 @@ mod shutdown;
 mod update;
 
 use ai::AiAnalysisState;
-use counter_strafing::{CounterStrafingRuntime, ASSESSMENT_HUD_WINDOW_LABEL, HUD_WINDOW_LABEL};
 use log_watcher::WatcherState;
 use platform::{
     fetch_5e_match_detail, fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json,
@@ -113,17 +110,12 @@ fn close_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn set_app_locale(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, CounterStrafingRuntime>,
-    locale: String,
-) {
+fn set_app_locale(app: tauri::AppHandle, locale: String) {
     let normalized = if locale.eq_ignore_ascii_case("en-US") {
         "en-US"
     } else {
         "zh-CN"
     };
-    state.set_locale(&app, normalized);
     if let Some(window) = app.get_webview_window("main") {
         let title = if normalized == "en-US" {
             format!("CS Match Helper - By 小淳 v{}", env!("CARGO_PKG_VERSION"))
@@ -202,8 +194,6 @@ pub(crate) fn shutdown_app(app: &tauri::AppHandle) {
         watcher.take_handle()
     };
 
-    app.state::<CounterStrafingRuntime>().request_shutdown(app);
-
     if let Some(handle) = watcher_handle {
         thread::spawn(move || {
             let _ = handle.join();
@@ -220,7 +210,6 @@ pub fn run() {
             watcher: Mutex::new(WatcherState::default()),
         })
         .manage(AiAnalysisState::default())
-        .manage(CounterStrafingRuntime::default())
         .manage(P5eCdpRuntime::default())
         .setup(|app| {
             let version = env!("CARGO_PKG_VERSION");
@@ -229,8 +218,7 @@ pub fn run() {
             }
 
             update::startup_update_maintenance(app.handle());
-            app.state::<CounterStrafingRuntime>()
-                .initialize(app.handle());
+            legacy_hud_cleanup::start();
 
             Ok(())
         })
@@ -276,37 +264,6 @@ pub fn run() {
             match_history::patch_match_history_section,
             match_history::delete_match_history_entry,
             match_history::clear_match_history,
-            counter_strafing::runtime::load_counter_strafing_settings_cmd,
-            counter_strafing::runtime::save_counter_strafing_settings_cmd,
-            counter_strafing::runtime::reset_counter_strafing_settings_cmd,
-            counter_strafing::runtime::get_counter_strafing_snapshot,
-            counter_strafing::runtime::get_gamebar_widget_connection_status,
-            counter_strafing::runtime::get_counter_strafing_gsi_status,
-            counter_strafing::runtime::install_or_repair_counter_strafing_gsi,
-            counter_strafing::runtime::remove_counter_strafing_gsi_config,
-            counter_strafing::runtime::clear_counter_strafing_records,
-            counter_strafing::runtime::start_counter_strafing,
-            counter_strafing::runtime::stop_counter_strafing,
-            counter_strafing::runtime::show_counter_strafing_hud,
-            counter_strafing::runtime::hide_counter_strafing_hud,
-            counter_strafing::runtime::save_hud_bounds,
-            counter_strafing::runtime::get_counter_strafing_assessment_snapshot,
-            counter_strafing::runtime::clear_counter_strafing_assessment_records,
-            counter_strafing::runtime::show_counter_strafing_assessment_hud,
-            counter_strafing::runtime::hide_counter_strafing_assessment_hud,
-            counter_strafing::runtime::save_counter_strafing_assessment_hud_bounds,
-            counter_strafing::runtime::start_binding_capture,
-            counter_strafing::runtime::cancel_binding_capture,
-            counter_strafing::runtime::reset_key_map,
-            gamebar_widget::get_gamebar_widget_status,
-            gamebar_widget::check_gamebar_widget_update,
-            gamebar_widget::install_or_update_gamebar_widget,
-            gamebar_widget::install_gamebar_widget_from_local,
-            gamebar_widget::find_gamebar_widget_dev_dist,
-            gamebar_widget::uninstall_gamebar_widget,
-            gamebar_widget::repair_gamebar_widget_connection,
-            gamebar_widget::open_smart_app_control_settings,
-            gamebar_widget::verify_gamebar_widget_runtime,
             relaunch_as_admin,
             close_app,
             set_app_locale,
@@ -316,36 +273,6 @@ pub fn run() {
         .run(|app_handle, event| match event {
             RunEvent::ExitRequested { .. } => {
                 shutdown_app(app_handle);
-            }
-            RunEvent::WindowEvent { label, event, .. } if label == HUD_WINDOW_LABEL => {
-                match event {
-                    WindowEvent::CloseRequested { api, .. } => {
-                        if !shutdown::is_app_shutting_down() {
-                            api.prevent_close();
-                        }
-                    }
-                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
-                        let _ = app_handle
-                            .state::<CounterStrafingRuntime>()
-                            .save_hud_bounds_from_window(app_handle);
-                    }
-                    _ => {}
-                }
-            }
-            RunEvent::WindowEvent { label, event, .. } if label == ASSESSMENT_HUD_WINDOW_LABEL => {
-                match event {
-                    WindowEvent::CloseRequested { api, .. } => {
-                        if !shutdown::is_app_shutting_down() {
-                            api.prevent_close();
-                        }
-                    }
-                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
-                        let _ = app_handle
-                            .state::<CounterStrafingRuntime>()
-                            .save_assessment_hud_bounds_from_window(app_handle);
-                    }
-                    _ => {}
-                }
             }
             RunEvent::WindowEvent { label, event, .. } if label == "main" => {
                 if let WindowEvent::CloseRequested { api, .. } = event {

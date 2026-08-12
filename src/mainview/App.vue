@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { defineAsyncComponent, onMounted, ref, watch } from 'vue';
-import { getCounterStrafingSnapshot } from '@core/counter-strafing/native';
 import CopyToast from './components/CopyToast.vue';
 import CloseConfirmDialog from './components/CloseConfirmDialog.vue';
 import TitleBar from './components/TitleBar.vue';
-import { useCounterStrafingListening } from './composables/useCounterStrafingListening';
-import { useCounterStrafingSession } from './composables/useCounterStrafingSession';
 import { useAiAnalysis } from './composables/useAiAnalysis';
 import { useAppSession } from './composables/useAppSession';
 import { useComments } from './composables/useComments';
@@ -14,16 +11,9 @@ import { useMatchHistory } from './composables/useMatchHistory';
 import { useP5eCdp } from './composables/useP5eCdp';
 import { useCloseConfirm } from './composables/useCloseConfirm';
 import { useUpdateCheck } from './composables/useUpdateCheck';
-import CounterStrafingView from './views/CounterStrafingView.vue';
 import MatchAssistantView from './views/MatchAssistantView.vue';
 import PlatformSelectView from './views/PlatformSelectView.vue';
 import SettingsView, { type SettingsTab } from './views/SettingsView.vue';
-import {
-  resolveInitialView,
-  viewFromModuleId,
-  writeLastModuleId,
-  type AppModuleId,
-} from './modules/appModules';
 import { startupMark } from './utils/startup-metrics';
 import type { PlatformId } from '@platforms/types';
 import { requestMatchAttention } from './native';
@@ -120,9 +110,6 @@ const {
   retryDownload,
 } = useUpdateCheck();
 const { closeConfirmOpen, cancelClose, confirmClose, onCloseDialogAfterLeave } = useCloseConfirm();
-const counterStrafingListening = useCounterStrafingListening();
-const { busy: counterStrafingBusy, toggleListening: toggleCounterStrafingListening } =
-  useCounterStrafingSession();
 
 const commentsDrawerMounted = ref(false);
 const updateDialogMounted = ref(false);
@@ -163,13 +150,6 @@ onMounted(() => {
 
   void ensureVersion();
   window.setTimeout(() => void check({ silent: true }), 12000);
-  void getCounterStrafingSnapshot()
-    .then((snap) => {
-      counterStrafingListening.value = snap.listening;
-    })
-    .catch(() => {
-      // 急停模块未就绪时忽略
-    });
 });
 
 startupMark('app setup end');
@@ -180,41 +160,16 @@ async function injectAiResult(raw: string): Promise<string | null> {
   return ai.injectResult(match.id, raw);
 }
 
-type AppView = 'main' | 'settings' | 'counter-strafing';
+type AppView = 'main' | 'settings';
 
-const currentView = ref<AppView>(resolveInitialView());
+const currentView = ref<AppView>('main');
 const settingsTab = ref<SettingsTab>('history');
-const viewBeforeSettings = ref<Exclude<AppView, 'settings'>>('main');
 
 const settingsViewRef = ref<{ goBack: () => boolean } | null>(null);
 
 function openSettings(tab: SettingsTab = 'history') {
-  if (currentView.value !== 'settings') {
-    viewBeforeSettings.value = currentView.value;
-  }
   settingsTab.value = tab;
   currentView.value = 'settings';
-}
-
-function openModule(id: AppModuleId) {
-  const view = viewFromModuleId(id);
-  if (!view) return;
-  writeLastModuleId(id);
-  currentView.value = view;
-  if (view === 'main') {
-    const match = matches.value[0];
-    if (match) {
-      void ai.analyzeMatch(match);
-    }
-  }
-}
-
-function openCounterStrafing() {
-  openModule('counter-strafing');
-}
-
-async function toggleCounterStrafing() {
-  await toggleCounterStrafingListening();
 }
 
 /** Leave settings (nested back first) or return to previous module view. */
@@ -223,12 +178,10 @@ function goHome() {
     return;
   }
   if (currentView.value === 'settings') {
-    currentView.value = viewBeforeSettings.value;
-    if (currentView.value === 'main') {
-      const match = matches.value[0];
-      if (match) {
-        void ai.analyzeMatch(match);
-      }
+    currentView.value = 'main';
+    const match = matches.value[0];
+    if (match) {
+      void ai.analyzeMatch(match);
     }
     return;
   }
@@ -274,8 +227,6 @@ function onBackFromP5e() {
   <div class="flex h-full flex-col bg-base">
     <TitleBar
       :view="currentView"
-      :counter-strafing-listening="counterStrafingListening"
-      :counter-strafing-busy="counterStrafingBusy"
       :inject-match="injectMatch"
       :replay-perfect-fixture="replayPerfectFixture"
       :inject-ai-result="injectAiResult"
@@ -288,8 +239,6 @@ function onBackFromP5e() {
       :match-history="matchHistory"
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
-      @open-counter-strafing="openCounterStrafing()"
-      @toggle-counter-strafing="toggleCounterStrafing()"
       @go-home="goHome"
       @open-update-dialog="openDialog()"
       @debug-open="onDebugOpen()"
@@ -344,16 +293,6 @@ function onBackFromP5e() {
           :history="matchHistory"
           :initial-tab="settingsTab"
           :visible="true"
-        />
-      </div>
-      <div
-        class="view-shell"
-        :class="currentView === 'counter-strafing' ? 'view-shell--active' : 'view-shell--exit-right'"
-        :aria-hidden="currentView !== 'counter-strafing'"
-      >
-        <CounterStrafingView
-          class="h-full"
-          :visible="currentView === 'counter-strafing'"
         />
       </div>
     </main>

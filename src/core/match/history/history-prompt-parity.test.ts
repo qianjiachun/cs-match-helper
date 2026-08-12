@@ -72,8 +72,11 @@ function buildPerfectRecord(): MatchRecord {
       insights: {
         strongerSide: 'A',
         scoreDiff: 100,
+        ratingDiff: 0,
         highlights: ['A 均分略高'],
         risks: [],
+        topPlayers: [],
+        weakPlayers: [],
         tendencies: [],
       },
     },

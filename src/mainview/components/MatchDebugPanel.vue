@@ -4,7 +4,7 @@ import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
 import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import {
   filterP5eLogEntries,
@@ -32,9 +32,6 @@ import {
 import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
 
 const { copyText } = useCopyFeedback();
-const MatchDebugWidgetPanel = defineAsyncComponent(
-  () => import('./MatchDebugWidgetPanel.vue'),
-);
 const props = withDefaults(
   defineProps<{
     placement?: 'header' | 'floating' | 'inline';
@@ -69,7 +66,7 @@ const emit = defineEmits<{
 }>();
 
 type DebugTab = 'inject' | 'logs';
-type InjectSubTab = 'match' | 'p5e' | 'ai' | 'comments' | 'history' | 'update' | 'widget' | 'runtime';
+type InjectSubTab = 'match' | 'p5e' | 'ai' | 'comments' | 'history' | 'update' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
 const isDev = import.meta.env.DEV;
@@ -576,18 +573,6 @@ watch(
               type="button"
               class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
               :class="
-                injectSubTab === 'widget'
-                  ? 'bg-surface text-fg shadow-sm'
-                  : 'text-fg-muted hover:text-fg-secondary'
-              "
-              @click="switchInjectSubTab('widget')"
-            >
-              Widget
-            </button>
-            <button
-              type="button"
-              class="shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors"
-              :class="
                 injectSubTab === 'runtime'
                   ? 'bg-surface text-fg shadow-sm'
                   : 'text-fg-muted hover:text-fg-secondary'
@@ -868,8 +853,6 @@ watch(
             </button>
           </div>
         </div>
-
-        <MatchDebugWidgetPanel v-else-if="injectSubTab === 'widget'" />
 
         <div v-else-if="injectSubTab === 'runtime'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">

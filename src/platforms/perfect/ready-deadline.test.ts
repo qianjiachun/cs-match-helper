@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { LogLine } from '@core/log/types';
 import { computePerfectReadyDeadline, createPerfectReadyDeadline, PERFECT_READY_WINDOW_MS } from './ready-deadline';
 

@@ -4,35 +4,6 @@
   const nav = document.querySelector("[data-nav]");
   const progress = document.querySelector("[data-progress]");
   const scrollHint = document.querySelector("[data-scroll-hint]");
-  const widgetDownloadLinks = document.querySelectorAll("[data-widget-download]");
-
-  const resolveLatestWidgetDownload = async () => {
-    if (!widgetDownloadLinks.length) return;
-
-    const latestUrl =
-      "https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/CSMatchHelperGameBarWidget.zip?download";
-
-    try {
-      const response = await fetch(latestUrl);
-      if (response.ok) return;
-
-      const message = await response.text();
-      const version = message.match(/not found in version\s+v?(\d+(?:\.\d+){1,3})/i)?.[1];
-      if (!version) return;
-
-      const downloadUrl =
-        `https://cdn.lunaris.win/qianjiachun/cs-match-helper-widget/` +
-        `CSMatchHelperGameBarWidget-${version}.zip?download`;
-      widgetDownloadLinks.forEach((link) => {
-        link.href = downloadUrl;
-      });
-    } catch {
-      // Keep the stable CDN URL when version discovery is unavailable.
-    }
-  };
-
-  resolveLatestWidgetDownload();
-
   let hintDismissed = false;
 
   const dismissScrollHint = () => {
@@ -98,16 +69,6 @@
           </div>
         </div>
         <p class="info-modal__seg info-modal__note">两种方式都不会读取游戏内存，也不会注入 CS2 进程。</p>
-      `,
-    },
-    safety: {
-      title: "为何安全",
-      html: `
-        <div class="info-modal__seg info-modal__prose">
-          <p>急停助手监听本机键鼠输入，再结合内置移速模型判断你是否停稳、急停时机是否合适。CS2 数据同步通过官方 GSI 接口识别武器与回合上下文，过滤持刀、投掷物、死亡或观战等无效样本。</p>
-          <p>它不读取 CS2 内存，不向游戏注入代码。开启增强时只创建并管理自己的 GSI 配置，不修改游戏内容或其他 GSI 配置；GSI 断连后会自动回退。</p>
-        </div>
-        <p class="info-modal__seg info-modal__note">若提示需要管理员权限，是因为 Windows 要求这样才能监听全局键盘，与作弊无关。</p>
       `,
     },
   };

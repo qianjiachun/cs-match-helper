@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { animate } from 'animejs';
-import { MapPin, MousePointerClick } from 'lucide-vue-next';
+import { MapPin } from 'lucide-vue-next';
 import type { PlatformId } from '@platforms/types';
 import { getPlatformLogo } from '../utils/platform-logos';
 
@@ -107,18 +107,6 @@ onMounted(() => {
         </button>
       </div>
 
-      <aside
-        v-if="locale === 'en-US'"
-        class="platform-select__context mx-auto mt-5 flex max-w-2xl items-center justify-center gap-2 px-3 text-center text-[13px] leading-5"
-        role="note"
-        aria-label="Counter Strafing HUD information"
-      >
-        <MousePointerClick class="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-        <p>
-          <span class="font-semibold text-fg">{{ t('platform.hudLabel') }}</span>
-          <span class="ml-1.5 text-fg-secondary">{{ t('platform.hudHint') }}</span>
-        </p>
-      </aside>
     </div>
   </div>
 </template>

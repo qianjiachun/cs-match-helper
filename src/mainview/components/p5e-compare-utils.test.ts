@@ -8,18 +8,21 @@ function player(overrides: Partial<MatchPlayer> = {}): MatchPlayer {
     nickname: 'p',
     avatar: '',
     score: 1700,
+    teamSide: 1,
+    isSingle: true,
     seasonRating: 1.1,
     adpr: 80,
     weRaw: 10,
     recentResults: [],
     recentRatings: [],
     tags: [],
+    radar: {},
     ...overrides,
   };
 }
 
 function team(players: MatchPlayer[]): MatchTeam {
-  return { players, avgScore: undefined };
+  return { side: 'A', id: 1, players, avgScore: undefined, singleCount: 0, partyGroups: [] };
 }
 
 describe('buildP5eTeamRadar', () => {

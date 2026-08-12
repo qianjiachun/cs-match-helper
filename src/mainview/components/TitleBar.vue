@@ -10,7 +10,6 @@ import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import UpdateBadge from './UpdateBadge.vue';
-import CounterStrafingHeaderControl from './counter-strafing/CounterStrafingHeaderControl.vue';
 
 const { t, locale } = useI18n();
 
@@ -27,9 +26,7 @@ function openDebugPanel() {
 }
 
 const props = defineProps<{
-  view: 'main' | 'settings' | 'counter-strafing';
-  counterStrafingListening: boolean;
-  counterStrafingBusy: boolean;
+  view: 'main' | 'settings';
   injectMatch: (data: Record<string, unknown>) => void;
   replayPerfectFixture: () => Promise<void>;
   injectAiResult: (raw: string) => Promise<string | null>;
@@ -45,8 +42,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   clearLogs: [];
   openSettings: [];
-  openCounterStrafing: [];
-  toggleCounterStrafing: [];
   goHome: [];
   openUpdateDialog: [];
   debugOpen: [];
@@ -56,7 +51,7 @@ const showSettingsButton = computed(
   () => props.view === 'main',
 );
 
-const showBackButton = computed(() => props.view === 'settings' || props.view === 'counter-strafing');
+const showBackButton = computed(() => props.view === 'settings');
 </script>
 
 <template>
@@ -108,14 +103,6 @@ const showBackButton = computed(() => props.view === 'settings' || props.view ==
         :match-history="matchHistory"
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
-      />
-
-      <CounterStrafingHeaderControl
-        :active-page="view === 'counter-strafing'"
-        :listening="counterStrafingListening"
-        :busy="counterStrafingBusy"
-        @open="emit('openCounterStrafing')"
-        @toggle="emit('toggleCounterStrafing')"
       />
 
       <button

@@ -33,23 +33,20 @@ describe('application locale', () => {
 
   it('switches inline UI copy immediately', () => {
     applyResolvedLocale('en-US');
-    expect(localize('急停', 'Counter-strafing')).toBe('Counter-strafing');
+    expect(localize('匹配助手', 'Match Helper')).toBe('Match Helper');
     applyResolvedLocale('zh-CN');
-    expect(localize('急停', 'Counter-strafing')).toBe('急停');
+    expect(localize('匹配助手', 'Match Helper')).toBe('匹配助手');
   });
 
-  it('uses the approved Counter Strafing HUD product terminology', () => {
+  it('uses the standalone Match Helper product terminology', () => {
     expect(I18N_MESSAGES['zh-CN'].common.appName).toBe('CS 匹配助手');
-    expect(I18N_MESSAGES['zh-CN'].home.counterTitle).toBe('急停 HUD');
-    expect(I18N_MESSAGES['zh-CN'].counter.title).toBe('急停 HUD');
-    expect(I18N_MESSAGES['en-US'].home.counterTitle).toBe('Counter Strafing HUD');
-    expect(I18N_MESSAGES['en-US'].counter.title).toBe('Counter Strafing HUD');
-    expect(JSON.stringify(I18N_MESSAGES['en-US'])).not.toMatch(/trainer/i);
+    expect(I18N_MESSAGES['en-US'].common.appName).toBe('CS Match Helper');
+    expect(JSON.stringify(I18N_MESSAGES)).not.toMatch(/Game Bar|HUD/);
   });
 
   it('identifies the supported platforms for English users', () => {
     expect(I18N_MESSAGES['en-US'].platform.regionLabel).toBe('Chinese CS platform');
-    expect(I18N_MESSAGES['en-US'].platform.hudLabel).toBe('Need the Counter Strafing HUD?');
-    expect(I18N_MESSAGES['en-US'].platform.hudHint).toBe('Click the control to the right of the app title.');
+    expect(I18N_MESSAGES['en-US'].platform.perfect).toBe('Perfect World Arena');
+    expect(I18N_MESSAGES['en-US'].platform.fiveE).toBe('5E Arena');
   });
 });
