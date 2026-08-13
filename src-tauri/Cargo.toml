@@ -42,7 +42,7 @@ windows = { version = "0.58", features = [
 ] }
 
 [profile.release]
-panic = "unwind"
+panic = "abort"
 codegen-units = 1
 lto = true
 strip = true

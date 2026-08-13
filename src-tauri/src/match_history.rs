@@ -4,12 +4,149 @@ use std::path::{Path, PathBuf};
 
 const INDEX_FILENAME: &str = "index.json";
 const ENTRIES_DIRNAME: &str = "entries";
+const LEGACY_IMPORT_MARKER_FILENAME: &str = ".legacy-import-v1.json";
 const INDEX_SCHEMA_VERSION: u64 = 2;
 
 fn history_root() -> Result<PathBuf, String> {
-    dirs::data_local_dir()
+    let root = dirs::data_local_dir()
         .map(|dir| dir.join("CSMatchHelper").join("match-history"))
-        .ok_or_else(|| "无法获取本地应用数据目录".to_string())
+        .ok_or_else(|| "无法获取本地应用数据目录".to_string())?;
+    import_legacy_history_next_to_exe(&root)?;
+    Ok(root)
+}
+
+fn import_legacy_history_next_to_exe(root: &Path) -> Result<(), String> {
+    let Some(source) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|parent| parent.join("match-history")))
+        .filter(|path| path.is_dir() && path != root)
+    else {
+        return Ok(());
+    };
+
+    let signature = legacy_source_signature(&source);
+    let marker_path = root.join(LEGACY_IMPORT_MARKER_FILENAME);
+    let mut marker = read_legacy_import_marker(&marker_path);
+    let already_imported = marker
+        .get("sources")
+        .and_then(Value::as_array)
+        .is_some_and(|sources| sources.iter().any(|value| value.as_str() == Some(&signature)));
+    if already_imported {
+        return Ok(());
+    }
+
+    merge_legacy_history(&source, root)?;
+
+    let marker_object = marker.as_object_mut().ok_or_else(|| {
+        "历史数据迁移标记格式无效".to_string()
+    })?;
+    let sources = marker_object
+        .entry("sources".to_string())
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or_else(|| "历史数据迁移标记格式无效".to_string())?;
+    sources.push(Value::String(signature));
+    atomic_write_json(&marker_path, &marker)
+}
+
+fn legacy_source_signature(source: &Path) -> String {
+    let path = fs::canonicalize(source).unwrap_or_else(|_| source.to_path_buf());
+    let index = index_path(source);
+    let metadata = fs::metadata(index).ok();
+    let length = metadata.as_ref().map_or(0, fs::Metadata::len);
+    let modified_ms = metadata
+        .and_then(|value| value.modified().ok())
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |value| value.as_millis());
+    format!(
+        "{}|{length}|{modified_ms}",
+        path.to_string_lossy().to_lowercase()
+    )
+}
+
+fn read_legacy_import_marker(path: &Path) -> Value {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| {
+            json!({
+                "schemaVersion": 1,
+                "sources": []
+            })
+        })
+}
+
+fn merge_legacy_history(source: &Path, target: &Path) -> Result<(), String> {
+    let source_index = read_index(source)?;
+    let source_entries = source_index
+        .get("entries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if source_entries.is_empty() {
+        return Ok(());
+    }
+
+    ensure_dirs(target)?;
+    let mut target_index = load_and_slim_index(target)?;
+    let mut changed = false;
+
+    for source_item in source_entries {
+        let Some(id) = source_item.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(platform_id) = source_item.get("platformId").and_then(Value::as_str) else {
+            continue;
+        };
+        let source_document = match read_entry(source, platform_id, id)? {
+            Some(document) => document,
+            None if source_item.get("sections").is_some() => source_item.clone(),
+            None => continue,
+        };
+
+        let target_document = read_entry(target, platform_id, id)?;
+        let merged = match target_document {
+            Some(existing) if document_updated_at(&existing) >= document_updated_at(&source_document) => {
+                merge_objects(&source_document, &existing)
+            }
+            Some(existing) => merge_objects(&existing, &source_document),
+            None => source_document,
+        };
+        write_entry(target, platform_id, id, &merged)?;
+
+        let existing_item = find_existing_index_item(&target_index, platform_id, id).cloned();
+        let item = build_index_meta_from_doc(&merged, existing_item.as_ref());
+        upsert_index_item(&mut target_index, item)?;
+        changed = true;
+    }
+
+    if changed {
+        sort_index_by_updated_at(&mut target_index);
+        write_index(target, &target_index)?;
+    }
+    Ok(())
+}
+
+fn sort_index_by_updated_at(index: &mut Value) {
+    if let Some(entries) = index.get_mut("entries").and_then(Value::as_array_mut) {
+        entries.sort_by(|left, right| {
+            let left_updated = left.get("updatedAt").and_then(Value::as_u64).unwrap_or(0);
+            let right_updated = right
+                .get("updatedAt")
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            right_updated.cmp(&left_updated)
+        });
+    }
+}
+
+fn document_updated_at(document: &Value) -> u64 {
+    document
+        .get("updatedAt")
+        .and_then(Value::as_u64)
+        .or_else(|| document.get("savedAt").and_then(Value::as_u64))
+        .unwrap_or(0)
 }
 
 fn index_path(root: &Path) -> PathBuf {
@@ -403,4 +540,114 @@ pub fn clear_match_history() -> Result<Value, String> {
     let index = empty_index();
     write_index(&root, &index)?;
     Ok(index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_history_merge_keeps_newer_target_and_imports_missing_entries() {
+        let base = std::env::temp_dir().join(format!(
+            "cs-match-helper-history-merge-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let source = base.join("source");
+        let target = base.join("target");
+        ensure_dirs(&source).unwrap();
+        ensure_dirs(&target).unwrap();
+
+        let older_source = json!({
+            "id": "same",
+            "platformId": "5e",
+            "savedAt": 100,
+            "updatedAt": 200,
+            "sections": { "source": true }
+        });
+        let newer_target = json!({
+            "id": "same",
+            "platformId": "5e",
+            "savedAt": 100,
+            "updatedAt": 300,
+            "sections": { "target": true }
+        });
+        let missing_source = json!({
+            "id": "missing",
+            "platformId": "perfect",
+            "savedAt": 400,
+            "updatedAt": 500,
+            "sections": { "match": true }
+        });
+
+        write_entry(&source, "5e", "same", &older_source).unwrap();
+        write_entry(&source, "perfect", "missing", &missing_source).unwrap();
+        write_index(
+            &source,
+            &json!({
+                "schemaVersion": 2,
+                "entries": [
+                    thin_index_item("missing", "perfect", &json!(400), &json!(500)),
+                    thin_index_item("same", "5e", &json!(100), &json!(200))
+                ]
+            }),
+        )
+        .unwrap();
+
+        write_entry(&target, "5e", "same", &newer_target).unwrap();
+        write_index(
+            &target,
+            &json!({
+                "schemaVersion": 2,
+                "entries": [thin_index_item("same", "5e", &json!(100), &json!(300))]
+            }),
+        )
+        .unwrap();
+
+        merge_legacy_history(&source, &target).unwrap();
+
+        let merged_same = read_entry(&target, "5e", "same").unwrap().unwrap();
+        assert_eq!(merged_same.get("updatedAt").and_then(Value::as_u64), Some(300));
+        assert_eq!(
+            merged_same
+                .get("sections")
+                .and_then(|value| value.get("source"))
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            merged_same
+                .get("sections")
+                .and_then(|value| value.get("target"))
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            read_entry(&target, "perfect", "missing")
+                .unwrap()
+                .unwrap()
+                .get("updatedAt")
+                .and_then(Value::as_u64),
+            Some(500)
+        );
+        assert_eq!(
+            read_index(&target)
+                .unwrap()
+                .get("entries")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(2)
+        );
+        let index = read_index(&target).unwrap();
+        assert_eq!(
+            index
+                .get("entries")
+                .and_then(Value::as_array)
+                .and_then(|entries| entries.first())
+                .and_then(|entry| entry.get("id"))
+                .and_then(Value::as_str),
+            Some("missing")
+        );
+
+        let _ = fs::remove_dir_all(base);
+    }
 }
