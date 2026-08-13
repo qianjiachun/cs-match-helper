@@ -30,18 +30,20 @@ pub fn start() {
 }
 
 fn run() -> Result<(), String> {
-    let marker_path = portable_artifact_path(CLEANUP_MARKER_FILENAME)?;
+    let local_root = dirs::data_local_dir()
+        .map(|path| path.join("CSMatchHelper"))
+        .ok_or_else(|| "LOCALAPPDATA is unavailable".to_string())?;
+    let marker_path = local_root.join(CLEANUP_MARKER_FILENAME);
     if marker_path.is_file() {
         return Ok(());
     }
 
     remove_legacy_widget_packages()?;
     let removed_gsi_configs = remove_legacy_gsi_configs()?;
-    let removed_markers = match dirs::data_local_dir() {
-        Some(path) => remove_legacy_widget_markers(&path.join("CSMatchHelper"))?,
-        None => Vec::new(),
-    };
+    let removed_markers = remove_legacy_widget_markers(&local_root)?;
 
+    fs::create_dir_all(&local_root)
+        .map_err(|error| format!("create cleanup marker directory: {error}"))?;
     let marker = json!({
         "schemaVersion": CLEANUP_VERSION,
         "completed": true,
@@ -55,14 +57,6 @@ fn run() -> Result<(), String> {
     .map_err(|error| format!("write cleanup marker: {error}"))?;
     append_log("cleanup completed");
     Ok(())
-}
-
-fn portable_artifact_path(filename: &str) -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|error| format!("locate executable: {error}"))?;
-    let parent = exe
-        .parent()
-        .ok_or_else(|| "application executable has no parent directory".to_string())?;
-    Ok(parent.join(filename))
 }
 
 #[cfg(windows)]
@@ -239,9 +233,14 @@ fn steam_install_roots() -> Vec<PathBuf> {
 }
 
 fn append_log(message: &str) {
-    let Ok(path) = portable_artifact_path(CLEANUP_LOG_FILENAME) else {
+    let Some(path) = dirs::data_local_dir()
+        .map(|path| path.join("CSMatchHelper").join(CLEANUP_LOG_FILENAME))
+    else {
         return;
     };
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     use std::io::Write;
     if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(file, "{message}");

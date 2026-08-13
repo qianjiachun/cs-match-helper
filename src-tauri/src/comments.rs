@@ -89,11 +89,8 @@ fn read_user_sid() -> Option<String> {
 }
 
 fn fallback_path() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("无法获取程序路径: {e}"))?;
-    let dir = exe
-        .parent()
-        .ok_or_else(|| "无法获取程序所在目录".to_string())?;
-    Ok(dir.join(FALLBACK_FILENAME))
+    let dir = dirs::config_dir().ok_or_else(|| "无法获取配置目录".to_string())?;
+    Ok(dir.join("cs-match-helper").join(FALLBACK_FILENAME))
 }
 
 fn load_or_create_fallback_uuid() -> Result<String, String> {

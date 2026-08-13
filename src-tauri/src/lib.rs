@@ -20,20 +20,7 @@ use platform::{
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
-
-const WEBVIEW_DATA_DIRNAME: &str = "cs-match-helper-webview-data";
-
-fn portable_webview_data_dir() -> std::io::Result<std::path::PathBuf> {
-    let exe = std::env::current_exe()?;
-    let parent = exe.parent().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "application executable has no parent directory",
-        )
-    })?;
-    Ok(parent.join(WEBVIEW_DATA_DIRNAME))
-}
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 #[tauri::command]
 fn get_log_status(state: tauri::State<'_, AppState>) -> log_watcher::WatcherStatus {
@@ -225,24 +212,6 @@ pub fn run() {
         .manage(AiAnalysisState::default())
         .manage(P5eCdpRuntime::default())
         .setup(|app| {
-            let main_config = app
-                .config()
-                .app
-                .windows
-                .iter()
-                .find(|config| config.label == "main")
-                .ok_or_else(|| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        "main window configuration is missing",
-                    )
-                })?;
-            let webview_data_dir = portable_webview_data_dir()?;
-            std::fs::create_dir_all(&webview_data_dir)?;
-            WebviewWindowBuilder::from_config(app, main_config)?
-                .data_directory(webview_data_dir)
-                .build()?;
-
             let version = env!("CARGO_PKG_VERSION");
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("CS 匹配助手 -By 小淳 v{version}"));

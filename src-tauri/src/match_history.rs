@@ -7,44 +7,9 @@ const ENTRIES_DIRNAME: &str = "entries";
 const INDEX_SCHEMA_VERSION: u64 = 2;
 
 fn history_root() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("无法获取程序路径: {e}"))?;
-    let parent = exe
-        .parent()
-        .ok_or_else(|| "无法获取程序所在目录".to_string())?;
-    let root = parent.join("match-history");
-
-    if !index_path(&root).exists() {
-        if let Some(legacy) =
-            dirs::data_local_dir().map(|d| d.join("CSMatchHelper").join("match-history"))
-        {
-            if index_path(&legacy).exists() {
-                let _ = migrate_legacy_history(&legacy, &root);
-            }
-        }
-    }
-
-    Ok(root)
-}
-
-fn migrate_legacy_history(from: &Path, to: &Path) -> Result<(), String> {
-    fs::create_dir_all(entries_dir(to)).map_err(|e| format!("创建历史目录失败: {e}"))?;
-    let from_index = index_path(from);
-    if from_index.exists() {
-        fs::copy(&from_index, index_path(to)).map_err(|e| format!("迁移索引失败: {e}"))?;
-    }
-    let from_entries = entries_dir(from);
-    if from_entries.exists() {
-        for entry in fs::read_dir(&from_entries).map_err(|e| format!("读取旧 entries 失败: {e}"))? {
-            let entry = entry.map_err(|e| format!("读取旧 entry 失败: {e}"))?;
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Some(name) = path.file_name() {
-                    let _ = fs::copy(&path, entries_dir(to).join(name));
-                }
-            }
-        }
-    }
-    Ok(())
+    dirs::data_local_dir()
+        .map(|dir| dir.join("CSMatchHelper").join("match-history"))
+        .ok_or_else(|| "无法获取本地应用数据目录".to_string())
 }
 
 fn index_path(root: &Path) -> PathBuf {

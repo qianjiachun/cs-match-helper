@@ -12,7 +12,6 @@
   "app": {
     "windows": [
       {
-        "create": false,
         "label": "main",
         "title": "CS 匹配助手 -By 小淳",
         "width": 1280,
