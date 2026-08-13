@@ -188,10 +188,7 @@ fn discovered_gsi_paths() -> Vec<PathBuf> {
         let Ok(content) = fs::read_to_string(manifest) else {
             continue;
         };
-        let Some(install_dir) = content.lines().find_map(|line| {
-            let parts: Vec<&str> = line.split('"').collect();
-            (parts.len() >= 4 && parts[1].trim() == "installdir").then_some(parts[3])
-        }) else {
+        let Some(install_dir) = parse_install_dir(&content) else {
             continue;
         };
         paths.push(
@@ -206,6 +203,17 @@ fn discovered_gsi_paths() -> Vec<PathBuf> {
         );
     }
     paths
+}
+
+fn parse_install_dir(content: &str) -> Option<&str> {
+    content.lines().find_map(|line| {
+        let mut quoted = line.split('"');
+        let _prefix = quoted.next()?;
+        let key = quoted.next()?.trim();
+        let _separator = quoted.next()?;
+        let value = quoted.next()?;
+        (key == "installdir" && !value.trim().is_empty()).then_some(value)
+    })
 }
 
 #[cfg(windows)]
@@ -278,5 +286,15 @@ mod tests {
         assert!(LEGACY_WIDGET_PACKAGES
             .iter()
             .all(|name| name.starts_with("CSMatchHelper.")));
+    }
+
+    #[test]
+    fn install_dir_parser_ignores_malformed_manifest_lines() {
+        let manifest = "\n// comment\n\"AppState\" \"4\"\n\"installdir\"\n\"installdir\" \"Counter-Strike Global Offensive\"\n";
+        assert_eq!(
+            parse_install_dir(manifest),
+            Some("Counter-Strike Global Offensive")
+        );
+        assert_eq!(parse_install_dir("\n\"installdir\" \"\"\n"), None);
     }
 }
