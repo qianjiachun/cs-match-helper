@@ -4,6 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const CLEANUP_VERSION: u32 = 1;
+const CLEANUP_MARKER_FILENAME: &str = "legacy-hud-cleanup-v1.json";
+const CLEANUP_LOG_FILENAME: &str = "legacy-hud-cleanup.log";
 const LEGACY_GSI_FILENAME: &str = "gamestate_integration_cs_match_helper.cfg";
 const LEGACY_GSI_ENDPOINT: &str = "/cs-match-helper-gsi";
 const LEGACY_WIDGET_PACKAGES: &[&str] = &[
@@ -28,20 +30,18 @@ pub fn start() {
 }
 
 fn run() -> Result<(), String> {
-    let Some(local_root) = dirs::data_local_dir().map(|path| path.join("CSMatchHelper")) else {
-        return Err("LOCALAPPDATA is unavailable".to_string());
-    };
-    let marker_path = local_root.join("legacy-hud-cleanup-v1.json");
+    let marker_path = portable_artifact_path(CLEANUP_MARKER_FILENAME)?;
     if marker_path.is_file() {
         return Ok(());
     }
 
     remove_legacy_widget_packages()?;
     let removed_gsi_configs = remove_legacy_gsi_configs()?;
-    let removed_markers = remove_legacy_widget_markers(&local_root)?;
+    let removed_markers = match dirs::data_local_dir() {
+        Some(path) => remove_legacy_widget_markers(&path.join("CSMatchHelper"))?,
+        None => Vec::new(),
+    };
 
-    fs::create_dir_all(&local_root)
-        .map_err(|error| format!("create cleanup marker directory: {error}"))?;
     let marker = json!({
         "schemaVersion": CLEANUP_VERSION,
         "completed": true,
@@ -55,6 +55,14 @@ fn run() -> Result<(), String> {
     .map_err(|error| format!("write cleanup marker: {error}"))?;
     append_log("cleanup completed");
     Ok(())
+}
+
+fn portable_artifact_path(filename: &str) -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|error| format!("locate executable: {error}"))?;
+    let parent = exe
+        .parent()
+        .ok_or_else(|| "application executable has no parent directory".to_string())?;
+    Ok(parent.join(filename))
 }
 
 #[cfg(windows)]
@@ -231,14 +239,9 @@ fn steam_install_roots() -> Vec<PathBuf> {
 }
 
 fn append_log(message: &str) {
-    let Some(path) = dirs::data_local_dir()
-        .map(|path| path.join("CSMatchHelper").join("legacy-hud-cleanup.log"))
-    else {
+    let Ok(path) = portable_artifact_path(CLEANUP_LOG_FILENAME) else {
         return;
     };
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     use std::io::Write;
     if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(file, "{message}");

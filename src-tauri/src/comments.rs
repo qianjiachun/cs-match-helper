@@ -57,57 +57,30 @@ fn read_machine_guid() -> Option<String> {
 
 #[cfg(windows)]
 fn read_user_sid() -> Option<String> {
-    use windows::core::PWSTR;
-    use windows::Win32::Foundation::{CloseHandle, HLOCAL, LocalFree};
-    use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
-    use windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
-    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
 
-    unsafe {
-        let mut token = Default::default();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
-            return None;
-        }
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let output = Command::new("whoami.exe")
+        .arg("/user")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
 
-        let mut needed = 0u32;
-        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut needed);
-        if needed == 0 {
-            let _ = CloseHandle(token);
-            return None;
-        }
-
-        let mut buffer = vec![0u8; needed as usize];
-        if GetTokenInformation(
-            token,
-            TokenUser,
-            Some(buffer.as_mut_ptr() as *mut _),
-            needed,
-            &mut needed,
-        )
-        .is_err()
-        {
-            let _ = CloseHandle(token);
-            return None;
-        }
-
-        let token_user = &*(buffer.as_ptr() as *const TOKEN_USER);
-        let mut sid_string = PWSTR::null();
-        if ConvertSidToStringSidW(token_user.User.Sid, &mut sid_string).is_err() {
-            let _ = CloseHandle(token);
-            return None;
-        }
-
-        let sid = sid_string.to_string().ok()?;
-        let _ = LocalFree(HLOCAL(sid_string.0 as _));
-        let _ = CloseHandle(token);
-
-        let trimmed = sid.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        for token in line.split_whitespace() {
+            if token.starts_with("S-1-") {
+                return Some(token.to_string());
+            }
         }
     }
+    None
 }
 
 #[cfg(not(windows))]
@@ -116,8 +89,11 @@ fn read_user_sid() -> Option<String> {
 }
 
 fn fallback_path() -> Result<PathBuf, String> {
-    let dir = dirs::config_dir().ok_or_else(|| "无法获取配置目录".to_string())?;
-    Ok(dir.join("cs-match-helper").join(FALLBACK_FILENAME))
+    let exe = std::env::current_exe().map_err(|e| format!("无法获取程序路径: {e}"))?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| "无法获取程序所在目录".to_string())?;
+    Ok(dir.join(FALLBACK_FILENAME))
 }
 
 fn load_or_create_fallback_uuid() -> Result<String, String> {

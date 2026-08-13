@@ -15,6 +15,7 @@ const GITHUB_RELEASES_LIST_URL: &str =
 const LUNARIS_USERNAME: &str = "qianjiachun";
 const LUNARIS_PROJECT: &str = "cs-match-helper";
 const LUNARIS_FILE_NAME: &str = "cs-match-helper.exe";
+const UPDATE_WORKSPACE_DIR: &str = "cs-match-helper-update";
 const UPDATE_LOG_FILE: &str = "cs-match-helper-update.log";
 const UPDATE_FAILURE_MARKER: &str = "cs-match-helper-update-failed.marker";
 
@@ -22,15 +23,31 @@ fn old_exe_path(current_exe: &Path) -> PathBuf {
     PathBuf::from(format!("{}.old", current_exe.to_string_lossy()))
 }
 
+fn update_workspace_dir_for_exe(current_exe: &Path) -> PathBuf {
+    current_exe
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(UPDATE_WORKSPACE_DIR)
+}
+
+fn update_workspace_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .map(|exe| update_workspace_dir_for_exe(&exe))
+        .unwrap_or_else(|| PathBuf::from(".").join(UPDATE_WORKSPACE_DIR))
+}
+
 fn update_log_path() -> PathBuf {
-    std::env::temp_dir().join(UPDATE_LOG_FILE)
+    update_workspace_dir().join(UPDATE_LOG_FILE)
 }
 
 fn update_failure_marker_path() -> PathBuf {
-    std::env::temp_dir().join(UPDATE_FAILURE_MARKER)
+    update_workspace_dir().join(UPDATE_FAILURE_MARKER)
 }
 
 fn write_update_failure_marker() {
+    let _ = std::fs::create_dir_all(update_workspace_dir());
     let _ = std::fs::write(update_failure_marker_path(), b"1");
 }
 
@@ -45,6 +62,7 @@ fn append_update_log(message: &str) {
         message
     );
     let path = update_log_path();
+    let _ = std::fs::create_dir_all(update_workspace_dir());
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -565,7 +583,9 @@ pub async fn download_update(
 
     let total_bytes = response.content_length();
 
-    let temp_dir = std::env::temp_dir();
+    let temp_dir = update_workspace_dir();
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|error| format!("创建更新目录失败: {error}"))?;
     let file_name = format!(
         "cs-match-helper-update-{}.exe",
         uuid::Uuid::new_v4()
@@ -651,7 +671,7 @@ pub async fn apply_update_and_restart(
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
         let old_exe = old_exe_path(&current_exe);
-        let script_path = std::env::temp_dir().join(format!(
+        let script_path = update_workspace_dir().join(format!(
             "cs-match-helper-restart-{}.ps1",
             uuid::Uuid::new_v4()
         ));
@@ -764,6 +784,15 @@ mod tests {
         assert_eq!(
             old_exe_path(&current),
             PathBuf::from(r"C:\Apps\cs-match-helper.exe.old")
+        );
+    }
+
+    #[test]
+    fn update_workspace_is_beside_executable() {
+        let current = PathBuf::from(r"C:\Apps\cs-match-helper.exe");
+        assert_eq!(
+            update_workspace_dir_for_exe(&current),
+            PathBuf::from(r"C:\Apps\cs-match-helper-update")
         );
     }
 
