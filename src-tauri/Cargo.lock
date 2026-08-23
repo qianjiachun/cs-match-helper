@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "cs-match-helper"
-version = "3.4.0"
+version = "3.3.1"
 dependencies = [
  "aes",
  "base64 0.22.1",
