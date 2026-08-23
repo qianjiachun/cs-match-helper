@@ -1,700 +1,703 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
+import { computed, nextTick, watch } from 'vue';
 import {
   AlertTriangle,
   ArrowRight,
-  KeyRound,
+  BarChart3,
+  CheckCircle2,
+  Crown,
+  Crosshair,
+  Eye,
+  Gauge,
+  MapPinned,
   RefreshCw,
+  Scale,
   Shield,
+  ShieldAlert,
   Swords,
   Target,
+  TriangleAlert,
+  Users,
+  XCircle,
+  Zap,
 } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
+import type { MatchRecord } from '@core/match/models';
+import type {
+  AiEvidenceSnapshot,
+  AiMatchupDimension,
+  AiPlayerSignal,
+  AiPlayerSignalKind,
+} from '@core/ai/types';
+import { DEEPSEEK_API_KEYS_URL, getApiKeyLabel, isAiAnalysisActive } from '@core/ai/types';
+import { formatCostLabel } from '@core/ai/pricing';
+import { displayPerspectiveText, sideRelationshipLabel, type AiSide } from '@core/ai/perspective';
+import type { useAiAnalysis } from '../composables/useAiAnalysis';
+import { currentLocale, localize as l } from '../i18n';
+import { openExternalUrl } from '../native';
 import AiLoadingAnimation from './AiLoadingAnimation.vue';
 import AiSparklesIcon from './AiSparklesIcon.vue';
-import {
-  enrichPlayerNotes,
-  formatPlayerRole,
-  placeholderPlayerNotes,
-} from '@core/ai/player-notes';
-import {
-  DEEPSEEK_API_KEYS_URL,
-  getApiKeyLabel,
-  getMissingApiKeyMessage,
-  hasKnownModelPricing,
-  isDeepSeekProvider,
-} from '@core/ai/types';
-import { estimateTokenCostCny, formatCostLabel, formatCostTooltip } from '@core/ai/pricing';
-import type { AiFactorType, AiKeyFactor } from '@core/ai/types';
-import type { MatchRecord } from '@core/match/models';
-import type { useAiAnalysis } from '../composables/useAiAnalysis';
-import { openExternalUrl } from '../native';
-import PlayerAvatar from './PlayerAvatar.vue';
-import { currentLocale } from '../i18n';
-
-const { t } = useI18n();
 
 const props = defineProps<{
   match: MatchRecord;
   ai: ReturnType<typeof useAiAnalysis>;
-  highlightedSide?: 'A' | 'B' | null;
-  highlightedSteamId?: string | null;
   historyMode?: boolean;
+  highlightedSide?: 'A' | 'B' | null;
+  focusedSteamId?: string | null;
+  selfSide?: AiSide | null;
 }>();
 
 const emit = defineEmits<{
   highlightSide: [side: 'A' | 'B' | null];
-  highlightPlayer: [steamId: string | null];
   openSettings: [];
   analyze: [];
   stop: [];
 }>();
 
-const tick = ref(0);
-let tickTimer: ReturnType<typeof setInterval> | null = null;
-
-onMounted(() => {
-  tickTimer = setInterval(() => {
-    if (props.ai.status.value === 'loading' || props.ai.status.value === 'streaming') {
-      tick.value++;
-    }
-  }, 500);
-});
-
-onUnmounted(() => {
-  if (tickTimer) clearInterval(tickTimer);
-});
-
-type AiSetupState = 'active' | 'disabled' | 'no-key';
-
-const setupState = computed((): AiSetupState => {
-  const s = props.ai.settings.value;
-  if (!s?.analysisEnabled) return 'disabled';
-  if (!s.hasApiKey) return 'no-key';
-  return 'active';
-});
-
-const isDeepSeekMode = computed(() =>
-  isDeepSeekProvider(props.ai.settings.value?.providerMode),
-);
-const apiKeyLabel = computed(() => getApiKeyLabel(props.ai.settings.value?.providerMode));
-const missingApiKeyMessage = computed(() =>
-  getMissingApiKeyMessage(props.ai.settings.value?.providerMode, currentLocale()),
-);
-
-const showSetupGuide = computed(() => setupState.value !== 'active');
-const isDisabled = computed(() => showSetupGuide.value);
-const isLoading = computed(
-  () => props.ai.status.value === 'loading' || props.ai.status.value === 'streaming',
-);
-const isMapSupplementing = computed(() => props.ai.analysisPhase.value === 'map-supplement');
-const isError = computed(() => props.ai.status.value === 'error');
-const isNoKey = computed(() => props.ai.status.value === 'no-key');
 const result = computed(() => props.ai.result.value);
-const historyLocaleMismatch = computed(() =>
-  Boolean(props.historyMode && result.value && props.ai.resultLocale.value && props.ai.resultLocale.value !== currentLocale()),
-);
-const localInsights = computed(() => props.match.detail.insights);
+const preview = computed(() => props.ai.preview.value);
+const probabilityResult = computed(() => preview.value ?? result.value);
+const isLoading = computed(() => props.ai.status.value === 'loading' || props.ai.status.value === 'streaming');
+const isError = computed(() => props.ai.status.value === 'error');
+const aiEnabled = computed(() => Boolean(props.ai.settings.value?.analysisEnabled));
+const aiConfigured = computed(() => isAiAnalysisActive(props.ai.settings.value));
+const autoAnalyze = computed(() => props.ai.settings.value?.autoAnalyze !== false);
+const apiKeyLabel = computed(() => getApiKeyLabel(props.ai.settings.value?.providerMode));
 
-const canRunHistoryAnalysis = computed(
-  () => Boolean(props.historyMode) && setupState.value === 'active' && !isLoading.value,
-);
+function sideLabel(side: AiSide): string {
+  return sideRelationshipLabel(side, props.selfSide, currentLocale());
+}
 
-const showHistoryAnalyzeCta = computed(
-  () => canRunHistoryAnalysis.value && (!result.value || isError.value),
-);
+function perspectiveText(text: string): string {
+  return displayPerspectiveText(text, props.selfSide, currentLocale());
+}
 
-const showHistoryRerunCta = computed(
-  () => canRunHistoryAnalysis.value && Boolean(result.value) && !isError.value,
-);
-
-const showHistoryEmptyState = computed(
-  () => Boolean(props.historyMode) && showHistoryAnalyzeCta.value,
-);
-
-const showHistoryLoadingState = computed(
-  () =>
-    Boolean(props.historyMode) &&
-    isLoading.value &&
-    !result.value?.headline,
-);
-
-const winA = computed(() => result.value?.winProbability.A ?? 50);
-const winB = computed(() => result.value?.winProbability.B ?? 50);
-
-const localHeadline = computed(() => {
-  const ins = localInsights.value;
-  if (!ins?.strongerSide) return t('aiUi.closeData');
-  return t('aiUi.localLead', { side: ins.strongerSide });
+const winA = computed(() => Math.round(probabilityResult.value?.winProbability.A ?? 50));
+const winB = computed(() => 100 - winA.value);
+const modelA = computed(() => Math.round(probabilityResult.value?.modelWinProbability.A ?? winA.value));
+const coveragePct = computed(() => Math.round((probabilityResult.value?.dataCoverage ?? 0) * 100));
+const displayConfidence = computed(() => preview.value?.confidence ?? result.value?.confidence ?? 0);
+const confidenceLabel = computed(() => {
+  const value = displayConfidence.value;
+  if (value >= 75) return l('高可信', 'High confidence');
+  if (value >= 50) return l('中等可信', 'Moderate confidence');
+  return l('谨慎参考', 'Low confidence');
 });
 
-const headline = computed(() => {
-  if (isDisabled.value) {
-    if (props.ai.settings.value?.analysisEnabled && !props.ai.settings.value?.hasApiKey) {
-      return t('aiUi.needKey');
-    }
-    return t('aiUi.disabled');
-  }
-  if (result.value?.headline) return result.value.headline;
-  if (isLoading.value) return t('aiUi.calibrating', { headline: localHeadline.value });
-  if (isNoKey.value) return missingApiKeyMessage.value;
-  return t('aiUi.waiting');
+const winnerText = computed(() => {
+  if (probabilityResult.value?.predictedWinner === 'A') return l(`${sideLabel('A')}略占优势`, `${sideLabel('A')} favored`);
+  if (probabilityResult.value?.predictedWinner === 'B') return l(`${sideLabel('B')}略占优势`, `${sideLabel('B')} favored`);
+  if (probabilityResult.value?.predictedWinner === 'Even') return l('双方势均力敌', 'Matchup is even');
+  return l('暂时难以判断', 'Outcome unclear');
 });
 
-const quickChips = computed(() => {
-  if (result.value?.quickReasons?.length) {
-    return result.value.quickReasons.slice(0, 3);
-  }
-  if (isLoading.value && localInsights.value?.highlights?.length) {
-    return localInsights.value.highlights.slice(0, 2);
-  }
-  return [];
+const signalGroups = computed(() => {
+  const signals = result.value?.playerSignals ?? [];
+  const groups: Array<{ id: string; label: string; tone: string; items: AiPlayerSignal[] }> = [
+    {
+      id: 'positive',
+      label: l('正面信号', 'Positive signals'),
+      tone: 'text-emerald-700',
+      items: signals.filter((item) => ['carry', 'anchor', 'specialist'].includes(item.kind)),
+    },
+    {
+      id: 'negative',
+      label: l('负面信号', 'Negative signals'),
+      tone: 'text-rose-700',
+      items: signals.filter((item) => item.kind === 'weakLink'),
+    },
+    {
+      id: 'variable',
+      label: l('变量与旧关注', 'Variables and legacy watch'),
+      tone: 'text-amber-700',
+      items: signals.filter((item) => item.kind === 'volatile' || item.kind === 'watch'),
+    },
+  ];
+  return groups.filter((group) => group.items.length);
 });
 
-const stabilityText = computed(() => {
-  if (!result.value) return null;
-  const reason = result.value.stabilityReason;
-  const pct = result.value.confidence;
-  if (reason) return t('aiUi.confidenceReason', { value: pct, reason });
-  return t('aiUi.confidence', { value: pct });
-});
+function signalLabel(kind: AiPlayerSignalKind): string {
+  if (kind === 'carry') return l('强点', 'Carry');
+  if (kind === 'anchor') return l('支点', 'Anchor');
+  if (kind === 'specialist') return l('专长', 'Specialist');
+  if (kind === 'weakLink') return l('短板', 'Weak link');
+  if (kind === 'volatile') return l('变量', 'Volatile');
+  return l('旧关注', 'Legacy watch');
+}
+
+function signalIcon(kind: AiPlayerSignalKind) {
+  if (kind === 'carry') return Crown;
+  if (kind === 'anchor') return Shield;
+  if (kind === 'specialist') return Crosshair;
+  if (kind === 'weakLink') return TriangleAlert;
+  if (kind === 'volatile') return Zap;
+  return Eye;
+}
+
+function signalTone(kind: AiPlayerSignalKind): string {
+  if (kind === 'carry') return 'bg-emerald-50 text-emerald-700';
+  if (kind === 'anchor') return 'bg-blue-50 text-blue-700';
+  if (kind === 'specialist') return 'bg-violet-50 text-violet-700';
+  if (kind === 'weakLink') return 'bg-rose-50 text-rose-700';
+  if (kind === 'volatile') return 'bg-amber-50 text-amber-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+const dimensionMeta: Record<AiMatchupDimension, { label: string; icon: typeof Gauge }> = {
+  strength: { label: l('强度', 'Strength'), icon: Gauge },
+  aim: { label: l('枪法', 'Aim'), icon: Crosshair },
+  opening: { label: l('首杀', 'Openings'), icon: Target },
+  utility: { label: l('道具', 'Utility'), icon: ShieldAlert },
+  clutch: { label: l('残局', 'Clutch'), icon: Swords },
+  map: { label: l('地图', 'Map'), icon: MapPinned },
+  form: { label: l('状态', 'Form'), icon: BarChart3 },
+  party: { label: l('组排', 'Party'), icon: Users },
+};
+
+function advantageLabel(side: 'A' | 'B' | 'Even'): string {
+  return side === 'Even' ? l('持平', 'Even') : sideLabel(side);
+}
+
+function advantageTone(side: 'A' | 'B' | 'Even'): string {
+  if (side === 'A') return 'bg-blue-50 text-blue-700';
+  if (side === 'B') return 'bg-orange-50 text-orange-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+function evidenceValue(evidence: AiEvidenceSnapshot): string {
+  return evidence.value ?? (evidence.valueA && evidence.valueB
+    ? `${evidence.valueA} / ${evidence.valueB}`
+    : '');
+}
+
+function evidencePillText(evidence: AiEvidenceSnapshot): string {
+  const value = evidenceValue(evidence);
+  return value ? `${evidence.label} ${value}` : evidence.label;
+}
+
+function evidenceTooltip(evidence: AiEvidenceSnapshot): string {
+  const parts = [evidenceReliability(evidence)];
+  if (evidence.sampleSize != null) parts.push(l(`${evidence.sampleSize} 场`, `${evidence.sampleSize} matches`));
+  const comparison = comparisonText(evidence);
+  if (comparison) parts.push(comparison);
+  return parts.join(' · ');
+}
+
+function comparisonText(evidence: AiEvidenceSnapshot): string | null {
+  const comparison = evidence.comparison;
+  if (!comparison || comparison.lobbyDelta == null) return null;
+  const delta = comparison.lobbyDelta;
+  const formatted = Math.abs(delta) >= 10 ? Math.round(Math.abs(delta)).toString() : Math.abs(delta).toFixed(2).replace(/\.00$/, '');
+  if (Math.abs(delta) < 0.001) return l('与全场中位数相当', 'Matches lobby median');
+  const rawHigher = delta > 0;
+  const favorable = comparison.higherIsBetter ? rawHigher : !rawHigher;
+  return l(
+    `${favorable ? '优于' : '弱于'}全场中位数 ${formatted}`,
+    `${favorable ? 'Better' : 'Worse'} than lobby median by ${formatted}`,
+  );
+}
+
+function evidenceReliability(evidence: AiEvidenceSnapshot): string {
+  if (evidence.reliability === 'high') return l('高可靠', 'High');
+  if (evidence.reliability === 'medium') return l('中可靠', 'Medium');
+  return l('低样本', 'Low sample');
+}
 
 const elapsedLabel = computed(() => {
-  void tick.value;
-  if (props.ai.elapsedMs.value != null) {
-    return `${(props.ai.elapsedMs.value / 1000).toFixed(1)}s`;
-  }
-  if (props.ai.startedAt.value) {
-    const sec = Math.max(0, (Date.now() - props.ai.startedAt.value) / 1000);
-    return `${sec.toFixed(1)}s`;
-  }
-  return '—';
+  const ms = props.ai.elapsedMs.value;
+  if (ms == null) return '—';
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 });
 
-const usageLabel = computed(() => {
-  const u = props.ai.usage.value;
-  if (!u) return isLoading.value ? t('aiUi.calculating') : '—';
-  const breakdown = props.ai.usageBreakdown.value;
-  if (breakdown && breakdown.mapSupplement.totalTokens > 0) {
-    return t('aiUi.tokens', { input: u.promptTokens, output: u.completionTokens, total: u.totalTokens });
-  }
-  return t('aiUi.tokens', { input: u.promptTokens, output: u.completionTokens, total: u.totalTokens });
-});
-
-const usageTooltip = computed(() => {
-  const breakdown = props.ai.usageBreakdown.value;
-  if (!breakdown || breakdown.mapSupplement.totalTokens <= 0) return '';
-  const { base, mapSupplement } = breakdown;
-  return t('aiUi.tokenBreakdown', { baseInput: base.promptTokens, baseOutput: base.completionTokens, mapInput: mapSupplement.promptTokens, mapOutput: mapSupplement.completionTokens });
-});
-
+const usageLabel = computed(() => props.ai.usage.value?.totalTokens.toLocaleString() ?? '—');
 const costLabel = computed(() => {
-  const u = props.ai.usage.value;
-  const model = props.ai.settings.value?.model ?? 'deepseek-v4-flash';
-  if (!u) return '';
-  return formatCostLabel(model, u);
+  const usage = props.ai.usage.value;
+  const model = props.ai.settings.value?.model;
+  return usage && model ? formatCostLabel(model, usage) : null;
 });
 
-const costTooltip = computed(() => {
-  const u = props.ai.usage.value;
-  const model = props.ai.settings.value?.model ?? 'deepseek-v4-flash';
-  if (!u) return '';
-  const cost = hasKnownModelPricing(model) ? estimateTokenCostCny(model, u) : 0;
-  return formatCostTooltip(model, u, cost);
-});
-
-const HIGHLIGHT_TYPES: AiFactorType[] = ['strength', 'form', 'map', 'party'];
-
-function factorsByTypes(types: AiFactorType[], limit = 4): AiKeyFactor[] {
-  if (!result.value?.keyFactors?.length) return [];
-  return [...result.value.keyFactors]
-    .filter((f) => types.includes(f.type))
-    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-    .slice(0, limit);
+async function focusSignal(steamId: string | null | undefined) {
+  if (!steamId) return;
+  await nextTick();
+  const element = document.getElementById(`ai-player-${steamId}`);
+  element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => element?.focus({ preventScroll: true }), 280);
 }
 
-const highlightFactors = computed(() => factorsByTypes(HIGHLIGHT_TYPES, 4));
-
-interface RiskDisplayItem {
-  text: string;
-  side?: 'A' | 'B' | 'Both';
-  isFactor: boolean;
-}
-
-const riskDisplayItems = computed((): RiskDisplayItem[] => {
-  const items: RiskDisplayItem[] = [];
-  const seen = new Set<string>();
-
-  for (const f of factorsByTypes(['risk'], 3)) {
-    if (!seen.has(f.text)) {
-      seen.add(f.text);
-      items.push({ text: f.text, side: f.side, isFactor: true });
-    }
-  }
-
-  const risks = result.value?.risks ?? [];
-  for (const risk of risks) {
-    if (!seen.has(risk)) {
-      seen.add(risk);
-      items.push({ text: risk, isFactor: false });
-    }
-  }
-
-  if (!items.length && isLoading.value && localInsights.value?.risks?.length) {
-    return localInsights.value.risks.slice(0, 2).map((text) => ({ text, isFactor: false }));
-  }
-
-  return items.slice(0, 4);
-});
-
-const displayPlayerNotes = computed(() => {
-  if (result.value?.playerNotes?.length) {
-    return enrichPlayerNotes(result.value.playerNotes, props.match);
-  }
-  if (isLoading.value) {
-    return placeholderPlayerNotes(props.match);
-  }
-  return [];
-});
-
-const showPlayerSection = computed(() => displayPlayerNotes.value.length > 0);
-
-function sideClass(side: 'A' | 'B' | 'Both') {
-  if (side === 'A') return 'border-blue-200/80 bg-blue-50/60 text-blue-800';
-  if (side === 'B') return 'border-orange-200/80 bg-orange-50/60 text-orange-800';
-  return 'border-slate-200 bg-slate-50 text-slate-700';
-}
-
-function onFactorClick(side: 'A' | 'B' | 'Both') {
-  emit('highlightSide', side === 'Both' ? null : side);
-}
-
-function onPlayerNoteClick(steamId: string, side: 'A' | 'B', isPending?: boolean) {
-  if (isPending) return;
-  emit('highlightSide', side);
-  emit('highlightPlayer', steamId);
-}
-
+watch(() => props.focusedSteamId, focusSignal, { immediate: true });
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4">
-    <!-- 未就绪：引导页 -->
-    <div v-if="showSetupGuide" class="flex h-full flex-col items-center justify-center p-6">
-      <!-- 缺少 API Key：高对比警示态 -->
-      <div
-        v-if="setupState === 'no-key'"
-        class="w-full max-w-md rounded-2xl border-2 border-amber-300/90 bg-linear-to-b from-amber-50/90 to-white p-6 text-center shadow-[0_8px_24px_rgb(250_173_20/0.12)]"
-      >
-        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 ring-4 ring-amber-100/60">
-          <KeyRound class="h-7 w-7 text-warning" aria-hidden="true" />
+  <div class="h-full min-h-0 overflow-y-auto bg-slate-50/70 px-4 py-4 sm:px-6">
+    <div v-if="!aiConfigured" class="flex min-h-full items-center justify-center py-10">
+      <section class="w-full max-w-md rounded-xl border border-slate-200/80 bg-white p-6 text-center shadow-sm">
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 shadow-sm">
+          <AiSparklesIcon size="md" static />
         </div>
-        <p class="mb-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-100/80 px-3 py-1 text-[11px] font-semibold text-amber-800">
-          <AlertTriangle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {{ t('aiUi.missingConfig') }}
-        </p>
-        <h2 class="mb-3 text-[18px] font-bold text-slate-800">
-          {{ t('aiUi.fillKey') }}
-          <span class="text-warning">API Key</span>
+        <h2 class="text-balance text-[17px] font-bold text-slate-900">
+          {{ aiEnabled ? l('还差 API Key', 'API key required') : l('启用 AI 分析', 'Enable AI analysis') }}
         </h2>
-        <p class="mb-4 text-[13px] leading-relaxed text-slate-600">
-          {{ t('aiUi.keyExplanation', { label: apiKeyLabel }) }}
+        <p class="mt-2 text-pretty text-[13px] leading-relaxed text-slate-500">
+          {{ aiEnabled ? l(`请先配置 ${apiKeyLabel}，再生成赛前分析。`, `Configure ${apiKeyLabel} before running analysis.`) : l('启用后可获得胜率预测、胜负手和方向明确的玩家信号。', 'Enable predictions, decisive factors, and directional player signals.') }}
         </p>
-        <div class="mb-5 rounded-xl border border-amber-200/90 bg-white/80 px-4 py-3 text-left text-[12px] leading-relaxed text-slate-700">
-          <p class="font-medium text-amber-900">{{ t('aiUi.findKey', { label: apiKeyLabel }) }}</p>
-          <p v-if="isDeepSeekMode" class="mt-1.5 text-slate-500">
-            {{ t('aiUi.noKey') }}
-            <a
-              href="#"
-              class="cursor-pointer font-medium text-accent transition-colors duration-200 hover:text-accent-hover hover:underline"
-              @click.prevent="openExternalUrl(DEEPSEEK_API_KEYS_URL)"
-            >
-              {{ t('aiUi.getDeepSeekKey') }}
-            </a>
-          </p>
-          <p v-else class="mt-1.5 text-slate-500">
-            {{ t('aiUi.providerKey') }}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="group flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-warning px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-colors duration-200 hover:brightness-95 hover:shadow-md"
-          @click="emit('openSettings')"
-        >
-          {{ t('aiUi.configureKey') }}
-          <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </button>
-      </div>
-
-      <!-- 未开启 AI 分析：柔和引导态 -->
-      <div v-else class="max-w-sm p-4 text-center">
-        <div class="mb-6 flex items-center justify-center">
-          <div class="origin-center scale-[1.75]">
-            <AiSparklesIcon badge size="md" static />
-          </div>
-        </div>
-        <h2 class="mb-3 text-[18px] font-bold text-slate-800">{{ t('aiUi.notEnabled') }}</h2>
-        <p class="mb-6 text-[13px] leading-relaxed text-slate-500">
-          {{ t('aiUi.enableDesc') }}
-        </p>
-        <button
-          type="button"
-          class="group inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-accent-hover hover:shadow-md"
-          @click="emit('openSettings')"
-        >
-          {{ t('aiUi.enable') }}
-          <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </button>
-      </div>
-    </div>
-
-    <!-- 历史模式：尚无分析结果 -->
-    <div
-      v-else-if="showHistoryEmptyState"
-      class="flex h-full min-h-[280px] flex-col items-center justify-center px-6 py-12"
-    >
-      <div class="flex w-full max-w-sm flex-col items-center text-center">
-        <div class="mb-4 flex items-center justify-center">
-          <div class="origin-center scale-[1.75]">
-            <AiSparklesIcon size="md" static />
-          </div>
-        </div>
-
-        <h2 class="text-[1rem] leading-6 font-semibold text-slate-900">
-          {{ isError ? t('aiUi.incomplete') : t('aiUi.noHistory') }}
-        </h2>
-        <p class="mt-1.5 text-sm leading-relaxed text-slate-500">
-          {{
-            isError
-              ? t('aiUi.retryHistory')
-              : t('aiUi.generateHistory')
-          }}
-        </p>
-
-        <p
-          v-if="isError && ai.error.value"
-          class="mt-4 flex w-full items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-left text-[12px] leading-relaxed text-rose-700"
-        >
-          <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {{ ai.error.value }}
-        </p>
-
-        <button
-          type="button"
-          class="mt-6 w-full cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-accent-hover active:scale-[0.98]"
-          @click="emit('analyze')"
-        >
-          {{ isError ? t('common.retry') : t('aiUi.generate') }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 历史模式：分析进行中（首包未到） -->
-    <div
-      v-else-if="showHistoryLoadingState"
-      class="flex h-full min-h-[280px] flex-col items-center justify-center gap-5 px-6 py-10"
-    >
-      <AiLoadingAnimation />
-      <button
-        type="button"
-        class="cursor-pointer rounded-lg px-4 py-2 text-[12px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-100 hover:text-slate-700"
-        @click="emit('stop')"
-      >
-        {{ t('aiUi.stopAnalysis') }}
-      </button>
-    </div>
-
-    <!-- 加载状态：首包未到时显示动画（非历史模式；地图补充时保留已有结论） -->
-    <div
-      v-else-if="isLoading && !result?.headline && !isMapSupplementing"
-      class="flex h-full flex-col items-center justify-center"
-    >
-      <AiLoadingAnimation />
-    </div>
-
-    <div v-else class="mx-auto flex w-full max-w-5xl flex-col gap-3">
-      <p
-        v-if="isMapSupplementing"
-        class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800"
-      >
-        {{ t('aiUi.mapSupplement') }}
-      </p>
-      <!-- 主结论卡 -->
-      <section
-        class="ai-hero-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm"
-        data-match-reveal="compare"
-      >
-        <div class="space-y-3 px-5 py-4">
-          <p
-            class="text-[15px] font-semibold leading-relaxed text-slate-800"
-            :class="isLoading && !result?.headline ? 'ai-pulse-text' : ''"
-          >
-            {{ headline }}
-          </p>
-
-          <div v-if="isLoading && !result?.winProbability" class="rounded-lg border border-dashed border-blue-200/80 bg-blue-50/40 px-3 py-2 text-[11px] text-blue-700">
-            {{ localHeadline }}
-          </div>
-
-          <div v-if="result?.winProbability || isLoading" class="space-y-2">
-            <div class="flex items-center gap-3">
-              <span
-                class="min-w-[72px] rounded-lg px-2.5 py-1 text-center text-[14px] font-black tabular-nums transition-all duration-300"
-                :class="
-                  highlightedSide === 'A'
-                    ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300'
-                    : 'bg-blue-50 text-blue-600'
-                "
-              >
-                A {{ winA }}%
-              </span>
-              <div class="flex h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100 shadow-inner">
-                <div
-                  class="h-full bg-linear-to-r from-blue-400 to-blue-500 transition-all duration-500 ease-out"
-                  :style="{ width: `${winA}%` }"
-                />
-                <div
-                  class="h-full bg-linear-to-l from-orange-400 to-orange-500 transition-all duration-500 ease-out"
-                  :style="{ width: `${winB}%` }"
-                />
-              </div>
-              <span
-                class="min-w-[72px] rounded-lg px-2.5 py-1 text-center text-[14px] font-black tabular-nums transition-all duration-300"
-                :class="
-                  highlightedSide === 'B'
-                    ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300'
-                    : 'bg-orange-50 text-orange-600'
-                "
-              >
-                B {{ winB }}%
-              </span>
-            </div>
-            <p class="text-center text-[10px] text-slate-400">{{ t('aiUi.disclaimer') }}</p>
-          </div>
-
-          <div v-if="quickChips.length" class="flex flex-wrap gap-1.5">
-            <span
-              v-for="(chip, i) in quickChips"
-              :key="'chip-' + i"
-              class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] text-slate-600"
-            >
-              {{ chip }}
-            </span>
-          </div>
-
-          <p v-if="stabilityText" class="text-[10px] leading-relaxed text-slate-400">
-            {{ stabilityText }}
-          </p>
-
-          <p v-if="isError" class="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
-            <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
-            {{ ai.error.value }}
-          </p>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50/80 px-5 py-2 text-[10px] text-slate-500">
-          <span>{{ t('aiUi.elapsed', { value: elapsedLabel }) }}</span>
-          <span v-if="result?.dataQuality" class="text-slate-400">{{ result.dataQuality }}</span>
-          <span class="flex items-center gap-2">
-            <span :title="usageTooltip || undefined">Tokens · {{ usageLabel }}</span>
-            <span
-              v-if="costLabel"
-              class="font-medium text-slate-600"
-              :title="costTooltip"
-            >
-              {{ costLabel }}
-            </span>
-            <span
-              v-if="historyLocaleMismatch"
-              class="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700"
-            >
-              {{ t('aiUi.languageMismatch') }}
-            </span>
-            <button
-              v-if="showHistoryRerunCta"
-              type="button"
-              class="ml-1 inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-200/60 hover:text-slate-700"
-              @click="emit('analyze')"
-            >
-              <RefreshCw class="h-2.5 w-2.5" aria-hidden="true" />
-              {{ historyLocaleMismatch ? t('aiUi.regenerateCurrentLanguage') : t('aiUi.reanalyze') }}
-            </button>
-            <button
-              v-if="historyMode && isLoading"
-              type="button"
-              class="ml-1 cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-[background-color,color] duration-200 hover:bg-slate-200/60 hover:text-slate-700"
-              @click="emit('stop')"
-            >
-              {{ t('aiUi.stop') }}
-            </button>
-          </span>
-        </div>
-      </section>
-
-      <!-- 双栏：看点 / 风险 -->
-      <div class="grid gap-3 md:grid-cols-2">
-        <section class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm" data-match-reveal="compare">
-          <div class="mb-2 flex items-center gap-1.5">
-            <Swords class="h-3.5 w-3.5 text-blue-500" />
-            <h3 class="text-[12px] font-bold text-slate-800">{{ t('aiUi.highlights') }}</h3>
-          </div>
-          <ul v-if="highlightFactors.length" class="space-y-1.5">
-            <li
-              v-for="(f, i) in highlightFactors"
-              :key="'h-' + i"
-              :class="f.type === 'map' && isMapSupplementing ? 'animate-pulse' : ''"
-            >
-              <button
-                type="button"
-                class="flex w-full cursor-pointer items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11px] leading-relaxed transition-colors duration-200 hover:shadow-sm"
-                :class="sideClass(f.side)"
-                @click="onFactorClick(f.side)"
-              >
-                <Target class="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
-                <span>{{ f.text }}</span>
-              </button>
-            </li>
-          </ul>
-          <p v-else class="text-[11px] text-slate-400">{{ t('aiUi.waitingReturn') }}</p>
-        </section>
-
-        <section class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm" data-match-reveal="compare">
-          <div class="mb-2 flex items-center gap-1.5">
-            <Shield class="h-3.5 w-3.5 text-amber-500" />
-            <h3 class="text-[12px] font-bold text-slate-800">{{ t('aiUi.risks') }}</h3>
-          </div>
-          <ul v-if="riskDisplayItems.length" class="space-y-1.5">
-            <li v-for="(item, i) in riskDisplayItems" :key="'r-' + i">
-              <button
-                v-if="item.isFactor && item.side"
-                type="button"
-                class="flex w-full cursor-pointer items-start gap-1.5 rounded-lg border border-amber-200/70 bg-amber-50/50 px-2.5 py-1.5 text-left text-[11px] leading-relaxed text-amber-900 transition-colors duration-200 hover:shadow-sm"
-                @click="onFactorClick(item.side!)"
-              >
-                <AlertTriangle class="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
-                <span>{{ item.text }}</span>
-              </button>
-              <p v-else class="text-[11px] leading-relaxed text-slate-600">
-                · {{ item.text }}
-              </p>
-            </li>
-          </ul>
-          <p v-else class="text-[11px] text-slate-400">{{ t('aiUi.noRisks') }}</p>
-        </section>
-      </div>
-
-      <!-- 重点玩家：自适应网格，完整展示点评 -->
-      <section
-        v-if="showPlayerSection"
-        class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm"
-        data-match-reveal="compare"
-      >
-        <h3 class="mb-3 text-[13px] font-bold text-slate-800">{{ t('aiUi.keyPlayers') }}</h3>
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="mt-5 flex justify-center gap-2.5">
           <button
-            v-for="note in displayPlayerNotes"
-            :key="note.steamId"
+            v-if="aiEnabled && props.ai.settings.value?.providerMode !== 'openai_compatible'"
             type="button"
-            class="player-note-card group flex cursor-pointer flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:shadow-md"
-            :class="[
-              note.side === 'A'
-                ? 'border-blue-200/70 hover:border-blue-300/80'
-                : 'border-orange-200/70 hover:border-orange-300/80',
-              note.isPending ? 'opacity-60' : '',
-              highlightedSteamId === note.steamId ? 'ring-2 ring-indigo-300' : '',
-            ]"
-            @click="onPlayerNoteClick(note.steamId, note.side, note.isPending)"
+            class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-[12px] font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 active:scale-[0.96]"
+            @click="openExternalUrl(DEEPSEEK_API_KEYS_URL)"
           >
-            <div
-              class="flex items-center gap-3 px-4 py-3.5"
-              :class="
-                note.side === 'A'
-                  ? 'bg-linear-to-r from-blue-50/80 to-white'
-                  : 'bg-linear-to-r from-orange-50/80 to-white'
-              "
-            >
-              <PlayerAvatar
-                :src="note.avatar"
-                :alt="note.nickname"
-                size="md"
-                shape="rounded"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <span
-                    class="text-[13px] font-bold"
-                    :class="note.side === 'A' ? 'text-blue-700' : 'text-orange-600'"
-                  >
-                    {{ note.nickname }}
-                  </span>
-                  <span
-                    v-if="formatPlayerRole(note.role)"
-                    class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    :class="
-                      note.side === 'A'
-                        ? 'bg-blue-100/80 text-blue-700'
-                        : 'bg-orange-100/80 text-orange-700'
-                    "
-                  >
-                    {{ formatPlayerRole(note.role) }}
-                  </span>
-                </div>
-                <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                  <span
-                    v-if="note.score"
-                    class="rounded-md bg-white/80 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-700 shadow-sm"
-                  >
-                    {{ note.score }}
-                  </span>
-                  <span
-                    v-if="note.rating"
-                    class="rounded-md bg-white/80 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-700 shadow-sm"
-                  >
-                    R {{ note.rating.toFixed(2) }}
-                  </span>
-                  <span class="text-[10px] text-slate-400">{{ t('aiUi.team', { side: note.side }) }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="border-t border-slate-100/80 px-4 py-3">
-              <p
-                class="text-[12px] leading-[1.65] text-slate-600"
-                :class="note.isPending ? 'italic text-slate-400' : ''"
-              >
-                {{ note.text }}
-              </p>
-            </div>
+            {{ l('获取 Key', 'Get key') }}
+            <ArrowRight class="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            class="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-[12px] font-semibold text-white shadow-xs transition-colors hover:bg-indigo-700 active:scale-[0.96]"
+            @click="emit('openSettings')"
+          >
+            {{ l('打开设置', 'Open settings') }}
+            <ArrowRight class="h-3.5 w-3.5" />
           </button>
         </div>
       </section>
     </div>
+
+    <div v-else-if="!result && isLoading" class="flex min-h-full flex-col items-center justify-center gap-5">
+      <AiLoadingAnimation />
+      <section
+        v-if="preview"
+        class="w-full max-w-sm rounded-xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm"
+        aria-live="polite"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <span class="inline-flex items-center gap-1 text-[12px] font-bold text-indigo-600">
+            <AiSparklesIcon size="sm" static />
+            {{ winnerText }}
+          </span>
+          <span class="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{{ l('流式预估 · 正在校准', 'Live estimate · calibrating') }}</span>
+        </div>
+        <div class="mt-3 flex items-baseline justify-between tabular-nums">
+          <span class="text-[12px] font-semibold text-blue-600">{{ sideLabel('A') }} <strong class="ml-1 text-[22px] font-bold text-slate-950">{{ winA }}%</strong></span>
+          <span class="text-[12px] font-semibold text-orange-600"><strong class="mr-1 text-[22px] font-bold text-slate-950">{{ winB }}%</strong> {{ sideLabel('B') }}</span>
+        </div>
+        <div class="mt-2.5 flex h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+          <span class="bg-blue-500 transition-[width] duration-300" :style="{ width: `${winA}%` }" />
+          <span class="bg-orange-500 transition-[width] duration-300" :style="{ width: `${winB}%` }" />
+        </div>
+      </section>
+      <button type="button" class="min-h-10 cursor-pointer rounded-lg px-4 text-[12px] font-medium text-slate-500 hover:bg-slate-100 active:scale-[0.96]" @click="emit('stop')">
+        {{ l('停止分析', 'Stop analysis') }}
+      </button>
+    </div>
+
+    <div v-else-if="!result" class="flex min-h-full items-center justify-center py-10">
+      <section class="w-full max-w-md text-center">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+          <Scale class="h-7 w-7" aria-hidden="true" />
+        </div>
+        <h2 class="text-balance text-[17px] font-bold text-slate-900">
+          {{ isError ? l('本次分析未完成', 'Analysis did not complete') : autoAnalyze ? l('等待对局数据', 'Waiting for match data') : l('自动分析已关闭', 'Automatic analysis is off') }}
+        </h2>
+        <p class="mt-2 text-pretty text-[13px] leading-relaxed text-slate-500">
+          {{ isError && props.ai.error.value ? props.ai.error.value : l('准备好后可手动生成当前对局的 AI 报告。', 'Generate an AI report for this match when ready.') }}
+        </p>
+        <button
+          type="button"
+          class="mt-5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-indigo-600 px-4 text-[12px] font-semibold text-white shadow-xs transition-colors hover:bg-indigo-700 active:scale-[0.96]"
+          @click="emit('analyze')"
+        >
+          <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+          {{ isError ? l('重试', 'Retry') : l('开始分析', 'Analyze') }}
+        </button>
+      </section>
+    </div>
+
+    <main v-else class="ai-report w-full space-y-4">
+      <!-- 状态条 -->
+      <div v-if="isLoading" class="flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/80 px-4 py-2 text-[12px] font-medium text-indigo-700">
+        <RefreshCw class="h-3.5 w-3.5 animate-spin" />
+        {{ l('正在更新分析，当前完整结果会保留到新结果生成。', 'Updating analysis. The current complete result remains visible until replacement.') }}
+      </div>
+      <div v-else-if="isError && props.ai.error.value" class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] text-amber-800">
+        <AlertTriangle class="h-3.5 w-3.5 text-amber-600" />
+        <span>{{ l('更新失败，继续显示上一次结果：', 'Update failed; showing the previous result:') }} {{ props.ai.error.value }}</span>
+      </div>
+
+      <!-- 1. Hero 对决战况看板 -->
+      <section class="ai-report-enter rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs lg:p-6">
+        <div class="grid items-center gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-indigo-50 px-2.5 py-1 text-[12px] font-bold text-indigo-700">
+                <AiSparklesIcon size="sm" static />
+                {{ winnerText }}
+              </span>
+              <span v-if="preview" class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">{{ l('流式校准中', 'Live calibrating') }}</span>
+              <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums">
+                {{ displayConfidence }}% {{ confidenceLabel }}
+              </span>
+              <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums">
+                {{ l('覆盖', 'Coverage') }} {{ coveragePct }}%
+              </span>
+            </div>
+            
+            <h2 class="mt-2.5 max-w-3xl text-balance text-[20px] font-black tracking-tight text-slate-900 lg:text-[22px]">
+              {{ perspectiveText(result.headline) }}
+            </h2>
+
+            <p
+              class="mt-2 text-[12px] text-slate-400"
+              :title="l('模型原始概率会按数据覆盖率向 50% 收敛', 'Raw model probability is calibrated toward 50% based on coverage')"
+            >
+              {{ l(`模型原始预估：${sideLabel('A')} ${modelA}% · 考虑样本覆盖率后收敛至最终预测`, `Raw model: ${sideLabel('A')} ${modelA}% · Calibrated by coverage`) }}
+            </p>
+          </div>
+
+          <!-- 战力胜率天平 -->
+          <div class="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+            <div class="flex items-center justify-between pb-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">{{ l('战力胜率预测', 'Win Probability') }}</span>
+              <span class="text-[11px] text-slate-400">{{ l('点击可高亮阵营', 'Click to highlight') }}</span>
+            </div>
+            <div class="flex items-baseline justify-between tabular-nums">
+              <button
+                type="button"
+                class="group cursor-pointer rounded-lg p-1.5 text-left transition-colors hover:bg-blue-100/50 active:scale-[0.96]"
+                :class="highlightedSide === 'A' ? 'bg-blue-100/70 ring-1 ring-blue-400' : ''"
+                @click="emit('highlightSide', 'A')"
+              >
+                <div class="flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full bg-blue-500" />
+                  <span class="text-[12px] font-bold text-blue-700">{{ sideLabel('A') }}</span>
+                  <span v-if="selfSide" class="rounded bg-blue-100/80 px-1 text-[10px] font-bold text-blue-600">A</span>
+                </div>
+                <strong class="mt-1 block text-[26px] font-black leading-none text-slate-900 group-hover:text-blue-700">{{ winA }}%</strong>
+              </button>
+
+              <div class="px-2 text-center text-[12px] font-black italic text-slate-300">VS</div>
+
+              <button
+                type="button"
+                class="group cursor-pointer rounded-lg p-1.5 text-right transition-colors hover:bg-orange-100/50 active:scale-[0.96]"
+                :class="highlightedSide === 'B' ? 'bg-orange-100/70 ring-1 ring-orange-400' : ''"
+                @click="emit('highlightSide', 'B')"
+              >
+                <div class="flex items-center justify-end gap-1.5">
+                  <span v-if="selfSide" class="rounded bg-orange-100/80 px-1 text-[10px] font-bold text-orange-600">B</span>
+                  <span class="text-[12px] font-bold text-orange-700">{{ sideLabel('B') }}</span>
+                  <span class="h-2 w-2 rounded-full bg-orange-500" />
+                </div>
+                <strong class="mt-1 block text-[26px] font-black leading-none text-slate-900 group-hover:text-orange-700">{{ winB }}%</strong>
+              </button>
+            </div>
+            <div class="mt-2.5 flex h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+              <span class="bg-blue-500 transition-all duration-300" :style="{ width: `${winA}%` }" />
+              <span class="bg-orange-500 transition-all duration-300" :style="{ width: `${winB}%` }" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 中间双栏：决定本局的因素 + 玩家信号 -->
+      <div class="ai-report-enter grid gap-4 lg:grid-cols-2">
+        <!-- 决定本局的因素 -->
+        <section v-if="result.decisiveFactors.length" class="flex flex-col rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <Scale class="h-4 w-4" aria-hidden="true" />
+              </div>
+              <h3 class="text-[14px] font-bold text-slate-900">{{ l('决定本局的因素', 'Decisive factors') }}</h3>
+            </div>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              {{ result.decisiveFactors.length }} {{ l('项核心胜负手', 'factors') }}
+            </span>
+          </div>
+
+          <div class="space-y-3.5">
+            <article
+              v-for="factor in result.decisiveFactors"
+              :key="factor.id"
+              class="group rounded-lg border border-slate-100 bg-slate-50/50 p-3.5 transition-all hover:border-slate-200 hover:bg-slate-50/80 hover:shadow-xs"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5">
+                  <component :is="dimensionMeta[factor.dimension].icon" class="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                  <span class="text-[11px] font-bold text-slate-600">{{ dimensionMeta[factor.dimension].label }}</span>
+                  <span class="rounded px-1.5 py-0.5 text-[10px] font-bold" :class="advantageTone(factor.advantage)">
+                    {{ advantageLabel(factor.advantage) }}
+                  </span>
+                </div>
+                
+                <!-- 影响度指示器 -->
+                <div
+                  class="flex items-center gap-1"
+                  :title="l(`影响度 ${factor.impact}/3`, `Impact ${factor.impact}/3`)"
+                  :aria-label="l(`影响度 ${factor.impact}/3`, `Impact ${factor.impact}/3`)"
+                >
+                  <span class="text-[10px] text-slate-400 mr-0.5">{{ l('影响', 'Impact') }}</span>
+                  <span
+                    v-for="dot in 3"
+                    :key="dot"
+                    class="h-1.5 w-3 rounded-full transition-colors"
+                    :class="dot <= factor.impact ? 'bg-indigo-600' : 'bg-slate-200'"
+                  />
+                </div>
+              </div>
+
+              <h4 class="mt-2 text-[13px] font-bold text-slate-900">{{ perspectiveText(factor.title) }}</h4>
+              <p class="mt-1 text-[12px] leading-relaxed text-slate-600">{{ perspectiveText(factor.summary) }}</p>
+
+              <!-- 关键证据指标 Pills -->
+              <div v-if="factor.evidence.length" class="mt-2.5 flex flex-wrap gap-1.5 pt-1">
+                <span
+                  v-for="evidence in factor.evidence.slice(0, 2)"
+                  :key="evidence.id"
+                  class="inline-flex items-center rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-700 shadow-2xs"
+                  :title="evidenceTooltip(evidence)"
+                >
+                  <span class="text-slate-400 mr-1">#</span>
+                  {{ evidencePillText(evidence) }}
+                </span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 玩家信号 -->
+        <section v-if="signalGroups.length" class="flex flex-col rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <Users class="h-4 w-4" aria-hidden="true" />
+              </div>
+              <h3 class="text-[14px] font-bold text-slate-900">{{ l('玩家信号', 'Player signals') }}</h3>
+            </div>
+            <span class="text-[11px] text-slate-400">{{ l('与主表格头像图标联动', 'Synced with table badges') }}</span>
+          </div>
+
+          <div class="space-y-4">
+            <div v-for="group in signalGroups" :key="group.id">
+              <div class="mb-2 flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full" :class="group.id === 'positive' ? 'bg-emerald-500' : group.id === 'negative' ? 'bg-rose-500' : 'bg-amber-500'" />
+                <span class="text-[11px] font-bold tracking-wider uppercase" :class="group.tone">{{ group.label }}</span>
+              </div>
+
+              <div class="space-y-2.5">
+                <article
+                  v-for="signal in group.items"
+                  :id="`ai-player-${signal.steamId}`"
+                  :key="signal.steamId"
+                  tabindex="-1"
+                  class="group flex gap-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3 outline-none transition-all hover:border-slate-200 hover:bg-slate-50 hover:shadow-xs focus:border-indigo-400 focus:bg-indigo-50/40 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <!-- 角色专属战术徽章 -->
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-2xs" :class="signalTone(signal.kind)">
+                    <component :is="signalIcon(signal.kind)" class="h-4 w-4" aria-hidden="true" />
+                  </div>
+
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span class="truncate text-[13px] font-bold text-slate-900">{{ signal.nickname }}</span>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-semibold" :class="signal.side === 'A' ? 'text-blue-600' : 'text-orange-600'">
+                        <span class="h-1.5 w-1.5 rounded-full" :class="signal.side === 'A' ? 'bg-blue-500' : 'bg-orange-500'" />
+                        {{ sideLabel(signal.side) }}
+                        <span v-if="selfSide" class="font-normal text-slate-400">{{ signal.side }}</span>
+                      </span>
+                      <span class="rounded px-1.5 py-0.2 text-[10px] font-bold" :class="signalTone(signal.kind)">
+                        {{ signalLabel(signal.kind) }}
+                      </span>
+                    </div>
+
+                    <p class="mt-1 text-[12px] leading-relaxed text-slate-600">{{ perspectiveText(signal.summary) }}</p>
+
+                    <!-- 附带精简证据 -->
+                    <div v-if="signal.evidence.length" class="mt-2 flex flex-wrap gap-1.5">
+                      <span
+                        v-for="evidence in signal.evidence.slice(0, 2)"
+                        :key="evidence.id"
+                        class="inline-flex items-center rounded border border-slate-200/60 bg-white px-1.5 py-0.2 text-[10.5px] font-medium tabular-nums text-slate-600"
+                        :title="evidenceTooltip(evidence)"
+                      >
+                        {{ evidencePillText(evidence) }}
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 3. 双方取胜路径 (Paths to victory) -->
+      <section class="ai-report-enter rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs">
+        <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <Target class="h-4 w-4" aria-hidden="true" />
+            </div>
+            <h3 class="text-[14px] font-bold text-slate-900">{{ l('双方取胜路径', 'Paths to victory') }}</h3>
+          </div>
+          <span class="text-[11px] text-slate-400">{{ l('核心胜负条件与潜在风险博弈', 'Tactical win conditions & vulnerabilities') }}</span>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div
+            v-for="side in (['A', 'B'] as const)"
+            :key="side"
+            class="rounded-xl border p-4 transition-all"
+            :class="side === 'A' ? 'border-blue-100/90 bg-blue-50/30' : 'border-orange-100/90 bg-orange-50/30'"
+          >
+            <!-- 队伍标题 -->
+            <div class="flex items-center gap-2 border-b pb-2.5" :class="side === 'A' ? 'border-blue-100 text-blue-700' : 'border-orange-100 text-orange-700'">
+              <span class="h-2 w-2 rounded-full" :class="side === 'A' ? 'bg-blue-500' : 'bg-orange-500'" />
+              <h4 class="text-[13px] font-black">
+                {{ sideLabel(side) }}
+                <span v-if="selfSide" class="font-normal text-slate-400">({{ side }})</span>
+                {{ l('战术推演', 'Tactical Roadmap') }}
+              </h4>
+            </div>
+
+            <div class="mt-3 grid gap-4 sm:grid-cols-2">
+              <!-- 取胜条件 -->
+              <div class="rounded-lg bg-white/80 p-3 shadow-2xs">
+                <p class="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold text-emerald-700">
+                  <CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+                  {{ l('取胜条件', 'Win conditions') }}
+                </p>
+                <ul class="space-y-2">
+                  <li
+                    v-for="(claim, index) in result.teamPlans[side].winConditions"
+                    :key="`win-${side}-${index}`"
+                    class="text-[12px] leading-relaxed text-slate-700"
+                  >
+                    <div class="flex items-start gap-1.5">
+                      <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-emerald-500" />
+                      <div>
+                        <span>{{ perspectiveText(claim.text) }}</span>
+                        <div v-if="claim.evidence[0]" class="mt-1">
+                          <span
+                            class="inline-block rounded bg-emerald-50 px-1.5 py-0.2 text-[10.5px] font-medium text-emerald-700"
+                            :title="evidenceTooltip(claim.evidence[0])"
+                          >
+                            {{ evidencePillText(claim.evidence[0]) }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li v-if="!result.teamPlans[side].winConditions.length" class="text-[11px] text-slate-400">
+                    {{ l('暂无足够证据', 'Insufficient evidence') }}
+                  </li>
+                </ul>
+              </div>
+
+              <!-- 主要隐患 -->
+              <div class="rounded-lg bg-white/80 p-3 shadow-2xs">
+                <p class="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold text-rose-700">
+                  <XCircle class="h-3.5 w-3.5 shrink-0" />
+                  {{ l('主要隐患', 'Risks') }}
+                </p>
+                <ul class="space-y-2">
+                  <li
+                    v-for="(claim, index) in result.teamPlans[side].risks"
+                    :key="`risk-${side}-${index}`"
+                    class="text-[12px] leading-relaxed text-slate-700"
+                  >
+                    <div class="flex items-start gap-1.5">
+                      <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-500" />
+                      <div>
+                        <span>{{ perspectiveText(claim.text) }}</span>
+                        <div v-if="claim.evidence[0]" class="mt-1">
+                          <span
+                            class="inline-block rounded bg-rose-50 px-1.5 py-0.2 text-[10.5px] font-medium text-rose-700"
+                            :title="evidenceTooltip(claim.evidence[0])"
+                          >
+                            {{ evidencePillText(claim.evidence[0]) }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li v-if="!result.teamPlans[side].risks.length" class="text-[11px] text-slate-400">
+                    {{ l('暂无明确隐患', 'No clear risk identified') }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 数据边界与运行信息 (Footer) -->
+      <div class="ai-report-enter space-y-3">
+        <section v-if="result.uncertainties.length" class="rounded-xl border border-amber-200/60 bg-amber-50/40 p-4 shadow-2xs">
+          <div class="flex items-center gap-2 text-amber-800">
+            <AlertTriangle class="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+            <h3 class="text-[12.5px] font-bold">{{ l('数据边界', 'Data boundary') }}</h3>
+          </div>
+          <ul class="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            <li v-for="item in result.uncertainties" :key="item" class="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-amber-900/80">
+              <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+              <span>{{ perspectiveText(item) }}</span>
+            </li>
+          </ul>
+        </section>
+
+        <details class="rounded-xl border border-slate-200/70 bg-white px-4 py-2.5 text-[11.5px] text-slate-500 shadow-2xs">
+          <summary class="min-h-7 cursor-pointer select-none font-bold text-slate-600 transition-colors hover:text-slate-900">
+            {{ l('运行信息', 'Run details') }}
+          </summary>
+          <div class="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-slate-100 pt-2 tabular-nums">
+            <span>{{ l('分析耗时', 'Elapsed') }}: <strong class="text-slate-700">{{ elapsedLabel }}</strong></span>
+            <span>Token: <strong class="text-slate-700">{{ usageLabel }}</strong></span>
+            <span v-if="costLabel">{{ l('费用', 'Cost') }}: <strong class="text-slate-700">{{ costLabel }}</strong></span>
+            <span>数据质量: <strong class="text-slate-700">{{ result.dataQuality }}</strong></span>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button
+              type="button"
+              class="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11.5px] font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 active:scale-[0.96]"
+              @click="emit('analyze')"
+            >
+              <RefreshCw class="h-3 w-3" />
+              {{ l('重新分析', 'Analyze again') }}
+            </button>
+            <button
+              v-if="isLoading"
+              type="button"
+              class="min-h-8 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 text-[11.5px] font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.96]"
+              @click="emit('stop')"
+            >
+              {{ l('停止', 'Stop') }}
+            </button>
+          </div>
+        </details>
+      </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
-.ai-hero-card {
-  box-shadow: 0 4px 20px rgb(59 130 246 / 0.06);
+.ai-report-enter {
+  animation: ai-report-in 360ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-.player-note-card {
-  box-shadow: 0 1px 3px rgb(15 23 42 / 0.04);
-}
+.ai-report-enter:nth-child(2) { animation-delay: 60ms; }
+.ai-report-enter:nth-child(3) { animation-delay: 120ms; }
+.ai-report-enter:nth-child(4) { animation-delay: 180ms; }
+.ai-report-enter:nth-child(5) { animation-delay: 240ms; }
+.ai-report-enter:nth-child(6) { animation-delay: 300ms; }
 
-.player-note-card:hover {
-  box-shadow: 0 4px 16px rgb(15 23 42 / 0.08);
-}
-
-.ai-pulse-text {
-  animation: ai-text-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes ai-text-pulse {
-  0%,
-  100% {
-    opacity: 1;
+@keyframes ai-report-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
-  50% {
-    opacity: 0.75;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>
+

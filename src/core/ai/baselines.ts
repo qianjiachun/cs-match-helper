@@ -7,7 +7,13 @@ export const METRIC_BASELINES_TEXT = `
 - ADPR/ADR：80 左右为较好输出；>=85 稳定高伤，>=90 强输出；<70 输出偏低
 - K/D：1.00 为基本分界；>=1.15 稳定正贡献；<0.90 偏弱（K/D 为估算值时降权）
 - 当前地图：地图 Rating、ADR、胜率都需结合场次；相对玩家赛季均值的偏差优先于绝对值
-- 地图样本：<3 局必须降权，3-5 局谨慎参考
+- 地图样本：<3 局必须降权，3-5 局谨慎参考；当前地图 CT/T 只有回合胜率，没有分侧 Rating，且必须看 CT/T 回合数
+- 赛季 CT/T Rating：来自 pw_rating_ct_avg / pw_rating_t_avg，只表示赛季边倾向；差距不够大不能称为边优势
+- 1v1 胜率必须带 attempts；1vx_rate 是全部残局，不能写成 1v1
+- KAST：kast_total / round_count；补枪成功率：trade_frag / try
+- 赛季 _change 只解释状态，不能单独当强弱
+- 胜回合伤害/击杀高于全场均值，不自动等于残局强
+- PRI / pri_avg 不是 WE
 - 五维能力（shot/victory/breach/snipe/prop）只表示平台风格标签，不与旧七维雷达互换，也不直接换算胜率
 - 组排：同 troopTeamId 可能提升协同，但若组排成员 Rating/WE 低不应简单判优势
 `.trim();

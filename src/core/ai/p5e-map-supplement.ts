@@ -1,11 +1,15 @@
 import type { MatchRecord } from '@core/match/models';
 import type {
   AiAnalysisResult,
-  AiKeyFactor,
-  AiPlayerNote,
   AiTokenUsage,
   StartAiAnalysisInput,
 } from './types';
+import {
+  buildAiAnalysisContext,
+  buildAiPromptEvidence,
+  normalizeAiAnalysisResult,
+  type AiAnalysisContext,
+} from './analysis-v2';
 import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, type AiOutputLocale } from './ai-prompt-schema';
 import { p5eMapFitHint } from './p5e-baselines';
 import { sanitizeAiAnalysisResult } from './sanitize-result';
@@ -18,14 +22,12 @@ export interface AiTokenUsageBreakdown {
 }
 
 export interface P5eMapSupplementDelta {
-  winProbability?: { A: number; B: number };
+  modelWinProbability?: { A: number; B: number };
   confidence?: number;
   headlineRefine?: string;
-  quickReasonsAdd?: string[];
-  keyFactorsAdd?: AiKeyFactor[];
-  playerNotesAdd?: AiPlayerNote[];
-  risksAdd?: string[];
-  dataQuality?: string;
+  decisiveFactorsAdd?: Record<string, unknown>[];
+  playerSignalsAdd?: Record<string, unknown>[];
+  uncertaintiesAdd?: string[];
 }
 
 export const P5E_MAP_SUPPLEMENT_SYSTEM_PROMPT = `你是 CS2 5E 对战平台赛前分析助手。本局地图已确认，你需要在「已有分析结论」基础上做地图维度的增量补充。
@@ -33,38 +35,35 @@ export const P5E_MAP_SUPPLEMENT_SYSTEM_PROMPT = `你是 CS2 5E 对战平台赛�
 所有 player 在输出文案中必须称为「玩家」，禁止使用「球员」。
 输出必须是严格 JSON，不要 Markdown，不要代码块。
 不得删除或否定上一轮非地图结论；只能追加地图相关依据，并允许小幅修正胜率与 confidence。
-winProbability.A + winProbability.B 必须等于 100（若输出 winProbability）。
-keyFactorsAdd 的 type 应为 map 或 form（地图适配相关）。
+modelWinProbability.A + modelWinProbability.B 必须等于 100（若输出概率）。
+decisiveFactorsAdd 的 dimension 只能是 map 或 form。
+playerSignalsAdd 只能输出 specialist 或 volatile，且必须引用当前地图证据；不得覆盖基础报告中的非地图信号。
 禁止输出「完美平台」「PerfectPower」「Rating Pro」等完美专属词。
 
 ${AI_OUTPUT_LANGUAGE_RULES}`;
 
 export const P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA = `请输出严格 JSON，字段顺序建议：
 {
-  "winProbability": { "A": number, "B": number },
+  "modelWinProbability": { "A": number, "B": number },
   "confidence": number,
   "headlineRefine": string,
-  "quickReasonsAdd": string[],
-  "keyFactorsAdd": [{ "side": "A|B|Both", "type": "map|form|risk", "text": string, "weight": number }],
-  "playerNotesAdd": [{ "steamId": string, "nickname": string, "side": "A|B", "text": string, "role": string }],
-  "risksAdd": string[],
-  "dataQuality": string
+  "decisiveFactorsAdd": [{ "id": string, "dimension": "map|form", "advantage": "A|B|Even", "impact": 1|2|3, "title": string, "summary": string, "evidenceIds": string[] }],
+  "playerSignalsAdd": [{ "steamId": string, "side": "A|B", "kind": "specialist|volatile", "impact": 1|2|3, "title": string, "summary": string, "evidenceIds": string[] }],
+  "uncertaintiesAdd": string[]
 }
-仅输出 JSON。winProbability、confidence、headlineRefine 为可选；其余数组可为空但建议至少提供 keyFactorsAdd 或 quickReasonsAdd。
+只能引用输入 evidenceCatalog 中的 ID。仅输出 JSON；数组可为空，禁止为凑数编造地图优势。
 `;
 
 const P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA_EN = `Return strict JSON in this shape:
 {
-  "winProbability": { "A": number, "B": number },
+  "modelWinProbability": { "A": number, "B": number },
   "confidence": number,
   "headlineRefine": string,
-  "quickReasonsAdd": string[],
-  "keyFactorsAdd": [{ "side": "A|B|Both", "type": "map|form|risk", "text": string, "weight": number }],
-  "playerNotesAdd": [{ "steamId": string, "nickname": string, "side": "A|B", "text": string, "role": string }],
-  "risksAdd": string[],
-  "dataQuality": string
+  "decisiveFactorsAdd": [{ "id": string, "dimension": "map|form", "advantage": "A|B|Even", "impact": 1|2|3, "title": string, "summary": string, "evidenceIds": string[] }],
+  "playerSignalsAdd": [{ "steamId": string, "side": "A|B", "kind": "specialist|volatile", "impact": 1|2|3, "title": string, "summary": string, "evidenceIds": string[] }],
+  "uncertaintiesAdd": string[]
 }
-Return JSON only. winProbability, confidence, and headlineRefine are optional; arrays may be empty, but include at least one map-related key factor or quick reason when data permits.
+Reference only IDs from the supplied evidenceCatalog. Return JSON only; arrays may be empty when evidence is insufficient.
 `;
 
 export function resolveP5eMapName(record: MatchRecord): string | undefined {
@@ -80,37 +79,6 @@ export function resolveP5eMapStatus(record: MatchRecord): P5eMapStatus {
   return hasP5eMapReady(record) ? 'ready' : 'unknown';
 }
 
-function summarizeMapPlayersForSupplement(record: MatchRecord) {
-  return record.detail.teams.flatMap((team) =>
-    team.players.map((player) => ({
-      steamId: player.steamId,
-      nickname: player.nickname,
-      side: team.side,
-      mapWinRate:
-        player.mapWinRate != null ? `${Math.round(player.mapWinRate * 100)}%` : undefined,
-      mapMatches: player.mapTotalNum,
-      mapSampleLow: player.mapSampleLow || undefined,
-    })),
-  );
-}
-
-function summarizeMapTeamsForSupplement(record: MatchRecord) {
-  return record.detail.teams.map((team) => {
-    const mapRates = team.players
-      .map((p) => p.mapWinRate)
-      .filter((n): n is number => n != null);
-    const mapWinRate =
-      mapRates.length > 0
-        ? `${Math.round((mapRates.reduce((a, b) => a + b, 0) / mapRates.length) * 100)}%`
-        : undefined;
-    return {
-      side: team.side,
-      mapWinRate,
-      lowMapSampleCount: team.players.filter((p) => p.mapSampleLow).length || undefined,
-    };
-  });
-}
-
 export function buildP5eMapSupplementPayload(
   record: MatchRecord,
   previous: AiAnalysisResult,
@@ -121,9 +89,23 @@ export function buildP5eMapSupplementPayload(
     platform: '5e' as const,
     mapName,
     mapFitHint: p5eMapFitHint(mapName),
-    previousAnalysis: previous,
-    mapPlayerStats: summarizeMapPlayersForSupplement(record),
-    teams: summarizeMapTeamsForSupplement(record),
+    previousAnalysis: {
+      modelWinProbability: previous.modelWinProbability,
+      confidence: previous.confidence,
+      headline: previous.headline,
+      decisiveFactors: previous.decisiveFactors.map((factor) => ({
+        id: factor.id,
+        dimension: factor.dimension,
+        advantage: factor.advantage,
+        evidenceIds: factor.evidence.map((item) => item.id),
+      })),
+      playerSignals: previous.playerSignals.map((signal) => ({
+        steamId: signal.steamId,
+        side: signal.side,
+        kind: signal.kind,
+        evidenceIds: signal.evidence.map((item) => item.id),
+      })),
+    },
   };
 }
 
@@ -131,12 +113,22 @@ export function buildP5eMapSupplementRequest(
   record: MatchRecord,
   previous: AiAnalysisResult,
   locale: AiOutputLocale = 'zh-CN',
+  viewerSteamId?: string | null,
 ): StartAiAnalysisInput {
   const payload = buildP5eMapSupplementPayload(record, previous);
+  const context = buildAiAnalysisContext(record, viewerSteamId);
+  const promptEvidence = buildAiPromptEvidence(context);
   return {
     matchId: record.id,
     systemPrompt: P5E_MAP_SUPPLEMENT_SYSTEM_PROMPT.replace(AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules(locale)),
-    userPrompt: (locale === 'en-US' ? P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA_EN : P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA) + JSON.stringify(payload),
+    userPrompt: (locale === 'en-US' ? P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA_EN : P5E_MAP_SUPPLEMENT_OUTPUT_SCHEMA) + JSON.stringify({
+      ...payload,
+      evidence: {
+        ...promptEvidence,
+        evidenceCatalog: promptEvidence.evidenceCatalog.filter((item) => item.scope === 'map'),
+        localUncertainties: promptEvidence.localUncertainties.filter((item) => /地图|map/i.test(item)),
+      },
+    }),
   };
 }
 
@@ -151,12 +143,12 @@ export function parseP5eMapSupplementResult(raw: string): P5eMapSupplementDelta 
     const parsed = JSON.parse(stripJsonFence(raw)) as Record<string, unknown>;
     const delta: P5eMapSupplementDelta = {};
 
-    const wp = parsed.winProbability;
+    const wp = parsed.modelWinProbability ?? parsed.winProbability;
     if (wp && typeof wp === 'object' && !Array.isArray(wp)) {
       const a = Number((wp as Record<string, unknown>).A);
       const b = Number((wp as Record<string, unknown>).B);
       if (Number.isFinite(a) && Number.isFinite(b)) {
-        delta.winProbability = { A: a, B: b };
+        delta.modelWinProbability = { A: a, B: b };
       }
     }
 
@@ -166,71 +158,27 @@ export function parseP5eMapSupplementResult(raw: string): P5eMapSupplementDelta 
     if (typeof parsed.headlineRefine === 'string' && parsed.headlineRefine.trim()) {
       delta.headlineRefine = parsed.headlineRefine.trim();
     }
-    if (typeof parsed.dataQuality === 'string' && parsed.dataQuality.trim()) {
-      delta.dataQuality = parsed.dataQuality.trim();
-    }
-
     const strArray = (v: unknown): string[] | undefined => {
       if (!Array.isArray(v)) return undefined;
       const items = v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
       return items.length ? items : undefined;
     };
 
-    delta.quickReasonsAdd = strArray(parsed.quickReasonsAdd);
-    delta.risksAdd = strArray(parsed.risksAdd);
-
-    if (Array.isArray(parsed.keyFactorsAdd)) {
-      const factors: AiKeyFactor[] = [];
-      for (const item of parsed.keyFactorsAdd) {
-        if (!item || typeof item !== 'object') continue;
-        const row = item as Record<string, unknown>;
-        const text = typeof row.text === 'string' ? row.text.trim() : '';
-        if (!text) continue;
-        const side = row.side === 'A' || row.side === 'B' || row.side === 'Both' ? row.side : 'Both';
-        const type =
-          row.type === 'strength' ||
-          row.type === 'risk' ||
-          row.type === 'map' ||
-          row.type === 'party' ||
-          row.type === 'form'
-            ? row.type
-            : 'map';
-        const weight = typeof row.weight === 'number' && Number.isFinite(row.weight) ? row.weight : 0.5;
-        factors.push({ side, type, text, weight });
-      }
-      if (factors.length) delta.keyFactorsAdd = factors;
+    delta.uncertaintiesAdd = strArray(parsed.uncertaintiesAdd);
+    if (Array.isArray(parsed.decisiveFactorsAdd)) {
+      delta.decisiveFactorsAdd = parsed.decisiveFactorsAdd.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)));
     }
-
-    if (Array.isArray(parsed.playerNotesAdd)) {
-      const notes: AiPlayerNote[] = [];
-      for (const item of parsed.playerNotesAdd) {
-        if (!item || typeof item !== 'object') continue;
-        const row = item as Record<string, unknown>;
-        const text = typeof row.text === 'string' ? row.text.trim() : '';
-        const steamId = typeof row.steamId === 'string' ? row.steamId : '';
-        const nickname = typeof row.nickname === 'string' ? row.nickname : '';
-        const side = row.side === 'A' || row.side === 'B' ? row.side : 'A';
-        if (!text) continue;
-        notes.push({
-          steamId,
-          nickname,
-          side,
-          text,
-          role: typeof row.role === 'string' ? row.role : undefined,
-        });
-      }
-      if (notes.length) delta.playerNotesAdd = notes;
+    if (Array.isArray(parsed.playerSignalsAdd)) {
+      delta.playerSignalsAdd = parsed.playerSignalsAdd.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)));
     }
 
     const hasContent =
-      delta.winProbability ||
+      delta.modelWinProbability ||
       delta.confidence != null ||
       delta.headlineRefine ||
-      delta.quickReasonsAdd?.length ||
-      delta.keyFactorsAdd?.length ||
-      delta.playerNotesAdd?.length ||
-      delta.risksAdd?.length ||
-      delta.dataQuality;
+      delta.decisiveFactorsAdd?.length ||
+      delta.playerSignalsAdd?.length ||
+      delta.uncertaintiesAdd?.length;
 
     return hasContent ? delta : null;
   } catch {
@@ -250,47 +198,57 @@ function dedupeStrings(items: string[]): string[] {
   return out;
 }
 
-function dedupeFactors(items: AiKeyFactor[]): AiKeyFactor[] {
-  const seen = new Set<string>();
-  const out: AiKeyFactor[] = [];
-  for (const item of items) {
-    const key = `${item.side}|${item.type}|${item.text}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
-}
-
-function dedupePlayerNotes(items: AiPlayerNote[]): AiPlayerNote[] {
-  const seen = new Set<string>();
-  const out: AiPlayerNote[] = [];
-  for (const item of items) {
-    const key = `${item.steamId}|${item.text}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
-}
-
 export function mergeAiMapSupplement(
   base: AiAnalysisResult,
   delta: P5eMapSupplementDelta,
+  context?: AiAnalysisContext,
 ): AiAnalysisResult {
-  const merged: AiAnalysisResult = {
+  const asEvidenceIds = <T extends { evidence: Array<{ id: string }> }>(item: T) => ({
+    ...item,
+    evidenceIds: item.evidence.map((entry) => entry.id),
+  });
+  const evidenceIds = (item: Record<string, unknown>): string[] => (
+    Array.isArray(item.evidenceIds)
+      ? item.evidenceIds.filter((id): id is string => typeof id === 'string')
+      : []
+  );
+  const hasMapEvidence = (item: Record<string, unknown>): boolean => evidenceIds(item).some((id) => (
+    context?.evidenceById.get(id)?.scope === 'map' || (!context && id.endsWith('.map'))
+  ));
+  const mapFactorAdds = (delta.decisiveFactorsAdd ?? []).filter((item) => (
+    (item.dimension === 'map' || item.dimension === 'form') && hasMapEvidence(item)
+  ));
+  const mapSignalAdds = (delta.playerSignalsAdd ?? []).filter((item) => (
+    (item.kind === 'specialist' || item.kind === 'volatile') && hasMapEvidence(item)
+  ));
+  const merged = normalizeAiAnalysisResult({
     ...base,
-    winProbability: delta.winProbability ?? base.winProbability,
+    schemaVersion: 3,
+    modelWinProbability: delta.modelWinProbability ?? base.modelWinProbability,
     confidence: delta.confidence ?? base.confidence,
     headline: delta.headlineRefine?.trim() || base.headline,
-    quickReasons: dedupeStrings([...(base.quickReasons ?? []), ...(delta.quickReasonsAdd ?? [])]),
-    keyFactors: dedupeFactors([...base.keyFactors, ...(delta.keyFactorsAdd ?? [])]),
-    playerNotes: dedupePlayerNotes([...base.playerNotes, ...(delta.playerNotesAdd ?? [])]),
-    risks: dedupeStrings([...base.risks, ...(delta.risksAdd ?? [])]),
-    dataQuality: delta.dataQuality
-      ? `${base.dataQuality} ${delta.dataQuality}`.trim()
-      : base.dataQuality,
-  };
+    decisiveFactors: [
+      ...base.decisiveFactors.map(asEvidenceIds),
+      ...mapFactorAdds,
+    ],
+    playerSignals: [
+      ...base.playerSignals.map(asEvidenceIds),
+      ...mapSignalAdds,
+    ],
+    teamPlans: {
+      A: {
+        winConditions: base.teamPlans.A.winConditions.map(asEvidenceIds),
+        risks: base.teamPlans.A.risks.map(asEvidenceIds),
+      },
+      B: {
+        winConditions: base.teamPlans.B.winConditions.map(asEvidenceIds),
+        risks: base.teamPlans.B.risks.map(asEvidenceIds),
+      },
+    },
+    uncertainties: dedupeStrings([...base.uncertainties, ...(delta.uncertaintiesAdd ?? [])]),
+    dataQuality: base.dataQuality,
+  }, context);
+  if (!merged) return base;
   return sanitizeAiAnalysisResult(merged);
 }
 

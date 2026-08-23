@@ -37,7 +37,11 @@ function sampleRecord(): MatchRecord {
               nickname: 'A1',
               teamSide: 1,
               isSingle: false,
-              score: 2000,
+              score: 2400,
+              currentSStars: 12,
+              peakScore: 2400,
+              peakSStars: 28,
+              peakSeason: 'S20',
               radar: {},
               recentResults: [],
               recentRatings: [],
@@ -46,7 +50,7 @@ function sampleRecord(): MatchRecord {
           ],
           singleCount: 0,
           partyGroups: [],
-          avgScore: 2000,
+          avgScore: 2400,
         },
         {
           side: 'B',
@@ -91,6 +95,13 @@ describe('match history schema', () => {
     const vm = documentToViewModel(document, unsupportedSections);
     expect(vm.record?.summary.mapName).toBe('dust2');
     expect(vm.record?.detail.teams).toHaveLength(2);
+    expect(vm.record?.detail.teams[0]?.players[0]).toMatchObject({
+      score: 2400,
+      currentSStars: 12,
+      peakScore: 2400,
+      peakSStars: 28,
+      peakSeason: 'S20',
+    });
     expect(vm.ai.status).toBe('none');
   });
 
@@ -125,9 +136,9 @@ describe('match history schema', () => {
     const doc = buildDocumentFromMatch(sampleRecord(), { includeEmptyAi: false });
     const item = documentToListItem(doc);
     expect(item.mapName).toBe('dust2');
-    expect(item.teamAAvgScore).toBe(2000);
+    expect(item.teamAAvgScore).toBe(2400);
     expect(item.teamBAvgScore).toBe(1900);
-    expect(item.matchAvgScore).toBe(1950);
+    expect(item.matchAvgScore).toBe(2150);
     expect(item.playerCount).toBe(10);
     expect(item.mode).toBe('天梯');
 

@@ -1,7 +1,7 @@
 /** 文档信封当前版本 */
 export const CURRENT_DOCUMENT_SCHEMA_VERSION = 1 as const;
 export const CURRENT_MATCH_SECTION_VERSION = 1 as const;
-export const CURRENT_AI_SECTION_VERSION = 1 as const;
+export const CURRENT_AI_SECTION_VERSION = 3 as const;
 
 /** 索引目录版本：v2 仅存定位/排序元数据 */
 export const CURRENT_INDEX_SCHEMA_VERSION = 2 as const;

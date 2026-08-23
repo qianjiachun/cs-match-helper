@@ -1,16 +1,17 @@
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use std::fs;
-use std::path::PathBuf;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
-const SETTINGS_FILENAME: &str = "cs-match-helper-settings.json";
 const AI_REQUEST_TIMEOUT_MS: u64 = 10 * 60 * 1000;
 const PROVIDER_DEEPSEEK: &str = "deepseek";
 const PROVIDER_OPENAI_COMPATIBLE: &str = "openai_compatible";
+const AI_FAST_MAX_COMPLETION_TOKENS: u64 = 2_600;
+const AI_FAST_RETRY_MAX_COMPLETION_TOKENS: u64 = 3_600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +130,7 @@ pub struct StartAiAnalysisInput {
 #[serde(rename_all = "camelCase")]
 pub struct AiAnalysisStartEvent {
     pub match_id: String,
+    pub job_id: u64,
     pub started_at: u64,
 }
 
@@ -136,6 +138,7 @@ pub struct AiAnalysisStartEvent {
 #[serde(rename_all = "camelCase")]
 pub struct AiAnalysisDeltaEvent {
     pub match_id: String,
+    pub job_id: u64,
     pub delta: String,
     pub full_text: String,
 }
@@ -152,6 +155,7 @@ pub struct TokenUsage {
 #[serde(rename_all = "camelCase")]
 pub struct AiAnalysisDoneEvent {
     pub match_id: String,
+    pub job_id: u64,
     pub full_text: String,
     pub usage: Option<TokenUsage>,
     pub elapsed_ms: u64,
@@ -161,12 +165,23 @@ pub struct AiAnalysisDoneEvent {
 #[serde(rename_all = "camelCase")]
 pub struct AiAnalysisErrorEvent {
     pub match_id: String,
+    pub job_id: u64,
     pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAnalysisCancelledEvent {
+    pub match_id: String,
+    pub job_id: u64,
+    pub elapsed_ms: u64,
 }
 
 pub struct AiAnalysisState {
     job_generation: AtomicU64,
     cancel_generation: AtomicU64,
+    client: reqwest::Client,
+    active_request: Mutex<Option<(u64, u64)>>,
 }
 
 impl Default for AiAnalysisState {
@@ -174,6 +189,8 @@ impl Default for AiAnalysisState {
         Self {
             job_generation: AtomicU64::new(0),
             cancel_generation: AtomicU64::new(0),
+            client: reqwest::Client::new(),
+            active_request: Mutex::new(None),
         }
     }
 }
@@ -191,28 +208,41 @@ impl AiAnalysisState {
     fn is_cancelled(&self, job_id: u64) -> bool {
         self.cancel_generation.load(Ordering::SeqCst) >= job_id
     }
-}
 
-fn settings_path() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("无法获取程序路径: {e}"))?;
-    let parent = exe
-        .parent()
-        .ok_or_else(|| "无法获取程序所在目录".to_string())?;
-    Ok(parent.join(SETTINGS_FILENAME))
-}
-
-fn read_settings_json() -> Result<Value, String> {
-    let path = settings_path()?;
-    if !path.exists() {
-        return Ok(json!({}));
+    fn request_key(input: &StartAiAnalysisInput) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        input.match_id.hash(&mut hasher);
+        input.system_prompt.hash(&mut hasher);
+        input.user_prompt.hash(&mut hasher);
+        hasher.finish()
     }
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("读取设置失败 ({path:?}): {e}"))?;
-    serde_json::from_str(&content).map_err(|e| format!("解析设置失败: {e}"))
+
+    fn is_duplicate_active_request(&self, key: u64) -> bool {
+        let Ok(active) = self.active_request.lock() else {
+            return false;
+        };
+        active
+            .as_ref()
+            .is_some_and(|(job_id, active_key)| *active_key == key && !self.is_cancelled(*job_id))
+    }
+
+    fn set_active_request(&self, job_id: u64, key: u64) {
+        if let Ok(mut active) = self.active_request.lock() {
+            *active = Some((job_id, key));
+        }
+    }
+
+    fn clear_active_request(&self, job_id: u64) {
+        if let Ok(mut active) = self.active_request.lock() {
+            if active.as_ref().is_some_and(|(active_job, _)| *active_job == job_id) {
+                *active = None;
+            }
+        }
+    }
 }
 
 pub fn load_settings_file() -> Result<AiSettings, String> {
-    let root = read_settings_json()?;
+    let root = crate::settings_store::read_settings_json()?;
     serde_json::from_value(root).map_err(|e| format!("解析设置失败: {e}"))
 }
 
@@ -273,22 +303,16 @@ pub fn apply_settings_patch(settings: &mut AiSettings, input: &SaveAiSettingsInp
 }
 
 pub fn save_settings_file(settings: &AiSettings) -> Result<(), String> {
-    let path = settings_path()?;
-    let mut root = read_settings_json()?;
-    let ai_value =
-        serde_json::to_value(settings).map_err(|e| format!("序列化设置失败: {e}"))?;
+    let ai_value = serde_json::to_value(settings).map_err(|e| format!("序列化设置失败: {e}"))?;
     let Some(ai_obj) = ai_value.as_object() else {
         return Err("序列化设置失败: 期望对象".to_string());
     };
-    let root_obj = root.as_object_mut().ok_or_else(|| {
-        "设置文件根节点不是对象".to_string()
-    })?;
-    for (key, value) in ai_obj {
-        root_obj.insert(key.clone(), value.clone());
-    }
-    let content =
-        serde_json::to_string_pretty(&root).map_err(|e| format!("序列化设置失败: {e}"))?;
-    fs::write(&path, content).map_err(|e| format!("保存设置失败 ({path:?}): {e}"))
+    crate::settings_store::update_settings_json(|root| {
+        for (key, value) in ai_obj {
+            root.insert(key.clone(), value.clone());
+        }
+        Ok(true)
+    })
 }
 
 fn mask_api_key(key: &str) -> String {
@@ -333,19 +357,56 @@ fn parse_usage(value: &serde_json::Value) -> Option<TokenUsage> {
     })
 }
 
-fn extract_delta_content(json: &serde_json::Value) -> Option<String> {
-    json.get("choices")?
-        .as_array()?
-        .first()?
-        .get("delta")?
-        .get("content")?
-        .as_str()
-        .map(|s| s.to_string())
+fn content_value_to_string(value: &serde_json::Value) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        return Some(text.to_string());
+    }
+    let items = value.as_array()?;
+    let mut output = String::new();
+    for item in items {
+        if let Some(text) = item.as_str() {
+            output.push_str(text);
+        } else if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+            output.push_str(text);
+        } else if let Some(text) = item.get("content").and_then(|v| v.as_str()) {
+            output.push_str(text);
+        }
+    }
+    Some(output)
+}
+
+fn extract_content(json: &serde_json::Value) -> Option<String> {
+    let choice = json.get("choices")?.as_array()?.first()?;
+    for parent in [choice.get("delta"), choice.get("message"), Some(choice)] {
+        if let Some(content) = parent.and_then(|value| value.get("content")) {
+            if let Some(text) = content_value_to_string(content) {
+                return Some(text);
+            }
+        }
+    }
+    choice.get("text").and_then(content_value_to_string)
+}
+
+fn extract_finish_reason(json: &serde_json::Value) -> Option<String> {
+    json.get("choices")
+        .and_then(|v| v.as_array())
+        .and_then(|v| v.first())
+        .and_then(|v| v.get("finish_reason"))
+        .and_then(|v| v.as_str())
+        .map(ToOwned::to_owned)
+}
+
+fn extract_provider_error(json: &serde_json::Value) -> Option<String> {
+    let error = json.get("error")?;
+    if let Some(message) = error.get("message").and_then(|v| v.as_str()) {
+        return Some(message.to_string());
+    }
+    error.as_str().map(ToOwned::to_owned)
 }
 
 #[tauri::command]
 pub fn get_ai_settings_path() -> Result<String, String> {
-    settings_path().map(|p| p.display().to_string())
+    crate::settings_store::settings_path().map(|path| path.display().to_string())
 }
 
 #[tauri::command]
@@ -414,14 +475,21 @@ pub async fn start_ai_analysis(
         return Err("请先在设置中配置模型名称".to_string());
     }
 
+    let request_key = AiAnalysisState::request_key(&input);
+    if ai_state.is_duplicate_active_request(request_key) {
+        return Ok(());
+    }
+
     ai_state.cancel_all();
     let job_id = ai_state.start_job();
+    ai_state.set_active_request(job_id, request_key);
     let match_id = input.match_id.clone();
 
     let _ = app.emit(
         "ai-analysis-start",
         AiAnalysisStartEvent {
             match_id: match_id.clone(),
+            job_id,
             started_at: now_ms(),
         },
     );
@@ -430,6 +498,15 @@ pub async fn start_ai_analysis(
     let result = run_streaming_analysis(&app, &ai_state, job_id, &settings, &input).await;
 
     if ai_state.is_cancelled(job_id) {
+        let _ = app.emit(
+            "ai-analysis-cancelled",
+            AiAnalysisCancelledEvent {
+                match_id,
+                job_id,
+                elapsed_ms: started.elapsed().as_millis() as u64,
+            },
+        );
+        ai_state.clear_active_request(job_id);
         return Ok(());
     }
 
@@ -441,6 +518,7 @@ pub async fn start_ai_analysis(
                 "ai-analysis-done",
                 AiAnalysisDoneEvent {
                     match_id,
+                    job_id,
                     full_text,
                     usage,
                     elapsed_ms,
@@ -450,10 +528,12 @@ pub async fn start_ai_analysis(
         Err(error) => {
             let _ = app.emit(
                 "ai-analysis-error",
-                AiAnalysisErrorEvent { match_id, error },
+                AiAnalysisErrorEvent { match_id, job_id, error },
             );
         }
     }
+
+    ai_state.clear_active_request(job_id);
 
     Ok(())
 }
@@ -465,35 +545,86 @@ async fn run_streaming_analysis(
     settings: &AiSettings,
     input: &StartAiAnalysisInput,
 ) -> Result<(String, Option<TokenUsage>), String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(
-            settings.timeout_ms.max(AI_REQUEST_TIMEOUT_MS),
-        ))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
+    let first = run_streaming_analysis_once(
+        app,
+        ai_state,
+        job_id,
+        settings,
+        input,
+        if settings.thinking_enabled {
+            None
+        } else {
+            Some(AI_FAST_MAX_COMPLETION_TOKENS)
+        },
+    )
+    .await?;
 
-    let mut body = serde_json::json!({
-        "model": settings.model,
-        "messages": [
-            { "role": "system", "content": input.system_prompt },
-            { "role": "user", "content": input.user_prompt },
-        ],
-        "stream": true,
-        "response_format": { "type": "json_object" },
-    });
-
-    if is_deepseek_provider(&settings.provider_mode) && settings.thinking_enabled {
-        body["thinking"] = serde_json::json!({ "type": "enabled" });
-        body["reasoning_effort"] = serde_json::json!(settings.reasoning_effort);
+    if ai_state.is_cancelled(job_id) {
+        return Ok((first.full_text, first.usage));
     }
+
+    let needs_retry = first.full_text.trim().is_empty() || first.finish_reason.as_deref() == Some("length");
+    if needs_retry {
+        let mut retry_settings = settings.clone();
+        if settings.thinking_enabled && first.full_text.trim().is_empty() {
+            retry_settings.thinking_enabled = false;
+        }
+        let retry = run_streaming_analysis_once(
+            app,
+            ai_state,
+            job_id,
+            &retry_settings,
+            input,
+            if retry_settings.thinking_enabled {
+                None
+            } else {
+                Some(AI_FAST_RETRY_MAX_COMPLETION_TOKENS)
+            },
+        )
+        .await?;
+        if retry.full_text.trim().is_empty() {
+            return Err("AI 返回内容为空".to_string());
+        }
+        if retry.finish_reason.as_deref() == Some("length") {
+            return Err("AI 输出达到长度上限，请减少上下文后重试".to_string());
+        }
+        return Ok((retry.full_text, retry.usage));
+    }
+
+    if first.full_text.trim().is_empty() {
+        return Err("AI 返回内容为空".to_string());
+    }
+
+    Ok((first.full_text, first.usage))
+}
+
+struct AnalysisAttempt {
+    full_text: String,
+    usage: Option<TokenUsage>,
+    finish_reason: Option<String>,
+}
+
+async fn run_streaming_analysis_once(
+    app: &AppHandle,
+    ai_state: &AiAnalysisState,
+    job_id: u64,
+    settings: &AiSettings,
+    input: &StartAiAnalysisInput,
+    max_tokens: Option<u64>,
+) -> Result<AnalysisAttempt, String> {
+    let body = build_analysis_body(settings, input, max_tokens);
 
     let url = format!(
         "{}/chat/completions",
         settings.base_url.trim_end_matches('/')
     );
 
-    let response = client
+    let response = ai_state
+        .client
         .post(&url)
+        .timeout(Duration::from_millis(
+            settings.timeout_ms.max(AI_REQUEST_TIMEOUT_MS),
+        ))
         .header("Authorization", format!("Bearer {}", settings.api_key))
         .header("Content-Type", "application/json")
         .json(&body)
@@ -507,18 +638,93 @@ async fn run_streaming_analysis(
         return Err(format!("AI API 错误 ({status}): {text}"));
     }
 
+    let is_event_stream = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_ascii_lowercase().contains("text/event-stream"))
+        .unwrap_or(false);
+
+    if !is_event_stream {
+        let bytes = response.bytes().await.map_err(|e| format!("读取 AI 响应失败: {e}"))?;
+        let json: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("解析 AI 响应失败: {e}"))?;
+        if let Some(error) = extract_provider_error(&json) {
+            return Err(format!("AI 服务返回错误: {error}"));
+        }
+        let text = extract_content(&json).unwrap_or_default();
+        if !text.is_empty() {
+            let _ = app.emit(
+                "ai-analysis-delta",
+                AiAnalysisDeltaEvent {
+                    match_id: input.match_id.clone(),
+                    job_id,
+                    delta: text.clone(),
+                    full_text: text.clone(),
+                },
+            );
+        }
+        return Ok(AnalysisAttempt {
+            full_text: text,
+            usage: parse_usage(&json),
+            finish_reason: extract_finish_reason(&json),
+        });
+    }
+
     let mut stream = response.bytes_stream();
     let mut full_text = String::new();
     let mut usage: Option<TokenUsage> = None;
+    let mut finish_reason: Option<String> = None;
     let mut buffer = String::new();
+    let mut saw_sse = false;
+    let mut raw_response = String::new();
+
+    let mut handle_data = |data: &str| -> Result<(), String> {
+        let data = data.trim();
+        if data.is_empty() || data == "[DONE]" {
+            return Ok(());
+        }
+        let json: serde_json::Value = serde_json::from_str(data)
+            .map_err(|e| format!("解析 SSE 数据失败: {e}"))?;
+        if let Some(error) = extract_provider_error(&json) {
+            return Err(format!("AI 服务返回错误: {error}"));
+        }
+        if let Some(u) = parse_usage(&json) {
+            usage = Some(u);
+        }
+        if let Some(reason) = extract_finish_reason(&json) {
+            finish_reason = Some(reason);
+        }
+        if let Some(delta) = extract_content(&json) {
+            if !delta.is_empty() {
+                full_text.push_str(&delta);
+                let _ = app.emit(
+                    "ai-analysis-delta",
+                    AiAnalysisDeltaEvent {
+                        match_id: input.match_id.clone(),
+                        job_id,
+                        delta,
+                        full_text: full_text.clone(),
+                    },
+                );
+            }
+        }
+        Ok(())
+    };
 
     while let Some(chunk_result) = stream.next().await {
         if ai_state.is_cancelled(job_id) {
-            return Ok((full_text, usage));
+            return Ok(AnalysisAttempt {
+                full_text,
+                usage,
+                finish_reason,
+            });
         }
 
         let chunk = chunk_result.map_err(|e| format!("读取流式响应失败: {e}"))?;
-        buffer.push_str(&String::from_utf8_lossy(&chunk));
+        let chunk_text = String::from_utf8_lossy(&chunk);
+        raw_response.push_str(&chunk_text);
+        buffer.push_str(&chunk_text);
 
         while let Some(pos) = buffer.find('\n') {
             let line = buffer[..pos].trim_end_matches('\r').to_string();
@@ -527,44 +733,82 @@ async fn run_streaming_analysis(
             if line.is_empty() {
                 continue;
             }
-            if !line.starts_with("data: ") {
+            if let Some(data) = line.strip_prefix("data:") {
+                saw_sse = true;
+                handle_data(data)?;
+            } else if saw_sse {
                 continue;
-            }
-
-            let data = line.trim_start_matches("data: ").trim();
-            if data == "[DONE]" {
-                continue;
-            }
-
-            let json: serde_json::Value = serde_json::from_str(data)
-                .map_err(|e| format!("解析 SSE 数据失败: {e}"))?;
-
-            if let Some(u) = parse_usage(&json) {
-                usage = Some(u);
-            }
-
-            if let Some(delta) = extract_delta_content(&json) {
-                if delta.is_empty() {
-                    continue;
-                }
-                full_text.push_str(&delta);
-                let _ = app.emit(
-                    "ai-analysis-delta",
-                    AiAnalysisDeltaEvent {
-                        match_id: input.match_id.clone(),
-                        delta,
-                        full_text: full_text.clone(),
-                    },
-                );
             }
         }
     }
 
-    if full_text.trim().is_empty() {
-        return Err("AI 返回内容为空".to_string());
+    if !buffer.trim().is_empty() {
+        let line = buffer.trim().trim_end_matches('\r');
+        if let Some(data) = line.strip_prefix("data:") {
+            saw_sse = true;
+            handle_data(data)?;
+        }
     }
 
-    Ok((full_text, usage))
+    if !saw_sse && full_text.trim().is_empty() && !raw_response.trim().is_empty() {
+        let json: serde_json::Value = serde_json::from_str(raw_response.trim())
+            .map_err(|e| format!("解析 AI 响应失败: {e}"))?;
+        if let Some(error) = extract_provider_error(&json) {
+            return Err(format!("AI 服务返回错误: {error}"));
+        }
+        if let Some(u) = parse_usage(&json) {
+            usage = Some(u);
+        }
+        finish_reason = extract_finish_reason(&json);
+        if let Some(text) = extract_content(&json) {
+            if !text.is_empty() {
+                let _ = app.emit(
+                    "ai-analysis-delta",
+                    AiAnalysisDeltaEvent {
+                        match_id: input.match_id.clone(),
+                        job_id,
+                        delta: text.clone(),
+                        full_text: text.clone(),
+                    },
+                );
+                full_text = text;
+            }
+        }
+    }
+
+    Ok(AnalysisAttempt { full_text, usage, finish_reason })
+}
+
+fn build_analysis_body(
+    settings: &AiSettings,
+    input: &StartAiAnalysisInput,
+    max_tokens: Option<u64>,
+) -> serde_json::Value {
+    let mut body = serde_json::json!({
+        "model": settings.model,
+        "messages": [
+            { "role": "system", "content": input.system_prompt },
+            { "role": "user", "content": input.user_prompt },
+        ],
+        "stream": true,
+        "response_format": { "type": "json_object" },
+    });
+
+    if is_deepseek_provider(&settings.provider_mode) {
+        // V4 默认开启思考；关闭时必须显式 disabled，否则 CoT 会吃掉 max_tokens 导致 content 为空
+        if settings.thinking_enabled {
+            body["thinking"] = serde_json::json!({ "type": "enabled" });
+            body["reasoning_effort"] = serde_json::json!(settings.reasoning_effort);
+        } else {
+            body["thinking"] = serde_json::json!({ "type": "disabled" });
+            if let Some(max_tokens) = max_tokens {
+                body["max_tokens"] = serde_json::json!(max_tokens);
+            }
+        }
+    } else if let Some(max_tokens) = max_tokens {
+        body["max_tokens"] = serde_json::json!(max_tokens);
+    }
+    body
 }
 
 #[cfg(test)]
@@ -581,8 +825,7 @@ mod tests {
             "thinkingEnabled": true
         }"#;
 
-        let settings: AiSettings =
-            serde_json::from_str(legacy).expect("legacy json should parse");
+        let settings: AiSettings = serde_json::from_str(legacy).expect("legacy json should parse");
 
         assert!(!settings.analysis_enabled);
         assert_eq!(settings.provider_mode, PROVIDER_DEEPSEEK);
@@ -741,5 +984,64 @@ mod tests {
         assert!(input.thinking_enabled.is_none());
         assert!(input.reasoning_effort.is_none());
         assert!(input.auto_analyze.is_none());
+    }
+
+    #[test]
+    fn fast_request_caps_completion_tokens_but_thinking_requests_do_not() {
+        let input = StartAiAnalysisInput {
+            match_id: "test-match".to_string(),
+            system_prompt: "system".to_string(),
+            user_prompt: "user".to_string(),
+        };
+        let fast = build_analysis_body(&AiSettings::default(), &input, Some(AI_FAST_MAX_COMPLETION_TOKENS));
+        assert_eq!(fast["max_tokens"], AI_FAST_MAX_COMPLETION_TOKENS);
+        assert_eq!(fast["thinking"]["type"], "disabled");
+
+        let deepseek_thinking = build_analysis_body(
+            &AiSettings {
+                thinking_enabled: true,
+                ..AiSettings::default()
+            },
+            &input,
+            None,
+        );
+        assert!(deepseek_thinking.get("max_tokens").is_none());
+        assert_eq!(deepseek_thinking["thinking"]["type"], "enabled");
+
+        let compatible_thinking = build_analysis_body(
+            &AiSettings {
+                provider_mode: PROVIDER_OPENAI_COMPATIBLE.to_string(),
+                thinking_enabled: true,
+                ..AiSettings::default()
+            },
+            &input,
+            None,
+        );
+        assert!(compatible_thinking.get("max_tokens").is_none());
+        assert!(compatible_thinking.get("thinking").is_none());
+
+        let compatible_fast = build_analysis_body(
+            &AiSettings {
+                provider_mode: PROVIDER_OPENAI_COMPATIBLE.to_string(),
+                ..AiSettings::default()
+            },
+            &input,
+            Some(AI_FAST_MAX_COMPLETION_TOKENS),
+        );
+        assert_eq!(compatible_fast["max_tokens"], AI_FAST_MAX_COMPLETION_TOKENS);
+        assert!(compatible_fast.get("thinking").is_none());
+    }
+
+    #[test]
+    fn extract_content_reads_delta_and_ignores_empty_reasoning_only_chunks() {
+        let delta = serde_json::json!({
+            "choices": [{ "delta": { "content": "{\"headline\":\"ok\"}" } }]
+        });
+        assert_eq!(extract_content(&delta).as_deref(), Some("{\"headline\":\"ok\"}"));
+
+        let reasoning_only = serde_json::json!({
+            "choices": [{ "delta": { "content": null, "reasoning_content": "thinking..." } }]
+        });
+        assert!(extract_content(&reasoning_only).is_none());
     }
 }

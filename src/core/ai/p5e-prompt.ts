@@ -14,6 +14,7 @@ import { AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules, getAiUserPromptSche
 import { P5E_METRIC_BASELINES_TEXT, p5eMapFitHint } from './p5e-baselines';
 import { resolveP5eMapName, resolveP5eMapStatus } from './p5e-map-supplement';
 import type { StartAiAnalysisInput } from './types';
+import { buildAiAnalysisContext, buildAiPromptEvidence } from './analysis-v2';
 
 export const P5E_SYSTEM_PROMPT = `你是 CS2 5E 对战平台赛前分析助手。你只能基于输入数据做概率判断，不要编造缺失字段。
 所有 player 在输出文案中必须称为「玩家」，禁止使用「球员」。
@@ -24,7 +25,7 @@ confidence 为 0-100 整数，表示你对本次判断的数据把握度（不�
 
 5E 指标语义（务必按此理解，禁止套用完美世界 Rating Pro 语境）：
 - score = 5E 当前 ELO，优先来自 elo/info modes[9].elo
-- seasonTotalNum = 当前赛季优先排位场次（player/home season_data.match_total）；<5 场必须降低置信度并在 risks 说明
+- seasonTotalNum = 当前赛季优先排位场次（player/home season_data.match_total）；<5 场必须降低置信度并写入 uncertainties
 - seasonRating = 赛季汇总 Rating（player/home season_data.rating），对齐 5E 数据中心主页
 - rating = 赛季场均 Rating（season_data.avg_rating），不是地图生涯 Rating
 - adpr / weRaw = 赛季 ADR / RWS（season_data），不是当局 fight 或 map-ext 生涯
@@ -36,18 +37,18 @@ confidence 为 0-100 整数，表示你对本次判断的数据把握度（不�
 - eloChange / rankLevel / rankNum / tags = 段位、排名和本场 ELO 变化辅助信息
 
 地图状态（务必遵守）：
-- match.mapStatus=unknown 表示本局地图尚未确认：禁止输出 type 为 map 的 keyFactors，禁止臆造地图适配或报点
+- match.mapStatus=unknown 表示本局地图尚未确认：禁止输出 map 维度 decisiveFactors，禁止臆造地图适配或报点
 - mapStatus=unknown 时 mapWinRate 等字段会缺失，不得用其他地图数据替代
 - mapStatus=ready 时方可结合 mapFitHint 与 mapWinRate 做地图适配判断
 
 判断原则：
 - ELO 差距是基础强度参考，不能单独决定胜率
-- 地图历史样本充足时提升地图适配权重；样本低时必须在 dataQuality 和 risks 说明
+- 地图历史样本充足时提升地图适配权重；样本低时必须写入 uncertainties
 - 近期 ELO 波动与连胜连败用于状态判断，但不要把单场大加减分简单等同强弱
 - 无 match detail 时地图与分队可能为推断，必须降低 confidence
-- keyFactors.type 优先使用 strength | map | form | risk；5E 一般不要输出 party（无可靠组排数据）
-- quickReasons 至少包含一条来自 ELO / 地图 / 近期状态 / 数据质量的核心依据
-- playerNotes 只点评真正影响局势的玩家（高 ELO、地图强弱极端、近期波动大、当局表现异常、低样本风险）
+- decisiveFactors.dimension 优先使用 strength | aim | opening | utility | clutch | map | form；5E 一般不要输出 party（无可靠组排数据）
+- decisiveFactors 至少包含一条来自 ELO / 地图 / 近期状态的有效证据
+- playerSignals 必须区分正负方向并通过本地门槛；有足够正负证据时不要留空；低样本本身只能进入 uncertainties
 - 禁止输出「完美平台」「PerfectPower」「Rating Pro」等完美专属词
 
 ${AI_OUTPUT_LANGUAGE_RULES}
@@ -325,11 +326,24 @@ export function buildP5eMatchSummary(record: MatchRecord): P5eMatchSummaryPayloa
 
 export { hasP5eMapReady, resolveP5eMapName, resolveP5eMapStatus } from './p5e-map-supplement';
 
-export function buildP5eAiAnalysisRequest(record: MatchRecord, locale: AiOutputLocale = 'zh-CN'): StartAiAnalysisInput {
+export function buildP5eAiAnalysisRequest(
+  record: MatchRecord,
+  locale: AiOutputLocale = 'zh-CN',
+  viewerSteamId?: string | null,
+): StartAiAnalysisInput {
   const summary = buildP5eMatchSummary(record);
+  const context = buildAiAnalysisContext(record, viewerSteamId);
   return {
     matchId: record.id,
     systemPrompt: P5E_SYSTEM_PROMPT.replace(AI_OUTPUT_LANGUAGE_RULES, getAiOutputLanguageRules(locale)),
-    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify(summary),
+    userPrompt: getAiUserPromptSchema(locale) + JSON.stringify({
+      match: {
+        platform: summary.platform,
+        ...summary.match,
+        dataQuality: summary.dataQuality,
+        mapFitHint: summary.mapFitHint,
+      },
+      evidence: buildAiPromptEvidence(context),
+    }),
   };
 }

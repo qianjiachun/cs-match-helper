@@ -19,7 +19,7 @@ function extractNumberField(text: string, field: string): number | null {
 }
 
 function extractWinProbability(text: string): { A: number; B: number } | null {
-  const block = text.match(/"winProbability"\s*:\s*\{([^}]*)\}/);
+  const block = text.match(/"(?:modelWinProbability|winProbability)"\s*:\s*\{([^}]*)\}/);
   if (!block) return null;
   const inner = block[1];
   const a = inner.match(/"A"\s*:\s*(-?\d+(?:\.\d+)?)/);
@@ -28,28 +28,11 @@ function extractWinProbability(text: string): { A: number; B: number } | null {
   return { A: Number(a[1]), B: Number(b[1]) };
 }
 
-function extractStringArray(text: string, field: string): string[] | null {
-  const re = new RegExp(`"${field}"\\s*:\\s*\\[([^\\]]*)\\]`);
-  const m = text.match(re);
-  if (!m) return null;
-  const items: string[] = [];
-  const itemRe = /"((?:\\.|[^"\\])*)"/g;
-  let im: RegExpExecArray | null;
-  while ((im = itemRe.exec(m[1])) !== null) {
-    try {
-      items.push(JSON.parse(`"${im[1]}"`) as string);
-    } catch {
-      items.push(im[1]);
-    }
-  }
-  return items.length ? items : null;
-}
-
 const VALID_WINNERS = new Set<AiPredictedWinner>(['A', 'B', 'Even', 'Unknown']);
 
 /** 从不完整流式 JSON 中提取可展示字段，用于首屏快速显示 */
 export function extractPartialAiResult(text: string): Partial<AiAnalysisResult> | null {
-  const trimmed = text.trim();
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '');
   if (!trimmed.startsWith('{')) return null;
 
   const partial: Partial<AiAnalysisResult> = {};
@@ -63,6 +46,7 @@ export function extractPartialAiResult(text: string): Partial<AiAnalysisResult> 
 
   const winProbability = extractWinProbability(trimmed);
   if (winProbability) {
+    partial.modelWinProbability = winProbability;
     partial.winProbability = winProbability;
     hasAny = true;
   }
@@ -79,18 +63,6 @@ export function extractPartialAiResult(text: string): Partial<AiAnalysisResult> 
     hasAny = true;
   }
 
-  const quickReasons = extractStringArray(trimmed, 'quickReasons');
-  if (quickReasons) {
-    partial.quickReasons = quickReasons.map(sanitizeAiText);
-    hasAny = true;
-  }
-
-  const stabilityReason = extractJsonStringField(trimmed, 'stabilityReason');
-  if (stabilityReason) {
-    partial.stabilityReason = sanitizeAiText(stabilityReason);
-    hasAny = true;
-  }
-
   return hasAny ? partial : null;
 }
 
@@ -99,18 +71,21 @@ export function mergePartialResult(
   partial: Partial<AiAnalysisResult>,
 ): AiAnalysisResult {
   return sanitizeAiAnalysisResult({
+    schemaVersion: 3,
     predictedWinner: partial.predictedWinner ?? current?.predictedWinner ?? 'Unknown',
+    modelWinProbability: partial.modelWinProbability ?? current?.modelWinProbability ?? partial.winProbability ?? { A: 50, B: 50 },
     winProbability: partial.winProbability ?? current?.winProbability ?? { A: 50, B: 50 },
     confidence: partial.confidence ?? current?.confidence ?? 0,
+    dataCoverage: current?.dataCoverage ?? 0,
     headline: partial.headline ?? current?.headline ?? '',
-    quickReasons: partial.quickReasons ?? current?.quickReasons,
-    keyFactors: current?.keyFactors ?? [],
-    playerNotes: current?.playerNotes ?? [],
-    risks: current?.risks ?? [],
+    decisiveFactors: current?.decisiveFactors ?? [],
+    playerSignals: current?.playerSignals ?? [],
+    teamPlans: current?.teamPlans ?? {
+      A: { winConditions: [], risks: [] },
+      B: { winConditions: [], risks: [] },
+    },
+    uncertainties: current?.uncertainties ?? [],
+    inputFingerprint: current?.inputFingerprint,
     dataQuality: current?.dataQuality ?? '',
-    recommendedFocus: current?.recommendedFocus,
-    mapFitNotes: current?.mapFitNotes,
-    teamSummary: current?.teamSummary,
-    stabilityReason: partial.stabilityReason ?? current?.stabilityReason,
   });
 }

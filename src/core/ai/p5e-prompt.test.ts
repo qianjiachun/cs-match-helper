@@ -122,6 +122,8 @@ describe('5E AI prompt', () => {
     expect(req.systemPrompt).toContain('5E 对战平台');
     expect(req.systemPrompt).not.toContain('完美世界匹配赛前分析助手');
     expect(req.userPrompt).toContain('"platform":"5e"');
+    expect(req.userPrompt).toContain('"schemaVersion": 3');
+    expect(req.userPrompt).toContain('playerSignals');
   });
 
   it('keeps perfect platform on original prompt', () => {
@@ -169,7 +171,10 @@ describe('5E AI prompt', () => {
     const req = buildP5eAiAnalysisRequest(record);
     expect(req.userPrompt).not.toContain('gate.5eplay.com');
     expect(req.userPrompt).not.toContain('responseBody');
-    expect(req.userPrompt.length).toBeLessThan(50_000);
+    expect(req.userPrompt).toContain('evidenceCatalog');
+    expect(req.userPrompt).not.toContain('fastSummary');
+    expect(req.userPrompt).not.toContain('deepContext');
+    expect(req.userPrompt.length).toBeLessThan(25 * 1024);
   });
 
   it('P5E system prompt forbids perfect-platform terminology', () => {
@@ -186,13 +191,14 @@ describe('5E AI prompt', () => {
     expect(perfectReq.userPrompt).toContain('严禁全英文');
   });
 
-  it('perfect buildPerfectAiAnalysisRequest unchanged in shape', () => {
+  it('perfect buildPerfectAiAnalysisRequest uses the compact V3 evidence payload', () => {
     const record = buildPerfectRecord();
     const summary = buildMatchSummary(record);
     const req = buildPerfectAiAnalysisRequest(record);
     expect(summary.matchId).toBe('perfect-test');
     expect(req.systemPrompt).toContain('完美世界');
-    expect(req.userPrompt).toContain('fastSummary');
+    expect(req.userPrompt).toContain('evidenceCatalog');
+    expect(req.userPrompt).not.toContain('fastSummary');
   });
 
   it('fixture summary payload uses 5E semantics not perfect fields', () => {

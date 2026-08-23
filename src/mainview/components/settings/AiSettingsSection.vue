@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import {
   DEEPSEEK_API_KEYS_URL,
-  formatModelBudgetHint,
   getApiKeyLabel,
-  resolveModelOption,
   type AiProviderMode,
 } from '@core/ai/types';
 import {
@@ -52,8 +50,6 @@ const {
 } = useAiSettingsForm(props.ai, toRef(props, 'settingsVisible'));
 
 const apiKeyLabel = computed(() => getApiKeyLabel(providerMode.value));
-
-const selectedModelOption = computed(() => resolveModelOption(model.value));
 
 function providerCardClass(mode: AiProviderMode) {
   const selected = providerMode.value === mode;
@@ -220,21 +216,16 @@ function providerIconBoxClass(mode: AiProviderMode) {
         <!-- DeepSeek 预设区 -->
         <template v-if="isDeepSeekMode">
           <div class="space-y-2">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <label class="text-[12px] font-medium text-fg-secondary" for="ai-model">
-                {{ l('模型', 'Model') }}
-              </label>
-              <span v-if="selectedModelOption" class="text-[11px] text-fg-muted">
-                {{ l(`当前约 ${selectedModelOption.durationSec} 秒 · ${selectedModelOption.costLabel}/次`, `About ${selectedModelOption.durationSec}s · ${selectedModelOption.costLabel} per analysis`) }}
-              </span>
-            </div>
+            <label class="text-[12px] font-medium text-fg-secondary" for="ai-model">
+              {{ l('模型', 'Model') }}
+            </label>
             <select
               id="ai-model"
               v-model="model"
               class="w-full cursor-pointer rounded-lg border border-border bg-base px-3.5 py-2.5 text-[13px] text-fg outline-none transition-colors duration-200 focus:border-accent focus:ring-2 focus:ring-accent/15"
             >
               <option v-for="opt in AI_MODEL_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.value === 'deepseek-v4-flash' ? l('DeepSeek V4 Flash（推荐，快速）', 'DeepSeek V4 Flash (recommended, fast)') : l('DeepSeek V4 Pro（更准确，较慢）', 'DeepSeek V4 Pro (more accurate, slower)') }} · {{ l(formatModelBudgetHint(opt), `about ${opt.durationSec}s · ${opt.costLabel} per analysis`) }}
+                {{ opt.value === 'deepseek-v4-flash' ? l('DeepSeek V4 Flash（推荐，快速）', 'DeepSeek V4 Flash (recommended, fast)') : l('DeepSeek V4 Pro（更准确，较慢）', 'DeepSeek V4 Pro (more accurate, slower)') }}
               </option>
             </select>
           </div>

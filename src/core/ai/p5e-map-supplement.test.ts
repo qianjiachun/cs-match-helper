@@ -9,17 +9,27 @@ import {
   resolveP5eMapStatus,
 } from './p5e-map-supplement';
 import { buildP5eMatchSummary } from './p5e-prompt';
+import { buildAiAnalysisContext } from './analysis-v3';
 import type { MatchRecord } from '@core/match/models';
 
 const baseResult: AiAnalysisResult = {
+  schemaVersion: 3,
   predictedWinner: 'A',
+  modelWinProbability: { A: 55, B: 45 },
   winProbability: { A: 55, B: 45 },
   confidence: 62,
+  dataCoverage: 0.8,
   headline: 'A 队 ELO 略优',
-  quickReasons: ['ELO 差距'],
-  keyFactors: [{ side: 'A', type: 'strength', text: 'ELO 更高', weight: 0.8 }],
-  playerNotes: [],
-  risks: ['样本偏少'],
+  decisiveFactors: [{
+    id: 'base-elo', dimension: 'strength', advantage: 'A', impact: 2, title: 'ELO', summary: 'A 队略高',
+    evidence: [{ id: 'team.elo', scope: 'team', metric: 'elo', label: '平均 ELO', valueA: '2000', valueB: '1900', reliability: 'high' }],
+  }],
+  playerSignals: [],
+  teamPlans: {
+    A: { winConditions: [], risks: [] },
+    B: { winConditions: [], risks: [] },
+  },
+  uncertainties: ['样本偏少'],
   dataQuality: '无地图信息',
 };
 
@@ -50,6 +60,9 @@ function makeP5eRecord(mapName?: string): MatchRecord {
               recentResults: [],
               recentRatings: [],
               tags: [],
+              score: 2000,
+              seasonRating: 1.1,
+              seasonTotalNum: 20,
               mapWinRate: mapName ? 0.6 : undefined,
               mapTotalNum: mapName ? 20 : undefined,
             },
@@ -70,6 +83,11 @@ function makeP5eRecord(mapName?: string): MatchRecord {
               recentResults: [],
               recentRatings: [],
               tags: [],
+              score: 1900,
+              seasonRating: 1,
+              seasonTotalNum: 20,
+              mapWinRate: mapName ? 0.3 : undefined,
+              mapTotalNum: mapName ? 20 : undefined,
             },
           ],
           singleCount: 0,
@@ -114,33 +132,43 @@ describe('p5e-map-supplement', () => {
     expect(req.userPrompt).toContain('previousAnalysis');
     expect(req.userPrompt).toContain('de_dust2');
     expect(req.userPrompt).toContain('A 队 ELO 略优');
+    expect(req.userPrompt).not.toContain('fastSummary');
+    expect(req.userPrompt).not.toContain('deepContext');
+    expect(req.userPrompt.length).toBeLessThan(8 * 1024);
   });
 
-  it('mergeAiMapSupplement appends map factors and updates probability', () => {
+  it('mergeAiMapSupplement atomically appends valid map factors and signals', () => {
+    const record = makeP5eRecord('de_mirage');
+    const context = buildAiAnalysisContext(record);
     const delta = {
-      winProbability: { A: 58, B: 42 },
+      modelWinProbability: { A: 58, B: 42 },
       confidence: 68,
-      quickReasonsAdd: ['A 队 Mirage 胜率更高'],
-      keyFactorsAdd: [{ side: 'A' as const, type: 'map' as const, text: '地图适配', weight: 0.7 }],
-      risksAdd: ['B 队该图样本少'],
-      dataQuality: '已纳入地图数据',
+      decisiveFactorsAdd: [
+        { id: 'map-edge', dimension: 'map', advantage: 'A', impact: 3, title: '地图适配', summary: 'A 队本图更强', evidenceIds: ['player.5e-abc.map'] },
+        { id: 'invalid-strength', dimension: 'strength', advantage: 'A', impact: 3, title: '越界修改', summary: '地图补充不得改基础强度', evidenceIds: ['player.5e-abc.map'] },
+      ],
+      playerSignalsAdd: [
+        { steamId: '5e-abc', side: 'A', kind: 'specialist', impact: 3, title: '地图专长', summary: '本图样本与胜率突出', evidenceIds: ['player.5e-abc.map'] },
+        { steamId: '5e-def', side: 'B', kind: 'carry', impact: 3, title: '越界信号', summary: '地图补充不得新增强点', evidenceIds: ['player.5e-def.map'] },
+      ],
+      uncertaintiesAdd: ['B 队该图表现偏弱'],
     };
-    const merged = mergeAiMapSupplement(baseResult, delta);
+    const merged = mergeAiMapSupplement(baseResult, delta, context);
+    expect(merged.modelWinProbability.A).toBe(58);
     expect(merged.winProbability.A).toBe(58);
-    expect(merged.keyFactors).toHaveLength(2);
-    expect(merged.quickReasons).toHaveLength(2);
-    expect(merged.risks).toContain('B 队该图样本少');
-    expect(merged.dataQuality).toContain('已纳入地图数据');
+    expect(merged.decisiveFactors.map((factor) => factor.id)).toEqual(['map-edge', 'base-elo']);
+    expect(merged.playerSignals[0]).toMatchObject({ steamId: '5e-abc', kind: 'specialist' });
+    expect(merged.uncertainties).toContain('B 队该图表现偏弱');
   });
 
   it('parseP5eMapSupplementResult parses delta JSON', () => {
     const raw = JSON.stringify({
-      winProbability: { A: 52, B: 48 },
-      keyFactorsAdd: [{ side: 'B', type: 'map', text: 'B 队强图', weight: 0.6 }],
+      modelWinProbability: { A: 52, B: 48 },
+      decisiveFactorsAdd: [{ id: 'map', dimension: 'map', advantage: 'B', impact: 2, title: 'B 队强图', summary: '地图数据领先', evidenceIds: ['player.x.map'] }],
     });
     const parsed = parseP5eMapSupplementResult(raw);
-    expect(parsed?.winProbability?.B).toBe(48);
-    expect(parsed?.keyFactorsAdd?.[0]?.text).toBe('B 队强图');
+    expect(parsed?.modelWinProbability?.B).toBe(48);
+    expect(parsed?.decisiveFactorsAdd?.[0]?.title).toBe('B 队强图');
   });
 
   it('addTokenUsage sums prompt and completion tokens', () => {

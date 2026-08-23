@@ -17,4 +17,9 @@ describe('formatAiWinnerCapsule', () => {
     expect(formatAiWinnerCapsule('A', { A: 62, B: 38 }, 'en-US')).toBe('Team A 62%');
     expect(formatAiWinnerCapsule('Even', { A: 50, B: 50 }, 'en-US')).toBe('Even 50%');
   });
+
+  it('uses viewer-relative labels only when a Perfect participant is identified', () => {
+    expect(formatAiWinnerCapsule('A', { A: 62, B: 38 }, 'zh-CN', 'A')).toBe('我方 62%');
+    expect(formatAiWinnerCapsule('Even', { A: 52, B: 48 }, 'zh-CN', 'B')).toBe('势均力敌 对方52%·我方48%');
+  });
 });

@@ -113,16 +113,154 @@ export interface AiPlayerNote {
   role?: string;
 }
 
-export interface AiAnalysisResult {
+export type AiEvidenceScope = 'team' | 'player' | 'map' | 'context';
+export type AiEvidenceReliability = 'high' | 'medium' | 'low';
+export type AiEvidenceDirection = 'positive' | 'negative' | 'mixed' | 'neutral';
+
+export interface AiEvidenceComparison {
+  rawValue: number;
+  lobbyMedian?: number;
+  teamMedian?: number;
+  lobbyDelta?: number;
+  teamDelta?: number;
+  higherIsBetter: boolean;
+}
+
+export interface AiEvidenceSnapshot {
+  id: string;
+  scope: AiEvidenceScope;
+  metric: string;
+  label: string;
+  side?: 'A' | 'B';
+  steamId?: string;
+  value?: string;
+  valueA?: string;
+  valueB?: string;
+  sampleSize?: number;
+  reliability: AiEvidenceReliability;
+  direction?: AiEvidenceDirection;
+  comparison?: AiEvidenceComparison;
+}
+
+export type AiMatchupDimension =
+  | 'strength'
+  | 'aim'
+  | 'opening'
+  | 'utility'
+  | 'clutch'
+  | 'map'
+  | 'form'
+  | 'party';
+
+export interface AiMatchupEdge {
+  id: string;
+  dimension: AiMatchupDimension;
+  advantage: 'A' | 'B' | 'Even';
+  impact: 1 | 2 | 3;
+  title: string;
+  summary: string;
+  evidence: AiEvidenceSnapshot[];
+}
+
+export type AiPlayerMarkerKind = 'threat' | 'key' | 'risk';
+
+export interface AiPlayerMarker {
+  steamId: string;
+  nickname: string;
+  side: 'A' | 'B';
+  kind: AiPlayerMarkerKind;
+  impact: 1 | 2 | 3;
+  title: string;
+  summary: string;
+  evidence: AiEvidenceSnapshot[];
+  source?: 'model' | 'legacy';
+}
+
+export interface AiWinCondition {
+  text: string;
+  evidence: AiEvidenceSnapshot[];
+}
+
+export type AiPlayerSignalKind =
+  | 'carry'
+  | 'anchor'
+  | 'specialist'
+  | 'weakLink'
+  | 'volatile'
+  | 'watch';
+
+export interface AiPlayerSignal {
+  steamId: string;
+  nickname: string;
+  side: 'A' | 'B';
+  kind: AiPlayerSignalKind;
+  impact: 1 | 2 | 3;
+  title: string;
+  summary: string;
+  evidence: AiEvidenceSnapshot[];
+  source?: 'model' | 'legacy';
+}
+
+export interface AiDecisiveFactor {
+  id: string;
+  dimension: AiMatchupDimension;
+  advantage: 'A' | 'B' | 'Even';
+  impact: 1 | 2 | 3;
+  title: string;
+  summary: string;
+  evidence: AiEvidenceSnapshot[];
+}
+
+export interface AiEvidenceClaim {
+  text: string;
+  evidence: AiEvidenceSnapshot[];
+}
+
+export interface AiTeamPlan {
+  winConditions: AiEvidenceClaim[];
+  risks: AiEvidenceClaim[];
+}
+
+export interface AiAnalysisResultV3 {
+  schemaVersion: 3;
   predictedWinner: AiPredictedWinner;
+  modelWinProbability: { A: number; B: number };
   winProbability: { A: number; B: number };
-  /** 模型对判断稳定性的自评，UI 展示为「数据把握度」 */
   confidence: number;
+  dataCoverage: number;
   headline: string;
+  decisiveFactors: AiDecisiveFactor[];
+  playerSignals: AiPlayerSignal[];
+  teamPlans: { A: AiTeamPlan; B: AiTeamPlan };
+  uncertainties: string[];
+  inputFingerprint?: string;
+  /** Local coverage summary shown only in the collapsed run details. */
+  dataQuality: string;
+}
+
+export interface AiAnalysisResultV2 {
+  schemaVersion: 2;
+  predictedWinner: AiPredictedWinner;
+  /** 模型原始概率，仅用于校准说明与调试。 */
+  modelWinProbability: { A: number; B: number };
+  /** 按本地数据覆盖率校准后的最终展示概率。 */
+  winProbability: { A: number; B: number };
+  /** 70% 本地覆盖率 + 30% 模型自评。 */
+  confidence: number;
+  dataCoverage: number;
+  headline: string;
+  matchupEdges: AiMatchupEdge[];
+  playerMarkers: AiPlayerMarker[];
+  winConditions: { A: AiWinCondition[]; B: AiWinCondition[] };
+  uncertainties: string[];
+  inputFingerprint?: string;
   /** 流式优先输出的 2-3 条核心依据 */
   quickReasons?: string[];
+  /** @deprecated V2 使用 matchupEdges，保留供旧历史与 5E 补充兼容。 */
   keyFactors: AiKeyFactor[];
+  /** @deprecated V2 使用 playerMarkers，保留供旧历史兼容。 */
   playerNotes: AiPlayerNote[];
+  /** @deprecated V2 使用 uncertainties，保留供旧历史兼容。 */
   risks: string[];
   dataQuality: string;
   /** @deprecated UI 不再展示，兼容旧 JSON */
@@ -133,19 +271,25 @@ export interface AiAnalysisResult {
   stabilityReason?: string;
 }
 
+/** Current normalized analysis result. V1/V2 payloads are converted in memory. */
+export type AiAnalysisResult = AiAnalysisResultV3;
+
 export interface AiAnalysisStartEvent {
   matchId: string;
+  jobId: number;
   startedAt: number;
 }
 
 export interface AiAnalysisDeltaEvent {
   matchId: string;
+  jobId: number;
   delta: string;
   fullText: string;
 }
 
 export interface AiAnalysisDoneEvent {
   matchId: string;
+  jobId: number;
   fullText: string;
   usage: AiTokenUsage | null;
   elapsedMs: number;
@@ -153,7 +297,14 @@ export interface AiAnalysisDoneEvent {
 
 export interface AiAnalysisErrorEvent {
   matchId: string;
+  jobId: number;
   error: string;
+}
+
+export interface AiAnalysisCancelledEvent {
+  matchId: string;
+  jobId: number;
+  elapsedMs: number;
 }
 
 export type AiAnalysisStatus =
@@ -168,30 +319,18 @@ export type AiAnalysisStatus =
 export type AiModelOption = {
   value: string;
   label: string;
-  /** 单次分析参考耗时（秒） */
-  durationSec: number;
-  /** 单次分析参考费用 */
-  costLabel: string;
 };
 
 export const AI_MODEL_OPTIONS: readonly AiModelOption[] = [
   {
     value: 'deepseek-v4-flash',
     label: 'DeepSeek V4 Flash（推荐，快速）',
-    durationSec: 15,
-    costLabel: '¥0.006',
   },
   {
     value: 'deepseek-v4-pro',
     label: 'DeepSeek V4 Pro（更准确，较慢）',
-    durationSec: 40,
-    costLabel: '¥0.02',
   },
 ];
-
-export function formatModelBudgetHint(opt: Pick<AiModelOption, 'durationSec' | 'costLabel'>): string {
-  return `约 ${opt.durationSec} 秒 · ${opt.costLabel}/次`;
-}
 
 export function resolveModelOption(model: string): AiModelOption | null {
   return AI_MODEL_OPTIONS.find((opt) => opt.value === model) ?? null;

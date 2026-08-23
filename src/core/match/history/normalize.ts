@@ -1,5 +1,5 @@
-import type { AiAnalysisResult, AiPredictedWinner, AiTokenUsage } from '@core/ai/types';
-import { sanitizeAiAnalysisResult } from '@core/ai/sanitize-result';
+import type { AiAnalysisResult, AiTokenUsage } from '@core/ai/types';
+import { normalizeAiAnalysisResult } from '@core/ai/analysis-v2';
 import type {
   MatchDetail,
   MatchInsights,
@@ -73,6 +73,9 @@ function normalizeHotMaps(raw: unknown): MatchPlayer['hotMaps'] {
       deathNum: asNumber(map.deathNum), firstKillNum: asNumber(map.firstKillNum), firstDeathNum: asNumber(map.firstDeathNum),
       headshotKillNum: asNumber(map.headshotKillNum), matchMvpNum: asNumber(map.matchMvpNum),
       threeKillNum: asNumber(map.threeKillNum), fourKillNum: asNumber(map.fourKillNum), fiveKillNum: asNumber(map.fiveKillNum),
+      priAvg: asNumber(map.priAvg), pistolWeSum: asNumber(map.pistolWeSum),
+      clutch1v1: asNumber(map.clutch1v1), clutch1v2: asNumber(map.clutch1v2),
+      clutch1v3: asNumber(map.clutch1v3), clutch1v4: asNumber(map.clutch1v4), clutch1v5: asNumber(map.clutch1v5),
     }];
   });
 }
@@ -89,6 +92,7 @@ function normalizeWeapons(raw: unknown): MatchPlayer['primaryWeapons'] {
       headshotSum: asNumber(weapon.headshotSum), headshotRate: asNumber(weapon.headshotRate), damageSum: asNumber(weapon.damageSum),
       avgDamage: asNumber(weapon.avgDamage), firstShotAccuracy: asNumber(weapon.firstShotAccuracy),
       avgTimeToKill: asNumber(weapon.avgTimeToKill), sprayAccuracy: asNumber(weapon.sprayAccuracy),
+      avgKillsPerRound: asNumber(weapon.avgKillsPerRound),
       levelAvgTimeToKill: asString(weapon.levelAvgTimeToKill), levelAccuracy: asString(weapon.levelAccuracy),
       levelAvgDamage: asString(weapon.levelAvgDamage), levelHeadshotRate: asString(weapon.levelHeadshotRate),
       levelAvgKillNum: asString(weapon.levelAvgKillNum),
@@ -106,6 +110,10 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
     nickname,
     avatar: asString(obj.avatar),
     score: asNumber(obj.score),
+    currentSStars: asNumber(obj.currentSStars),
+    peakScore: asNumber(obj.peakScore),
+    peakSStars: asNumber(obj.peakSStars),
+    peakSeason: asString(obj.peakSeason),
     teamSide: asNumber(obj.teamSide) ?? 0,
     slotType: asNumber(obj.slotType),
     isSingle: Boolean(obj.isSingle),
@@ -127,6 +135,12 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
     rapidStopSuccessRate: asNumber(obj.rapidStopSuccessRate),
     reactionTime: asNumber(obj.reactionTime),
     clutchWinRate: asNumber(obj.clutchWinRate),
+    clutch1v1Rate: asNumber(obj.clutch1v1Rate),
+    clutch1v1Attempts: asNumber(obj.clutch1v1Attempts),
+    kast: asNumber(obj.kast),
+    tradeFragRate: asNumber(obj.tradeFragRate),
+    roundMvpCount: asNumber(obj.roundMvpCount),
+    combat: asRecord(obj.combat) as MatchPlayer['combat'],
     weRaw: asNumber(obj.weRaw),
     weAvg: asNumber(obj.weAvg),
     seasonWe: asNumber(obj.seasonWe),
@@ -141,6 +155,11 @@ function normalizePlayer(raw: unknown): MatchPlayer | null {
     clutch1v3: asNumber(obj.clutch1v3),
     clutch1v4: asNumber(obj.clutch1v4),
     clutch1v5: asNumber(obj.clutch1v5),
+    clutch1v1Total: asNumber(obj.clutch1v1Total),
+    clutch1v2Total: asNumber(obj.clutch1v2Total),
+    clutch1v3Total: asNumber(obj.clutch1v3Total),
+    clutch1v4Total: asNumber(obj.clutch1v4Total),
+    clutch1v5Total: asNumber(obj.clutch1v5Total),
     multiKill2: asNumber(obj.multiKill2),
     multiKill3: asNumber(obj.multiKill3),
     multiKill4: asNumber(obj.multiKill4),
@@ -315,38 +334,7 @@ export function normalizeAiSectionPayload(payload: unknown): AiSectionPayloadV1 
 }
 
 export function normalizeAiResult(raw: unknown): AiAnalysisResult | null {
-  const obj = asRecord(raw);
-  if (!obj) return null;
-  const winner = asString(obj.predictedWinner);
-  const predictedWinner: AiPredictedWinner =
-    winner === 'A' || winner === 'B' || winner === 'Even' || winner === 'Unknown'
-      ? winner
-      : 'Unknown';
-  const winProb = asRecord(obj.winProbability);
-  const A = asNumber(winProb?.A) ?? 50;
-  const B = asNumber(winProb?.B) ?? 50;
-  return sanitizeAiAnalysisResult({
-    predictedWinner,
-    winProbability: { A, B },
-    confidence: asNumber(obj.confidence) ?? 0,
-    headline: asString(obj.headline) ?? '',
-    quickReasons: asStringArray(obj.quickReasons),
-    keyFactors: Array.isArray(obj.keyFactors)
-      ? (obj.keyFactors.filter((f) => asRecord(f)) as AiAnalysisResult['keyFactors'])
-      : [],
-    playerNotes: Array.isArray(obj.playerNotes)
-      ? (obj.playerNotes.filter((n) => asRecord(n)) as AiAnalysisResult['playerNotes'])
-      : [],
-    risks: asStringArray(obj.risks),
-    dataQuality: asString(obj.dataQuality) ?? '',
-    teamSummary: asRecord(obj.teamSummary)
-      ? {
-          A: asString((obj.teamSummary as Record<string, unknown>).A) ?? '',
-          B: asString((obj.teamSummary as Record<string, unknown>).B) ?? '',
-        }
-      : undefined,
-    stabilityReason: asString(obj.stabilityReason),
-  });
+  return normalizeAiAnalysisResult(raw);
 }
 
 export function normalizeAiUsage(raw: unknown): AiTokenUsage | null {
