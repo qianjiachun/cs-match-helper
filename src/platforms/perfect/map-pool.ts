@@ -18,6 +18,10 @@ export interface PerfectMapMetrics {
   rws?: number;
   openingDuelRate?: number;
   headshotRate?: number;
+  roundWinRate?: number;
+  ctRoundWinRate?: number;
+  tRoundWinRate?: number;
+  firePower?: number;
 }
 
 export interface PerfectMapPoolSummary {
@@ -79,7 +83,7 @@ export function getPerfectMapFamiliarity(
 export function isPerfectMapStrong(player: MatchPlayer, mapName?: string): boolean {
   const entry = findPerfectHotMap(player, mapName);
   if (!entry || entry.totalMatch < 10) return false;
-  const mapRating = safeRatio(entry.ratingSum, entry.totalMatch);
+  const mapRating = entry.rating ?? safeRatio(entry.ratingSum, entry.totalMatch);
   const mapWinRate = safeRatio(entry.winCount, entry.totalMatch);
   const ratingDelta = mapRating != null && player.seasonRating != null
     ? mapRating - player.seasonRating
@@ -103,12 +107,16 @@ export function getPerfectMapMetrics(player: MatchPlayer, entry: PerfectHotMap):
     matches: entry.totalMatch,
     share: seasonMatchCount(player) > 0 ? entry.totalMatch / seasonMatchCount(player) : 0,
     winRate: safeRatio(entry.winCount, entry.totalMatch),
-    rating: safeRatio(entry.ratingSum, entry.totalMatch),
-    adr: safeRatio(entry.totalAdr, entry.totalMatch),
+    rating: entry.rating ?? safeRatio(entry.ratingSum, entry.totalMatch),
+    adr: entry.adr ?? safeRatio(entry.totalAdr, entry.totalMatch),
     kd: safeRatio(entry.totalKill, entry.deathNum),
-    rws: safeRatio(entry.rwsSum, entry.totalMatch),
+    rws: entry.rws ?? safeRatio(entry.rwsSum, entry.totalMatch),
     openingDuelRate: duels > 0 ? (entry.firstKillNum ?? 0) / duels : undefined,
     headshotRate: safeRatio(entry.headshotKillNum, entry.totalKill),
+    roundWinRate: safeRatio(entry.winRoundCount, entry.roundCount),
+    ctRoundWinRate: safeRatio(entry.ctWinRoundCount, entry.ctRoundCount),
+    tRoundWinRate: safeRatio(entry.tWinRoundCount, entry.tRoundCount),
+    firePower: entry.firePower,
   };
 }
 

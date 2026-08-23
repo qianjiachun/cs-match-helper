@@ -477,6 +477,12 @@
           "markdownDescription": "允许更新对局历史某一 section"
         },
         {
+          "description": "Allow Perfect World authentication and local API response decryption",
+          "type": "string",
+          "const": "allow-perfect-auth",
+          "markdownDescription": "Allow Perfect World authentication and local API response decryption"
+        },
+        {
           "description": "Allow fetching Perfect World player stats and resolving board identities",
           "type": "string",
           "const": "allow-perfect-player-data",

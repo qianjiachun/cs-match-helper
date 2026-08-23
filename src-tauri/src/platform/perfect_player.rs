@@ -1,3 +1,7 @@
+use super::{
+    perfect_api::fetch_aggregated_player,
+    perfect_auth::{current_credential, invalidate_if_needed, PerfectAuthRuntime},
+};
 use reqwest::{
     header::{HeaderMap, HeaderValue, ACCEPT, CONNECTION, CONTENT_TYPE},
     Client, Response,
@@ -9,12 +13,10 @@ use std::{
 };
 use uuid::Uuid;
 
-const STATS_URL: &str = "https://api.wmpvp.com/api/v2/csgo/pvpDetailDataStats";
 const SEARCH_URL: &str = "https://gwapi.pwesports.cn/acty/api/v1/search";
 const APP_VERSION: &str = "4.0.9.215";
 const GAME_TYPE: &str = "2";
 const APP_THEME: &str = "0";
-const STATS_PLATFORM: &str = "h5_android";
 const SEARCH_PLATFORM: &str = "android";
 
 static DEVICE_ID: OnceLock<String> = OnceLock::new();
@@ -120,14 +122,20 @@ async fn post_json(url: &str, body: Value, platform: &'static str) -> Result<Val
 }
 
 #[tauri::command]
-pub async fn fetch_perfect_player_stats(steam_id: String) -> Result<Value, String> {
+pub async fn fetch_perfect_player_stats(
+    app: tauri::AppHandle,
+    steam_id: String,
+    state: tauri::State<'_, PerfectAuthRuntime>,
+) -> Result<Value, String> {
     let steam_id = validate_steam_id(&steam_id)?;
-    post_json(
-        STATS_URL,
-        json!({ "steamId64": steam_id, "csgoSeasonId": "", "accessToken": "" }),
-        STATS_PLATFORM,
-    )
-    .await
+    let credential = current_credential(&state)?;
+    match fetch_aggregated_player(&credential, steam_id).await {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            invalidate_if_needed(&app, &state, &error).await;
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -152,7 +160,7 @@ pub async fn search_perfect_board_user(steam_id: String) -> Result<Value, String
 
 #[cfg(test)]
 mod tests {
-    use super::{device_id, mobile_headers, validate_steam_id, SEARCH_PLATFORM, STATS_PLATFORM};
+    use super::{device_id, mobile_headers, validate_steam_id, SEARCH_PLATFORM};
 
     #[test]
     fn validates_steam_id64_without_numeric_conversion() {
@@ -166,19 +174,12 @@ mod tests {
 
     #[test]
     fn builds_realistic_mobile_headers_without_captured_credentials() {
-        let stats = mobile_headers(STATS_PLATFORM).expect("stats headers");
         let search = mobile_headers(SEARCH_PLATFORM).expect("search headers");
 
-        assert_eq!(stats.get("appversion").unwrap(), "4.0.9.215");
-        assert_eq!(stats.get("gametype").unwrap(), "2");
-        assert_eq!(stats.get("gametypestr").unwrap(), "2");
-        assert_eq!(stats.get("platform").unwrap(), "h5_android");
         assert_eq!(search.get("platform").unwrap(), "android");
-        assert_eq!(stats.get("device").unwrap(), search.get("device").unwrap());
         assert!(device_id().starts_with("vGPSv"));
 
         for sensitive_header in ["token", "accesstoken", "tdsign", "t"] {
-            assert!(stats.get(sensitive_header).is_none());
             assert!(search.get(sensitive_header).is_none());
         }
     }

@@ -1,15 +1,23 @@
 import type {
   PerfectAbilityProfile,
   PerfectHotMap,
+  PerfectSeasonCombat,
   PerfectWeaponSummary,
+  RadarDimension,
 } from '@core/match/models';
 
 export interface PerfectPlayerStats {
   steamId: string;
+  zqId?: string;
+  partialFailure?: string;
   seasonId?: string;
   name?: string;
   avatar?: string;
   pvpScore?: number;
+  currentSStars?: number;
+  allSeasonMaxScore?: number;
+  allSeasonMaxStars?: number;
+  allSeasonMaxScoreSeason?: string;
   seasonMatches?: number;
   kd?: number;
   winRate?: number;
@@ -26,8 +34,21 @@ export interface PerfectPlayerStats {
   recentRwsValues: number[];
   adr?: number;
   headShotRatio?: number;
+  firstKillSuccessRate?: number;
+  rapidStopSuccessRate?: number;
+  reactionTime?: number;
   entryKillRatio?: number;
   vs1WinRate?: number;
+  kast?: number;
+  tradeFragRate?: number;
+  clutch1v1Rate?: number;
+  clutch1v1Attempts?: number;
+  matchMvpCount?: number;
+  roundMvpCount?: number;
+  seasonWinNum?: number;
+  seasonDrawNum?: number;
+  combat?: PerfectSeasonCombat;
+  /** Current-season WE from radar_new.fire_power.detail.we_raw; avgWe is a legacy fallback. */
   avgWe?: number;
   recentWe?: number;
   recentWeValues: number[];
@@ -37,6 +58,11 @@ export interface PerfectPlayerStats {
   deaths?: number;
   assists?: number;
   mvpCount?: number;
+  clutch1v1Total?: number;
+  clutch1v2Total?: number;
+  clutch1v3Total?: number;
+  clutch1v4Total?: number;
+  clutch1v5Total?: number;
   clutchWins?: number;
   clutch1v1?: number;
   clutch1v2?: number;
@@ -49,6 +75,7 @@ export interface PerfectPlayerStats {
   multiKill5?: number;
   hotMaps: PerfectHotMap[];
   abilityProfile?: PerfectAbilityProfile;
+  radar?: Record<string, RadarDimension>;
   primaryWeapons: PerfectWeaponSummary[];
 }
 

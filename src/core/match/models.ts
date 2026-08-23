@@ -24,6 +24,13 @@ export interface PerfectHotMap {
   totalMatch: number;
   winCount: number;
   totalKill?: number;
+  /** New season-stats map ADR is already an average. */
+  adr?: number;
+  /** New season-stats map PW Rating is already an average. */
+  rating?: number;
+  /** New season-stats map RWS is already an average. */
+  rws?: number;
+  /** Legacy aggregate fields retained for older history records. */
   totalAdr?: number;
   ratingSum?: number;
   rwsSum?: number;
@@ -35,6 +42,103 @@ export interface PerfectHotMap {
   threeKillNum?: number;
   fourKillNum?: number;
   fiveKillNum?: number;
+  twoKillNum?: number;
+  roundCount?: number;
+  winRoundCount?: number;
+  ctRoundCount?: number;
+  ctWinRoundCount?: number;
+  tRoundCount?: number;
+  tWinRoundCount?: number;
+  sniperKillNum?: number;
+  teamKillNum?: number;
+  firePower?: number;
+  priAvg?: number;
+  pistolWeSum?: number;
+  clutch1v1?: number;
+  clutch1v2?: number;
+  clutch1v3?: number;
+  clutch1v4?: number;
+  clutch1v5?: number;
+}
+
+export interface PerfectSideSplit {
+  rating?: number;
+}
+
+export interface PerfectOpeningSummary {
+  firstKillRate?: number;
+  openingDuelRate?: number;
+  firstHurtPerMatch?: number;
+  winAfterOpeningKill?: number;
+}
+
+export interface PerfectUtilitySummary {
+  flashAssistPerRound?: number;
+  flashRate?: number;
+  enemyFlashTimePerRound?: number;
+  utilDmgPerRound?: number;
+  itemRate?: number;
+}
+
+export interface PerfectAimSummary {
+  avgTimeToKillMs?: number;
+  sprayHitRate?: number;
+  killsPerRound?: number;
+  killsPerWinRound?: number;
+  dmgPerRound?: number;
+  dmgPerWinRound?: number;
+  roundsWithAKill?: number;
+  pistolRating?: number;
+}
+
+export interface PerfectSniperSummary {
+  killShare?: number;
+  firstKills?: number;
+  killsPerSniperRound?: number;
+  multiKillRoundRate?: number;
+  holdRounds?: number;
+  reactionMs?: number;
+}
+
+export interface PerfectClutchAttempt {
+  wins?: number;
+  attempts?: number;
+  rate?: number;
+}
+
+export interface PerfectClutchSummary {
+  allRate?: number;
+  v1?: PerfectClutchAttempt;
+  v2plus?: PerfectClutchAttempt;
+  lastAliveRate?: number;
+  savesPerLossRound?: number;
+  timeAlivePerRound?: number;
+}
+
+export interface PerfectFormSummary {
+  ratingChange?: number;
+  adrChange?: number;
+  kdChange?: number;
+  winRateChange?: number;
+  rwsChange?: number;
+}
+
+export interface PerfectSeasonCombat {
+  kast?: number;
+  tradeFragRate?: number;
+  clutch1v1Rate?: number;
+  clutch1v1Attempts?: number;
+  matchMvpCount?: number;
+  roundMvpCount?: number;
+  seasonWinNum?: number;
+  seasonDrawNum?: number;
+  sides?: { ct?: PerfectSideSplit; t?: PerfectSideSplit };
+  opening?: PerfectOpeningSummary;
+  utility?: PerfectUtilitySummary;
+  aim?: PerfectAimSummary;
+  sniper?: PerfectSniperSummary;
+  clutch?: PerfectClutchSummary;
+  form?: PerfectFormSummary;
 }
 
 export interface PerfectAbilityProfile {
@@ -56,14 +160,18 @@ export interface PerfectWeaponSummary {
   headshotRate?: number;
   damageSum?: number;
   avgDamage?: number;
+  avgKillNum?: number;
   firstShotAccuracy?: number;
   avgTimeToKill?: number;
   sprayAccuracy?: number;
+  rapidStopSuccessRate?: number;
   levelAvgTimeToKill?: string;
   levelAccuracy?: string;
   levelAvgDamage?: string;
   levelHeadshotRate?: string;
   levelAvgKillNum?: string;
+  levelRapidStopSuccessRate?: string;
+  avgKillsPerRound?: number;
 }
 
 export interface MatchPlayer {
@@ -71,6 +179,12 @@ export interface MatchPlayer {
   nickname: string;
   avatar?: string;
   score?: number;
+  /** Current-season S-rank stars; meaningful once score reaches 2400. */
+  currentSStars?: number;
+  /** Lifetime peak score and S-rank stars from season-stats top-level fields. */
+  peakScore?: number;
+  peakSStars?: number;
+  peakSeason?: string;
   teamSide: number;
   slotType?: number;
   isSingle: boolean;
@@ -100,10 +214,16 @@ export interface MatchPlayer {
   rapidStopSuccessRate?: number;
   reactionTime?: number;
   clutchWinRate?: number;
+  clutch1v1Rate?: number;
+  clutch1v1Attempts?: number;
+  kast?: number;
+  tradeFragRate?: number;
+  roundMvpCount?: number;
+  combat?: PerfectSeasonCombat;
   weRaw?: number;
   /** Recent WE average. Perfect derives it from weList. */
   weAvg?: number;
-  /** Perfect current-season WE average (pvpDetailDataStats.avgWe). */
+  /** Perfect current-season WE (radar_new.fire_power.detail.we_raw). */
   seasonWe?: number;
   eloTrend?: number;
   kills?: number;
@@ -116,6 +236,11 @@ export interface MatchPlayer {
   clutch1v3?: number;
   clutch1v4?: number;
   clutch1v5?: number;
+  clutch1v1Total?: number;
+  clutch1v2Total?: number;
+  clutch1v3Total?: number;
+  clutch1v4Total?: number;
+  clutch1v5Total?: number;
   multiKill2?: number;
   multiKill3?: number;
   multiKill4?: number;

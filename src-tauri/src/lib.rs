@@ -4,18 +4,20 @@ mod legacy_hud_cleanup;
 mod log_watcher;
 mod match_history;
 mod platform;
+mod settings_store;
 mod shutdown;
 mod update;
 
 use ai::AiAnalysisState;
 use log_watcher::WatcherState;
 use platform::{
-    fetch_5e_match_detail, fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json,
-    fetch_perfect_player_stats, fetch_proxied_image, get_cdp_status, launch_with_cdp,
+    cancel_perfect_login, clear_perfect_auth, decrypt_perfect_response, fetch_5e_match_detail,
+    fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json, fetch_perfect_player_stats,
+    fetch_proxied_image, get_cdp_status, get_perfect_auth_status, launch_with_cdp,
     probe_5e_environment, relaunch_current_exe_as_admin, search_perfect_board_user,
-    set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, stop_cdp_collector,
-    wait_for_cdp_port, P5eCdpRuntime, P5eCdpStatus, P5eLaunchResult, P5eProbeResult,
-    P5E_DEFAULT_CDP_PORT,
+    set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, start_perfect_qr_login,
+    start_perfect_steam_login, stop_cdp_collector, wait_for_cdp_port, P5eCdpRuntime, P5eCdpStatus,
+    P5eLaunchResult, P5eProbeResult, PerfectAuthRuntime, P5E_DEFAULT_CDP_PORT,
 };
 use std::sync::Mutex;
 use std::thread;
@@ -211,6 +213,7 @@ pub fn run() {
         })
         .manage(AiAnalysisState::default())
         .manage(P5eCdpRuntime::default())
+        .manage(PerfectAuthRuntime::default())
         .setup(|app| {
             let version = env!("CARGO_PKG_VERSION");
             if let Some(window) = app.get_webview_window("main") {
@@ -229,6 +232,12 @@ pub fn run() {
             read_latest_log_lines,
             fetch_perfect_player_stats,
             search_perfect_board_user,
+            get_perfect_auth_status,
+            start_perfect_qr_login,
+            start_perfect_steam_login,
+            cancel_perfect_login,
+            clear_perfect_auth,
+            decrypt_perfect_response,
             launch_5e_with_cdp,
             start_5e_cdp_collector,
             stop_5e_cdp_collector,
@@ -274,14 +283,16 @@ pub fn run() {
             RunEvent::ExitRequested { .. } => {
                 shutdown_app(app_handle);
             }
-            RunEvent::WindowEvent { label, event, .. } if label == "main" => {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    if shutdown::is_app_shutting_down() {
-                        shutdown_app(app_handle);
-                    } else {
-                        api.prevent_close();
-                        let _ = app_handle.emit("app-close-requested", ());
-                    }
+            RunEvent::WindowEvent {
+                label,
+                event: WindowEvent::CloseRequested { api, .. },
+                ..
+            } if label == "main" => {
+                if shutdown::is_app_shutting_down() {
+                    shutdown_app(app_handle);
+                } else {
+                    api.prevent_close();
+                    let _ = app_handle.emit("app-close-requested", ());
                 }
             }
             _ => {}

@@ -21,6 +21,7 @@
     "allow-start-log-watch",
     "allow-stop-log-watch",
     "allow-perfect-player-data",
+    "allow-perfect-auth",
     "allow-get-ai-settings-path",
     "allow-load-ai-settings",
     "allow-save-ai-settings",

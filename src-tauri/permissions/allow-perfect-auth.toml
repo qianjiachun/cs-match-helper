@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "allow-perfect-auth"
+description = "Allow Perfect World authentication and local API response decryption"
+commands.allow = [
+  "get_perfect_auth_status",
+  "start_perfect_qr_login",
+  "start_perfect_steam_login",
+  "cancel_perfect_login",
+  "clear_perfect_auth",
+  "decrypt_perfect_response",
+]

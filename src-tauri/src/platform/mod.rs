@@ -1,5 +1,9 @@
 mod admin_relaunch;
 mod perfect;
+mod perfect_api;
+mod perfect_auth;
+mod perfect_credentials;
+mod perfect_crypto;
 mod perfect_player;
 mod platform_5e_cdp;
 mod platform_5e_gate_sign;
@@ -11,6 +15,11 @@ mod platform_5e_ws;
 mod platform_board;
 
 pub use admin_relaunch::relaunch_current_exe_as_admin;
+pub use perfect_auth::{
+    cancel_perfect_login, clear_perfect_auth, get_perfect_auth_status, start_perfect_qr_login,
+    start_perfect_steam_login, PerfectAuthRuntime,
+};
+pub use perfect_crypto::decrypt_perfect_response;
 pub use perfect_player::{fetch_perfect_player_stats, search_perfect_board_user};
 pub use platform_5e_cdp::{
     get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector,

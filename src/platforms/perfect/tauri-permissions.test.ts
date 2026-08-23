@@ -18,4 +18,27 @@ describe('Perfect player Tauri permissions', () => {
     expect(permission).toContain('"search_perfect_board_user"');
     expect(capability.permissions).toContain('allow-perfect-player-data');
   });
+
+  it('allows authentication and decrypt commands without exposing credential commands', () => {
+    const permission = fs.readFileSync(
+      path.join(TAURI_ROOT, 'permissions/allow-perfect-auth.toml'),
+      'utf8',
+    );
+    const capability = JSON.parse(
+      fs.readFileSync(path.join(TAURI_ROOT, 'capabilities/default.json'), 'utf8'),
+    ) as { permissions?: string[] };
+
+    for (const command of [
+      'get_perfect_auth_status',
+      'start_perfect_qr_login',
+      'start_perfect_steam_login',
+      'cancel_perfect_login',
+      'clear_perfect_auth',
+      'decrypt_perfect_response',
+    ]) {
+      expect(permission).toContain(`\"${command}\"`);
+    }
+    expect(capability.permissions).toContain('allow-perfect-auth');
+    expect(permission).not.toContain('access_token');
+  });
 });

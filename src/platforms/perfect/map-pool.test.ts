@@ -38,4 +38,29 @@ describe('Perfect map familiarity', () => {
       kd: 1.5, rws: 11, openingDuelRate: 0.6, headshotRate: 0.5,
     });
   });
+
+  it('uses new season-stats map averages directly instead of dividing by matches again', () => {
+    const value = player(19, 8, 31);
+    Object.assign(value.hotMaps![0], {
+      adr: 77.3684,
+      rating: 1.1042,
+      rws: 8.9479,
+      roundCount: 393,
+      winRoundCount: 195,
+      ctRoundCount: 177,
+      ctWinRoundCount: 87,
+      tRoundCount: 216,
+      tWinRoundCount: 108,
+      firePower: 55,
+    });
+    expect(getPerfectMapMetrics(value, value.hotMaps![0])).toMatchObject({
+      adr: 77.3684,
+      rating: 1.1042,
+      rws: 8.9479,
+      roundWinRate: 195 / 393,
+      ctRoundWinRate: 87 / 177,
+      tRoundWinRate: 0.5,
+      firePower: 55,
+    });
+  });
 });
