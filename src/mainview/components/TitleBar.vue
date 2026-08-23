@@ -10,6 +10,7 @@ import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
 import UpdateBadge from './UpdateBadge.vue';
+import MatchHudIcon from './MatchHudIcon.vue';
 
 const { t, locale } = useI18n();
 
@@ -30,6 +31,7 @@ const props = defineProps<{
   injectMatch: (data: Record<string, unknown>) => void;
   replayPerfectFixture: () => Promise<void>;
   injectAiResult: (raw: string) => Promise<string | null>;
+  getAiV3Fixture: () => string | null;
   p5e: ReturnType<typeof import('../composables/useP5eCdp').useP5eCdp>;
   logEntries: DebugLogEntry[];
   watcher: WatcherStatus;
@@ -42,6 +44,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   clearLogs: [];
   openSettings: [];
+  openMatchHud: [];
   goHome: [];
   openUpdateDialog: [];
   debugOpen: [];
@@ -97,6 +100,7 @@ const showBackButton = computed(() => props.view === 'settings');
         :log-entries="logEntries"
         :watcher="watcher"
         :inject-ai-result="injectAiResult"
+        :get-ai-v3-fixture="getAiV3Fixture"
         :replay-perfect-fixture="replayPerfectFixture"
         :p5e="p5e"
         :comments="comments"
@@ -104,6 +108,17 @@ const showBackButton = computed(() => props.view === 'settings');
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />
+
+      <button
+        v-if="showSettingsButton"
+        type="button"
+        class="flex h-full cursor-pointer items-center gap-1.5 px-3 text-[12px] text-fg-muted transition-colors duration-200 hover:bg-elevated hover:text-fg-secondary"
+        :aria-label="locale === 'en-US' ? 'Match HUD' : '对局 HUD'"
+        @click="emit('openMatchHud')"
+      >
+        <MatchHudIcon size="sm" />
+        <span class="hidden sm:inline">{{ locale === 'en-US' ? 'Match HUD' : '对局 HUD' }}</span>
+      </button>
 
       <button
         v-if="showSettingsButton"

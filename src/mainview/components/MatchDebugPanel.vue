@@ -30,6 +30,7 @@ import {
   type MockHistoryPlatformMix,
 } from '../utils/matchHistoryMock';
 import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
+import { decryptPerfectResponse } from '../native';
 
 const { copyText } = useCopyFeedback();
 const props = withDefaults(
@@ -39,6 +40,7 @@ const props = withDefaults(
     logEntries?: DebugLogEntry[];
     watcher?: WatcherStatus;
     injectAiResult?: (raw: string) => Promise<string | null>;
+    getAiV3Fixture?: () => string | null;
     replayPerfectFixture?: () => Promise<void>;
     p5e?: ReturnType<typeof useP5eCdp>;
     comments?: ReturnType<typeof useComments>;
@@ -56,6 +58,7 @@ const props = withDefaults(
       linesReceived: 0,
     }),
     injectAiResult: undefined,
+    getAiV3Fixture: undefined,
   },
 );
 
@@ -65,7 +68,7 @@ const emit = defineEmits<{
   clearLogs: [];
 }>();
 
-type DebugTab = 'inject' | 'logs';
+type DebugTab = 'inject' | 'decrypt' | 'logs';
 type InjectSubTab = 'match' | 'p5e' | 'ai' | 'comments' | 'history' | 'update' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
@@ -106,6 +109,44 @@ const historyWithAi = ref(true);
 const historyBusy = ref(false);
 const historyError = ref('');
 const perfectReplayBusy = ref(false);
+const decryptMode = ref<'response' | 'fields'>('response');
+const decryptResponseInput = ref('');
+const decryptEInput = ref('');
+const decryptTInput = ref('');
+const decryptOutput = ref('');
+const decryptError = ref('');
+const decryptBusy = ref(false);
+
+async function runPerfectDecrypt() {
+  decryptError.value = '';
+  decryptOutput.value = '';
+  decryptBusy.value = true;
+  try {
+    const result = await decryptPerfectResponse(
+      decryptMode.value === 'response'
+        ? { response: decryptResponseInput.value }
+        : { e: decryptEInput.value, t: decryptTInput.value.trim() },
+    );
+    decryptOutput.value = result.formattedJson;
+  } catch (reason) {
+    decryptError.value = String(reason).replace(/^Error:\s*/, '');
+  } finally {
+    decryptBusy.value = false;
+  }
+}
+
+async function copyDecryptOutput() {
+  if (!decryptOutput.value) return;
+  await copyText(decryptOutput.value, l('已复制解密结果', 'Decrypted JSON copied'));
+}
+
+function clearPerfectDecrypt() {
+  decryptResponseInput.value = '';
+  decryptEInput.value = '';
+  decryptTInput.value = '';
+  decryptOutput.value = '';
+  decryptError.value = '';
+}
 
 async function runPerfectReplay() {
   if (!props.replayPerfectFixture || perfectReplayBusy.value) return;
@@ -113,6 +154,8 @@ async function runPerfectReplay() {
   error.value = '';
   try {
     await props.replayPerfectFixture();
+    logSubTab.value = 'perfect';
+    activeTab.value = 'logs';
   } catch (reason) {
     error.value = localizeErrorMessage(reason instanceof Error ? reason.message : String(reason));
   } finally {
@@ -254,6 +297,16 @@ async function submitAi() {
   if (props.placement === 'header') {
     open.value = false;
   }
+}
+
+function fillAiV3Fixture() {
+  const fixture = props.getAiV3Fixture?.();
+  if (!fixture) {
+    aiError.value = l('请先注入或接收一条匹配数据', 'Inject or receive match data first');
+    return;
+  }
+  aiError.value = '';
+  aiInput.value = fixture;
 }
 
 function openMockComments(scenario: 'list' | 'empty' | 'loading' | 'error' = 'list') {
@@ -475,6 +528,19 @@ watch(
           type="button"
           class="flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors"
           :class="
+            activeTab === 'decrypt'
+              ? 'border-accent text-fg'
+              : 'border-transparent text-fg-muted hover:text-fg-secondary'
+          "
+          @click="switchTab('decrypt')"
+        >
+          <Code2 class="h-3.5 w-3.5" />
+          {{ l('完美 API 解密', 'Perfect API decrypt') }}
+        </button>
+        <button
+          type="button"
+          class="flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors"
+          :class="
             activeTab === 'logs'
               ? 'border-accent text-fg'
               : 'border-transparent text-fg-muted hover:text-fg-secondary'
@@ -586,17 +652,17 @@ watch(
 
         <div v-if="injectSubTab === 'match'" class="space-y-3">
           <p class="text-[11px] leading-relaxed text-fg-muted">
-            {{ l('离线回放真实完美天梯事件：逐人 ready、数据返回、10/10 等待与最终分队。', 'Replay a real Perfect ladder session offline: progressive ready, data loading, waiting, and team assignment.') }}
+            {{ l('回放真实完美天梯日志中的 SteamID，并使用当前登录态在线查询最新玩家数据。', 'Replay SteamIDs from a real Perfect ladder log and query current player data with the active login.') }}
           </p>
           <div class="rounded-md border border-border bg-elevated px-3 py-2.5">
-            <p class="text-[11px] text-fg-secondary">9220102482485790732 · de_dust2 · 10 players</p>
+            <p class="text-[11px] text-fg-secondary">9220102482485790732 · de_dust2 · 10 SteamIDs</p>
             <button
               type="button"
               class="mt-2 min-h-10 cursor-pointer rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors duration-200 hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
               :disabled="perfectReplayBusy"
               @click="runPerfectReplay"
             >
-              {{ perfectReplayBusy ? l('回放中…', 'Replaying…') : l('一键回放完美平台', 'Replay Perfect session') }}
+              {{ perfectReplayBusy ? l('查询中…', 'Querying…') : l('注入 SteamID 并查询', 'Inject SteamIDs and query') }}
             </button>
           </div>
           <p v-if="error" class="text-[11px] text-danger">{{ error }}</p>
@@ -672,10 +738,17 @@ watch(
           <p class="text-[11px] leading-relaxed text-fg-muted">
             {{ l('粘贴 AI 分析 JSON，直接预览结果面板（需先有当前匹配数据）。', 'Paste AI analysis JSON to preview the result panel. Current match data is required.') }}
           </p>
+          <button
+            type="button"
+            class="inline-flex min-h-9 cursor-pointer items-center rounded-md border border-border bg-surface px-3 text-[11px] font-medium text-fg-secondary transition-[background-color,transform] duration-200 hover:bg-elevated active:scale-[0.96]"
+            @click="fillAiV3Fixture"
+          >
+            {{ l('填入当前对局 V3 Fixture', 'Fill current-match V3 fixture') }}
+          </button>
           <textarea
             v-model="aiInput"
             class="h-36 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[11px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
-            placeholder='{"predictedWinner":"A","winProbability":{"A":58,"B":42},"headline":"...","playerNotes":[...]}'
+            placeholder='{"schemaVersion":3,"modelWinProbability":{"A":58,"B":42},"headline":"...","playerSignals":[...]}'
             spellcheck="false"
           />
           <div class="flex items-center justify-between gap-3">
@@ -885,8 +958,88 @@ watch(
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'decrypt'" class="space-y-3 p-4">
+        <div class="inline-flex rounded-md bg-elevated p-1" role="tablist" :aria-label="l('解密输入方式', 'Decrypt input mode')">
+          <button
+            type="button"
+            role="tab"
+            class="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
+            :class="decryptMode === 'response' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'"
+            :aria-selected="decryptMode === 'response'"
+            @click="decryptMode = 'response'"
+          >
+            {{ l('完整响应', 'Full response') }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
+            :class="decryptMode === 'fields' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'"
+            :aria-selected="decryptMode === 'fields'"
+            @click="decryptMode = 'fields'"
+          >
+            e / t
+          </button>
+        </div>
+
+        <textarea
+          v-if="decryptMode === 'response'"
+          v-model="decryptResponseInput"
+          class="h-36 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[10px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
+          :placeholder="l('粘贴包含 code、data.e、data.t 的完整 JSON 响应', 'Paste the full JSON response containing code, data.e and data.t')"
+          spellcheck="false"
+        />
+        <div v-else class="space-y-2">
+          <label class="block space-y-1">
+            <span class="text-[10px] font-medium text-fg-secondary">e</span>
+            <textarea
+              v-model="decryptEInput"
+              class="h-24 w-full resize-y rounded-md border border-border bg-base px-3 py-2 font-mono text-[10px] leading-relaxed text-fg outline-none transition-colors focus:border-accent"
+              :placeholder="l('Base64 密文', 'Base64 ciphertext')"
+              spellcheck="false"
+            />
+          </label>
+          <label class="block space-y-1">
+            <span class="text-[10px] font-medium text-fg-secondary">t</span>
+            <input
+              v-model="decryptTInput"
+              type="text"
+              inputmode="numeric"
+              class="h-9 w-full rounded-md border border-border bg-base px-3 font-mono text-[11px] text-fg outline-none transition-colors focus:border-accent"
+              placeholder="569525"
+            />
+          </label>
+        </div>
+
+        <p v-if="decryptError" class="rounded-md border border-danger/20 bg-danger/10 px-3 py-2 font-mono text-[10px] leading-relaxed text-danger" role="alert">
+          {{ decryptError }}
+        </p>
+        <div v-if="decryptOutput" class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-medium text-fg-secondary">{{ l('解密结果', 'Decrypted JSON') }}</span>
+            <button type="button" class="rounded px-2 py-1 text-[10px] text-accent hover:bg-accent/10" @click="copyDecryptOutput">
+              {{ l('复制', 'Copy') }}
+            </button>
+          </div>
+          <pre class="selectable max-h-52 overflow-auto rounded-md border border-border bg-base p-3 font-mono text-[10px] leading-relaxed text-fg whitespace-pre-wrap break-all">{{ decryptOutput }}</pre>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="min-h-9 rounded-md border border-border px-3 text-[11px] text-fg-secondary hover:bg-elevated" @click="clearPerfectDecrypt">
+            {{ l('清空', 'Clear') }}
+          </button>
+          <button
+            type="button"
+            class="flex min-h-9 items-center gap-2 rounded-md bg-accent px-3 text-[11px] font-medium text-white hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+            :disabled="decryptBusy"
+            @click="runPerfectDecrypt"
+          >
+            {{ decryptBusy ? l('解密中…', 'Decrypting…') : l('解密并格式化', 'Decrypt and format') }}
+          </button>
+        </div>
+      </div>
+
       <!-- 日志 -->
-      <div v-else class="flex flex-col">
+      <div v-else-if="activeTab === 'logs'" class="flex flex-col">
         <div v-if="p5e" class="flex border-b border-border bg-base px-2">
           <button
             type="button"

@@ -29,5 +29,12 @@ describe('map-assets', () => {
     expect(resolveCanonicalMapName('Mirage')).toBe('de_mirage');
     expect(resolveCanonicalMapName('de_mirage')).toBe('de_mirage');
     expect(resolveCanonicalMapName('Office')).toBe('cs_office');
+    expect(resolveCanonicalMapName('死城之谜')).toBe('de_cache');
+    expect(resolveCanonicalMapName('死亡工厂')).toBe('de_cache');
+    expect(resolveCanonicalMapName('Cache')).toBe('de_cache');
+  });
+
+  it('uses the official Cache Chinese name', () => {
+    expect(resolveMapAsset('de_cache')?.zh).toBe('死城之谜');
   });
 });

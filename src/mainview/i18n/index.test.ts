@@ -3,6 +3,7 @@ import {
   I18N_MESSAGES,
   applyResolvedLocale,
   localize,
+  localizeErrorMessage,
   resolveSystemLocale,
 } from './index';
 
@@ -48,5 +49,19 @@ describe('application locale', () => {
     expect(I18N_MESSAGES['en-US'].platform.regionLabel).toBe('Chinese CS platform');
     expect(I18N_MESSAGES['en-US'].platform.perfect).toBe('Perfect World Arena');
     expect(I18N_MESSAGES['en-US'].platform.fiveE).toBe('5E Arena');
+  });
+
+  it('turns Perfect Steam error codes into actionable localized guidance', () => {
+    expect(localizeErrorMessage('PERFECT_STEAM_PHONE_REQUIRED: redacted detail')).toContain(
+      '完成手机号绑定',
+    );
+    expect(localizeErrorMessage('PERFECT_STEAM_STATE_MISMATCH: redacted detail')).not.toContain(
+      'PERFECT_STEAM_STATE_MISMATCH',
+    );
+
+    applyResolvedLocale('en-US');
+    expect(localizeErrorMessage('PERFECT_STEAM_PHONE_REQUIRED: redacted detail')).toContain(
+      'mobile number linked',
+    );
   });
 });

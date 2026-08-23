@@ -32,6 +32,8 @@ function tooltip(value: PerfectWeaponSummary): string {
     `${weaponName(value)} · ${value.killNum} ${l('击杀', 'kills')} · ${value.matchNum ?? '—'} ${l('场', 'matches')}`,
     `TTK ${value.avgTimeToKill != null ? `${Math.round(value.avgTimeToKill)}ms` : '—'} (${value.levelAvgTimeToKill ?? '—'})`,
     `${l('爆头率', 'Headshot rate')} ${pct(value.headshotRate)}`,
+    `${l('场均击杀', 'Average kills')} ${value.avgKillNum != null ? value.avgKillNum.toFixed(2) : '—'} · ${l('急停成功率', 'Counter-strafe success')} ${pct(value.rapidStopSuccessRate)} (${value.levelRapidStopSuccessRate ?? '—'})`,
+    `${l('首发命中率', 'First-shot accuracy')} ${pct(value.firstShotAccuracy)} · ${l('扫射命中率', 'Spray accuracy')} ${pct(value.sprayAccuracy)}`,
     `${l('场均伤害', 'Avg damage')} ${value.avgDamage != null ? Math.round(value.avgDamage) : '—'} · ${l('伤害评级', 'Damage grade')} ${value.levelAvgDamage ?? '—'}`,
   ].join('\n');
 }

@@ -29,6 +29,8 @@
     "languageTitle": "Display language",
     "history": "Match history",
     "historyDesc": "Review locally saved matches and AI analysis",
+    "loginManagement": "Login management",
+    "loginManagementDesc": "View your Perfect World account status or choose a sign-in method",
     "ai": "AI settings",
     "aiDesc": "API and model configuration",
     "comments": "My comments",

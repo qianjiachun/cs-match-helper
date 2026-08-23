@@ -29,6 +29,8 @@
     "languageTitle": "界面语言",
     "history": "历史对局",
     "historyDesc": "查看本地保存的对局与 AI 分析",
+    "loginManagement": "登录管理",
+    "loginManagementDesc": "查看完美平台账号状态，或选择登录方式",
     "ai": "AI 设置",
     "aiDesc": "API 与模型配置",
     "comments": "我的评论",

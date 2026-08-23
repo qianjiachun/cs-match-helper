@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MatchTeam, MatchPlayer } from '@core/match/models';
+import type { MatchPlatformId, MatchTeam, MatchPlayer } from '@core/match/models';
+import type { AiPlayerSignal } from '@core/ai/types';
 import { AnimatePresence, LayoutGroup } from 'motion-v';
 import type { TeamTableColumnDef, TeamTableColumnKey } from './team-table-columns';
 import TeamPlayerTable from './TeamPlayerTable.vue';
 import TeamTableColumnCustomizer from './TeamTableColumnCustomizer.vue';
-import { localize as l } from '../i18n';
+import { currentLocale, localize as l } from '../i18n';
+import { sideRelationshipLabel, type AiSide } from '@core/ai/perspective';
 
 const props = defineProps<{
   teams: MatchTeam[];
@@ -19,9 +21,12 @@ const props = defineProps<{
   visibleKeys: TeamTableColumnKey[];
   customizerItems: TeamTableColumnDef[];
   highlightedSide?: 'A' | 'B' | null;
-  highlightedSteamId?: string | null;
+  playerSignals?: AiPlayerSignal[];
+  animatedSignalSteamIds?: string[];
+  selfSide?: AiSide | null;
   getCommentCount?: (steamId: string) => number;
   getCommentCountHasMore?: (steamId: string) => boolean;
+  platformId?: MatchPlatformId;
 }>();
 
 const customizerOpen = defineModel<boolean>('customizerOpen', { default: false });
@@ -31,6 +36,7 @@ const emit = defineEmits<{
   setColumnOrder: [order: TeamTableColumnKey[]];
   resetColumns: [];
   openComments: [player: MatchPlayer];
+  openAiSignal: [signal: AiPlayerSignal];
 }>();
 
 const teamA = computed(() => props.teams.find((t) => t.side === 'A'));
@@ -66,6 +72,10 @@ const waitingStatus = computed(() => {
   const { ready, total } = waitingProgress.value;
   return l(`${ready}/${total} 已接受`, `${ready}/${total} accepted`);
 });
+
+function teamTitle(side: AiSide): string {
+  return sideRelationshipLabel(side, props.selfSide, currentLocale());
+}
 </script>
 
 <template>
@@ -78,6 +88,7 @@ const waitingStatus = computed(() => {
       :team="waitingTeam"
       :columns="columns"
       :current-map="mapName"
+      :platform-id="platformId"
       neutral
       :title="waitingTitle"
       :status-text="waitingStatus"
@@ -90,25 +101,37 @@ const waitingStatus = computed(() => {
       v-if="teamA"
       key="team-a"
       :team="teamA"
+      :title="teamTitle('A')"
+      :side-token="selfSide ? 'A' : undefined"
+      :self-side="selfSide"
       :columns="columns"
       :current-map="mapName"
+      :platform-id="platformId"
       :highlighted="highlightedSide === 'A'"
-      :highlighted-steam-id="highlightedSteamId"
+      :player-signals="playerSignals"
+      :animated-signal-steam-ids="animatedSignalSteamIds"
       :get-comment-count="getCommentCount"
       :get-comment-count-has-more="getCommentCountHasMore"
       @open-comments="(player) => emit('openComments', player)"
+      @open-ai-signal="(signal) => emit('openAiSignal', signal)"
     />
     <TeamPlayerTable
       v-if="teamB"
       key="team-b"
       :team="teamB"
+      :title="teamTitle('B')"
+      :side-token="selfSide ? 'B' : undefined"
+      :self-side="selfSide"
       :columns="columns"
       :current-map="mapName"
+      :platform-id="platformId"
       :highlighted="highlightedSide === 'B'"
-      :highlighted-steam-id="highlightedSteamId"
+      :player-signals="playerSignals"
+      :animated-signal-steam-ids="animatedSignalSteamIds"
       :get-comment-count="getCommentCount"
       :get-comment-count-has-more="getCommentCountHasMore"
       @open-comments="(player) => emit('openComments', player)"
+      @open-ai-signal="(signal) => emit('openAiSignal', signal)"
     />
     </AnimatePresence>
     </LayoutGroup>

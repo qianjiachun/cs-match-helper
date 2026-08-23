@@ -81,7 +81,7 @@ onUnmounted(() => {
           <span class="flex h-5 w-5 shrink-0 items-center justify-center">
             <Check
               class="h-3.5 w-3.5 transition-[opacity,scale,filter] duration-150"
-              :class="selectedLocale === option.value ? 'scale-100 opacity-100 blur-0' : 'scale-25 opacity-0 blur-[4px]'"
+              :class="selectedLocale === option.value ? 'scale-100 opacity-100 blur-0' : 'scale-25 opacity-0 blur-xs'"
               aria-hidden="true"
             />
           </span>

@@ -6,7 +6,7 @@ const props = withDefaults(
   defineProps<{
     src?: string;
     alt?: string;
-    size?: 'xs' | 'sm' | 'md' | 'lg';
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     shape?: 'circle' | 'rounded';
   }>(),
   {
@@ -30,6 +30,7 @@ const sizeClass = {
   sm: 'h-8 w-8 text-[11px]',
   md: 'h-10 w-10 text-[12px]',
   lg: 'h-11 w-11 text-[13px]',
+  xl: 'h-14 w-14 text-[16px]',
 }[props.size];
 
 const shapeClass = props.shape === 'circle' ? 'rounded-full' : 'rounded-md';

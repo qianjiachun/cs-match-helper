@@ -4,7 +4,7 @@ import { Clock, Table2, GitCompareArrows, Columns3 } from 'lucide-vue-next';
 import AiSparklesIcon from './AiSparklesIcon.vue';
 import PlatformLogo from './PlatformLogo.vue';
 import type { MatchRecord, MatchPlayer } from '@core/match/models';
-import { isAiAnalysisActive } from '@core/ai/types';
+import { isAiAnalysisActive, type AiPlayerSignal } from '@core/ai/types';
 import { isPerfectAiAnalysisReady } from '@core/ai/perfect-readiness';
 import { formatAiWinnerCapsule } from '@core/ai/display';
 import type { useAiAnalysis } from '../composables/useAiAnalysis';
@@ -19,13 +19,17 @@ import TeamCompareBoard from './TeamCompareBoard.vue';
 import { currentLocale, localize as l } from '../i18n';
 import { resolveCanonicalMapName } from '@core/match/history/map-assets';
 import { shouldReplayMatchReveal } from '../utils/match-reveal-policy';
+import { buildAiInputFingerprint } from '@core/ai/analysis-v2';
+import { resolveSelfSide, sideRelationshipLabel, type AiSide } from '@core/ai/perspective';
 
 const props = defineProps<{
   match: MatchRecord;
   ai: ReturnType<typeof useAiAnalysis>;
   comments: ReturnType<typeof useComments>;
+  active?: boolean;
   /** 历史回看：不触发 AI、不显示准备倒计时 */
   historyMode?: boolean;
+  viewerSteamId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +37,17 @@ const emit = defineEmits<{
 }>();
 
 const isHistory = computed(() => Boolean(props.historyMode));
+const isActiveLivePanel = computed(() => !isHistory.value && props.active !== false);
+/** 设置页打开期间错过的自动分析，返回主页时再补跑；无数据变化则不重跑 */
+let deferredLiveAnalyze = false;
+
+function queueOrRunLiveAnalyze(run: () => void) {
+  if (!isActiveLivePanel.value) {
+    deferredLiveAnalyze = true;
+    return;
+  }
+  run();
+}
 
 const panelRoot = ref<HTMLElement | null>(null);
 const { playReveal } = useMatchRevealAnimation(panelRoot);
@@ -40,6 +55,11 @@ const { playReveal } = useMatchRevealAnimation(panelRoot);
 const detail = computed(() => props.match.detail);
 const teams = computed(() => detail.value.teams || []);
 const platformId = computed(() => props.match.platformId ?? detail.value.platformId ?? 'perfect');
+const selfSide = computed(() => resolveSelfSide(props.match, props.viewerSteamId));
+
+function sideLabel(side: AiSide): string {
+  return sideRelationshipLabel(side, selfSide.value, currentLocale());
+}
 
 const {
   visibleColumns,
@@ -84,16 +104,10 @@ function avgFromPlayers(players: MatchPlayer[], pick: (p: MatchPlayer) => number
 
 const teamRatingCompare = computed(() => {
   if (!teamA.value || !teamB.value) return null;
-  if (platformId.value === '5e') {
-    const a = avgFromPlayers(teamA.value.players, (p) => p.seasonRating);
-    const b = avgFromPlayers(teamB.value.players, (p) => p.seasonRating);
-    if (a == null || b == null) return null;
-    return { a, b, label: 'Rating' };
-  }
-  const a = teamA.value.avgRating;
-  const b = teamB.value.avgRating;
+  const a = avgFromPlayers(teamA.value.players, (p) => p.seasonRating);
+  const b = avgFromPlayers(teamB.value.players, (p) => p.seasonRating);
   if (a == null || b == null) return null;
-  return { a, b, label: l('近期 Rating', 'recent Rating') };
+  return { a, b, label: 'Rating' };
 });
 
 const teamMapWinCompare = computed(() => {
@@ -116,7 +130,40 @@ function formatPct(n: number): string {
 
 const activeTab = ref<'team-data' | 'compare' | 'ai'>('team-data');
 const highlightedSide = ref<'A' | 'B' | null>(null);
-const highlightedSteamId = ref<string | null>(null);
+const focusedAiSteamId = ref<string | null>(null);
+const animatedSignalSteamIds = ref<string[]>([]);
+const seenSignalSignatures = new Set<string>();
+let signalAnimationTimer: ReturnType<typeof setTimeout> | null = null;
+
+const playerSignals = computed(() => (
+  props.ai.activeMatchId.value === props.match.id
+    ? props.ai.result.value?.playerSignals ?? []
+    : []
+));
+
+function signalSignature(signal: AiPlayerSignal): string {
+  return `${props.match.id}:${signal.steamId}:${signal.kind}:${signal.title}:${signal.summary}`;
+}
+
+watch(
+  () => playerSignals.value.map(signalSignature).join('|'),
+  () => {
+    const entering = playerSignals.value.filter((signal) => {
+      const signature = signalSignature(signal);
+      if (seenSignalSignatures.has(signature)) return false;
+      seenSignalSignatures.add(signature);
+      return true;
+    });
+    animatedSignalSteamIds.value = entering.map((signal) => signal.steamId);
+    if (signalAnimationTimer) clearTimeout(signalAnimationTimer);
+    if (entering.length) {
+      signalAnimationTimer = setTimeout(() => {
+        animatedSignalSteamIds.value = [];
+      }, 1200);
+    }
+  },
+  { immediate: true },
+);
 
 const { timeLeftSec: timeLeft, isActive: isCountdownActive, isUrgent: isCountdownUrgent } = useMatchCountdown(
   () => detail.value.readyDeadlineAt,
@@ -139,13 +186,19 @@ const aiStatusCapsule = computed(() => {
   if (isHistory.value) {
     const s = props.ai.status.value;
     const r = props.ai.result.value;
+    const p = props.ai.preview.value;
+    if (isAiLoading.value && p) return {
+      text: `${formatAiWinnerCapsule(p.predictedWinner, p.winProbability, currentLocale(), selfSide.value)} · ${l('校准中', 'Calibrating')}`,
+      tone: 'loading' as const,
+    };
     if (isAiLoading.value) return { text: l('AI 分析中', 'AI analyzing'), tone: 'loading' as const };
     if (s === 'done' && r) {
       return {
-        text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale()),
+        text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale(), selfSide.value),
         tone: 'done' as const,
       };
     }
+    if (s === 'error' && r) return { text: `${formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale(), selfSide.value)} · ${l('更新失败', 'Update failed')}`, tone: 'warn' as const };
     if (s === 'error') return { text: l('AI 失败', 'AI failed'), tone: 'warn' as const };
     if (s === 'no-key') return { text: l('缺少 Key', 'API key required'), tone: 'warn' as const };
     return null;
@@ -153,25 +206,29 @@ const aiStatusCapsule = computed(() => {
   if (!isAiAnalysisActive(props.ai.settings.value)) return null;
   const s = props.ai.status.value;
   const r = props.ai.result.value;
+  const p = props.ai.preview.value;
+  if (isAiLoading.value && p) return {
+    text: `${formatAiWinnerCapsule(p.predictedWinner, p.winProbability, currentLocale(), selfSide.value)} · ${l('校准中', 'Calibrating')}`,
+    tone: 'loading' as const,
+  };
   if (isAiLoading.value) return { text: l('AI 分析中', 'AI analyzing'), tone: 'loading' as const };
   if (s === 'no-key') return { text: l('缺少 Key', 'API key required'), tone: 'warn' as const };
+  if (s === 'error' && r) return { text: `${formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale(), selfSide.value)} · ${l('更新失败', 'Update failed')}`, tone: 'warn' as const };
   if (s === 'error') return { text: l('AI 失败', 'AI failed'), tone: 'warn' as const };
   if (s === 'done' && r) {
     return {
-      text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale()),
+      text: formatAiWinnerCapsule(r.predictedWinner, r.winProbability, currentLocale(), selfSide.value),
       tone: 'done' as const,
     };
   }
   return null;
 });
 
-function runHistoryAnalysis() {
-  if (!isHistory.value) return;
-  void props.ai.analyzeMatch(props.match, true);
+function runAnalysis() {
+  void props.ai.analyzeMatch(props.match, true, props.viewerSteamId);
 }
 
 function stopHistoryAnalysis() {
-  if (!isHistory.value) return;
   void props.ai.stop();
 }
 watch(
@@ -179,10 +236,15 @@ watch(
   async (nextId, prevId) => {
     activeTab.value = 'team-data';
     highlightedSide.value = null;
-    highlightedSteamId.value = null;
-    if (!isHistory.value) {
-      void props.ai.analyzeMatch(props.match);
+    focusedAiSteamId.value = null;
+    if (prevId && nextId !== prevId) {
+      animatedSignalSteamIds.value = [];
+      seenSignalSignatures.clear();
     }
+    queueOrRunLiveAnalyze(() => {
+      props.ai.prepareForMatch(props.match, props.viewerSteamId);
+      void props.ai.maybeAutoAnalyze(props.match, props.viewerSteamId);
+    });
     const players = teams.value.flatMap((t) => t.players);
     void props.comments.loadCounts(players, platformId.value);
     if (shouldReplayMatchReveal(props.match, nextId, prevId)) {
@@ -207,23 +269,58 @@ watch(
 watch(
   () => isPerfectAiAnalysisReady(props.match),
   (ready, wasReady) => {
-    if (!ready || wasReady || isHistory.value || platformId.value !== 'perfect') return;
-    void props.ai.analyzeMatch(props.match);
+    if (!ready || wasReady || platformId.value !== 'perfect') return;
+    queueOrRunLiveAnalyze(() => {
+      void props.ai.maybeAutoAnalyze(props.match, props.viewerSteamId);
+    });
   },
 );
+
+watch(activeTab, (tab) => {
+  if (tab !== 'team-data') animatedSignalSteamIds.value = [];
+});
 
 const resolvedMapName = computed(
   () => (detail.value.mapName || props.match.summary.mapName || '').trim(),
 );
 
 watch(
+  () => ({
+    id: props.match.id,
+    fingerprint: buildAiInputFingerprint(props.match),
+    map: resolvedMapName.value,
+  }),
+  (next, prev) => {
+    if (!prev || next.id !== prev.id || next.fingerprint === prev.fingerprint) return;
+    if (platformId.value === '5e' && !prev.map && next.map) return;
+    if (!isPerfectAiAnalysisReady(props.match)) return;
+    queueOrRunLiveAnalyze(() => {
+      void props.ai.maybeAutoAnalyze(props.match, props.viewerSteamId);
+    });
+  },
+);
+
+watch(
   () => ({ id: props.match.id, map: resolvedMapName.value }),
   (next, prev) => {
-    if (isHistory.value) return;
     if (platformId.value !== '5e') return;
     if (!next.map) return;
     if (!prev || next.id !== prev.id || prev.map) return;
-    void props.ai.supplementMapAnalysis(props.match);
+    queueOrRunLiveAnalyze(() => {
+      void props.ai.supplementMapAnalysis(props.match, props.viewerSteamId);
+    });
+  },
+);
+
+watch(
+  () => props.active,
+  (active, wasActive) => {
+    if (isHistory.value || active === false || wasActive !== false) return;
+    if (!deferredLiveAnalyze) return;
+    deferredLiveAnalyze = false;
+    props.ai.prepareForMatch(props.match, props.viewerSteamId);
+    void props.ai.maybeAutoAnalyze(props.match, props.viewerSteamId);
+    void props.ai.supplementMapAnalysis(props.match, props.viewerSteamId);
   },
 );
 
@@ -232,9 +329,15 @@ function onHighlightSide(side: 'A' | 'B' | null) {
   if (side) activeTab.value = 'team-data';
 }
 
-function onHighlightPlayer(steamId: string | null) {
-  highlightedSteamId.value = steamId;
-  if (steamId) activeTab.value = 'team-data';
+async function openAiSignal(signal: AiPlayerSignal) {
+  focusedAiSteamId.value = signal.steamId;
+  activeTab.value = 'ai';
+  await nextTick();
+}
+
+function openAiOverview() {
+  focusedAiSteamId.value = null;
+  activeTab.value = 'ai';
 }
 
 function formatTime(seconds: number) {
@@ -264,7 +367,10 @@ const { hideEloDiff, hideRecentWin } = useMatchHeaderMetaCompaction(metaRowRef, 
 function eloCompareTitle(
   compare: NonNullable<typeof teamEloCompare.value>,
 ): string {
-  const diffPart = l(`差 ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`, `difference ${compare.diff}${compare.leader ? ` (${compare.leader})` : ''}`);
+  const leader = compare.leader
+    ? selfSide.value ? `${sideLabel(compare.leader)} · ${compare.leader}` : compare.leader
+    : null;
+  const diffPart = l(`差 ${compare.diff}${leader ? ` (${leader})` : ''}`, `difference ${compare.diff}${leader ? ` (${leader})` : ''}`);
   return hideEloDiff.value
     ? l(`两队平均匹配分，${diffPart}`, `Team average rating, ${diffPart}`)
     : l('两队平均匹配分', 'Team average rating');
@@ -298,7 +404,7 @@ function eloCompareTitle(
 
           <div
             data-match-reveal="meta"
-            class="flex shrink-0 items-center gap-1.5 whitespace-nowrap transition-all duration-300"
+            class="flex shrink-0 items-center gap-1.5 whitespace-nowrap transition-[background-color,color,box-shadow] duration-300"
             :class="
               isCountdownUrgent
                 ? 'countdown-urgent rounded-md bg-rose-50 px-2 py-1 ring-1 ring-rose-300/80'
@@ -307,11 +413,11 @@ function eloCompareTitle(
             :aria-live="isCountdownUrgent ? 'assertive' : 'off'"
           >
             <Clock
-              class="shrink-0 transition-all duration-300"
+              class="shrink-0 transition-[color,scale,opacity] duration-300"
               :class="isCountdownUrgent ? 'h-4 w-4 text-rose-500' : 'h-3.5 w-3.5 text-blue-500'"
             />
             <span
-              class="tabular-nums transition-all duration-300"
+              class="tabular-nums transition-[color,opacity] duration-300"
               :class="
                 isCountdownUrgent
                   ? 'text-[15px] font-bold tracking-wide text-rose-600'
@@ -333,16 +439,16 @@ function eloCompareTitle(
             class="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5"
             :title="eloCompareTitle(teamEloCompare)"
           >
-            <span class="font-semibold text-blue-600">A {{ teamEloCompare.a }}</span>
+            <span class="font-semibold text-blue-600">{{ sideLabel('A') }} {{ teamEloCompare.a }}</span>
             <span class="text-[9px] font-semibold uppercase text-slate-400">vs</span>
-            <span class="font-semibold text-orange-500">B {{ teamEloCompare.b }}</span>
+            <span class="font-semibold text-orange-500">{{ sideLabel('B') }} {{ teamEloCompare.b }}</span>
             <span v-if="!hideEloDiff" class="ml-1 text-slate-500">
               {{ l('差', 'Diff') }}
               <b :class="teamEloCompare.leader === 'A' ? 'text-blue-600' : teamEloCompare.leader === 'B' ? 'text-orange-500' : 'text-slate-700'">
                 {{ teamEloCompare.diff }}
               </b>
               <span v-if="teamEloCompare.leader" class="font-medium" :class="teamEloCompare.leader === 'A' ? 'text-blue-600' : 'text-orange-500'">
-                ({{ teamEloCompare.leader }})
+                ({{ selfSide ? `${sideLabel(teamEloCompare.leader)} · ${teamEloCompare.leader}` : teamEloCompare.leader }})
               </span>
             </span>
           </span>
@@ -393,7 +499,7 @@ function eloCompareTitle(
               : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100/80'
         "
         :title="aiStatusCapsule.tone === 'done' ? l('查看 AI 分析结果', 'View AI analysis') : l('前往 AI 分析', 'Open AI analysis')"
-        @click="activeTab = 'ai'"
+        @click="openAiOverview"
       >
         <AiSparklesIcon size="xs" :loading="aiStatusCapsule.tone === 'loading'" />
         {{ aiStatusCapsule.text }}
@@ -466,7 +572,7 @@ function eloCompareTitle(
           "
           :aria-selected="activeTab === 'ai'"
           :aria-busy="isAiLoading"
-          @click="activeTab = 'ai'"
+          @click="openAiOverview"
         >
           <AiSparklesIcon size="sm" :loading="isAiLoading" />
           {{ isAiLoading ? l('分析中', 'Analyzing') : l('AI 分析', 'AI analysis') }}
@@ -492,19 +598,24 @@ function eloCompareTitle(
           :visible-keys="visibleKeys"
           :customizer-items="customizerItems"
           :highlighted-side="highlightedSide"
-          :highlighted-steam-id="highlightedSteamId"
+          :player-signals="playerSignals"
+          :animated-signal-steam-ids="animatedSignalSteamIds"
+          :self-side="selfSide"
           :get-comment-count="comments.getCount"
           :get-comment-count-has-more="comments.getCountHasMore"
+          :platform-id="platformId"
           @toggle-column="setVisible"
           @set-column-order="setColumnOrder"
           @reset-columns="resetColumns"
           @open-comments="(player) => comments.openPlayer(player, platformId)"
+          @open-ai-signal="openAiSignal"
         />
         <TeamCompareBoard
           v-else-if="activeTab === 'compare'"
           key="compare"
           :teams="teams"
           :platform-id="platformId"
+          :self-side="selfSide"
           @open-comments="(player) => comments.openPlayer(player, platformId)"
         />
         <AiAnalysisPanel
@@ -514,11 +625,11 @@ function eloCompareTitle(
           :ai="ai"
           :history-mode="isHistory"
           :highlighted-side="highlightedSide"
-          :highlighted-steam-id="highlightedSteamId"
+          :focused-steam-id="focusedAiSteamId"
+          :self-side="selfSide"
           @highlight-side="onHighlightSide"
-          @highlight-player="onHighlightPlayer"
           @open-settings="emit('openSettings')"
-          @analyze="runHistoryAnalysis"
+          @analyze="runAnalysis"
           @stop="stopHistoryAnalysis"
         />
       </Transition>

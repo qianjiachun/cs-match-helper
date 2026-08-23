@@ -4,6 +4,7 @@ import {
   type TeamTableColumnKey,
 } from './team-table-columns';
 import { currentLocale } from '../i18n';
+import { getPerfectRankDisplay, getPerfectRankSortValue } from '@platforms/perfect/rank';
 
 export type { TeamTableColumnKey } from './team-table-columns';
 export type TeamTableSortKey = TeamTableColumnKey;
@@ -32,7 +33,9 @@ function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | nu
     case 'nickname':
       return player.nickname;
     case 'score':
-      return player.score ?? -Infinity;
+      return getPerfectRankSortValue(player.score, player.currentSStars);
+    case 'peakRank':
+      return getPerfectRankSortValue(player.peakScore, player.peakSStars);
     case 'recentWins':
       return getRecentWinCount(player);
     case 'adpr':
@@ -63,6 +66,12 @@ function getSortValue(player: MatchPlayer, key: TeamTableColumnKey): string | nu
       return player.rapidStopSuccessRate ?? -Infinity;
     case 'reactionTime':
       return player.reactionTime ?? Infinity;
+    case 'kast':
+      return player.kast ?? -Infinity;
+    case 'tradeFragRate':
+      return player.tradeFragRate ?? -Infinity;
+    case 'clutch1v1Rate':
+      return player.clutch1v1Rate ?? -Infinity;
     case 'weRaw':
       return player.weRaw ?? -Infinity;
     case 'weAvg':
@@ -219,12 +228,15 @@ export function getResultText(result: 'win' | 'lose' | 'draw') {
   }
 }
 
+const STAT_HIGHLIGHT_GOOD = 'font-semibold tabular-nums text-emerald-700';
+const STAT_HIGHLIGHT_BAD = 'font-semibold tabular-nums text-rose-600';
+
 function statThresholdClass(value?: number) {
   if (value == null) return 'text-slate-600';
   const rounded = Math.round(value * 100) / 100;
-  if (rounded > 1) return 'text-emerald-600 font-semibold';
-  if (rounded < 1) return 'text-rose-500 font-semibold';
-  return 'text-slate-900 font-semibold';
+  if (rounded > 1) return STAT_HIGHLIGHT_GOOD;
+  if (rounded < 1) return STAT_HIGHLIGHT_BAD;
+  return 'font-semibold tabular-nums text-slate-900';
 }
 
 export function ratingClass(rating?: number) {
@@ -238,9 +250,9 @@ export function kdClass(kd?: number) {
 export function weClass(we?: number) {
   if (we == null) return 'text-slate-600';
   const rounded = Math.round(we * 10) / 10;
-  if (rounded > 8) return 'text-emerald-600 font-semibold';
-  if (rounded < 8) return 'text-rose-500 font-semibold';
-  return 'text-slate-900 font-semibold';
+  if (rounded > 8) return STAT_HIGHLIGHT_GOOD;
+  if (rounded < 8) return STAT_HIGHLIGHT_BAD;
+  return 'font-semibold tabular-nums text-slate-900';
 }
 
 export function cellClassForColumn(key: TeamTableColumnKey): string {
@@ -276,7 +288,7 @@ export function cellValueClass(key: TeamTableColumnKey, player: MatchPlayer): st
       return weClass(player.seasonWe);
     case 'eloTrend':
       if (player.eloTrend == null || player.eloTrend === 0) return 'text-slate-600 tabular-nums';
-      return player.eloTrend > 0 ? 'text-emerald-600 font-semibold tabular-nums' : 'text-rose-500 font-semibold tabular-nums';
+      return player.eloTrend > 0 ? STAT_HIGHLIGHT_GOOD : STAT_HIGHLIGHT_BAD;
     default:
       return cellClassForColumn(key);
   }
@@ -286,8 +298,13 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
   switch (key) {
     case 'score':
       return player.score != null ? String(Math.round(player.score)) : '—';
+    case 'peakRank': {
+      const rank = getPerfectRankDisplay(player.peakScore, player.peakSStars);
+      if (rank.kind === 's') return `${rank.stars}★`;
+      return rank.kind === 'score' ? String(Math.round(rank.score)) : '—';
+    }
     case 'adpr':
-      return player.adpr != null ? String(player.adpr) : '—';
+      return player.adpr != null ? String(Math.round(player.adpr)) : '—';
     case 'rating':
       return formatNum(player.rating, 2);
     case 'seasonRating':
@@ -308,6 +325,9 @@ export function formatCellValue(key: TeamTableColumnKey, player: MatchPlayer): s
     case 'firstKillSuccessRate':
     case 'rapidStopSuccessRate':
     case 'clutchWinRate':
+    case 'clutch1v1Rate':
+    case 'kast':
+    case 'tradeFragRate':
     case 'entryKillRatio':
     case 'recentWinRate':
     case 'seasonWinRate':

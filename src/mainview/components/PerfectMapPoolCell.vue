@@ -100,6 +100,9 @@ function currentTooltip(): string {
     `${metrics?.matches ?? 0} ${l('场', 'matches')} · ${l('赛季占比', 'Season share')} ${pct(metrics?.share)}`,
     `${l('胜率', 'Win rate')} ${pct(metrics?.winRate)} · Rating ${fixed(metrics?.rating)} · ADR ${fixed(metrics?.adr, 1)}`,
     `K/D ${fixed(metrics?.kd)} · RWS ${fixed(metrics?.rws)} · ${l('首杀对枪', 'Opening duels')} ${pct(metrics?.openingDuelRate)} · ${l('爆头率', 'Headshot rate')} ${pct(metrics?.headshotRate)}`,
+    metrics?.roundWinRate != null
+      ? `${l('回合胜率', 'Round win rate')} ${pct(metrics.roundWinRate)} · CT ${pct(metrics.ctRoundWinRate)} · T ${pct(metrics.tRoundWinRate)} · ${l('火力', 'Firepower')} ${metrics.firePower ?? '—'}`
+      : '',
     item.current ? `MVP ${item.current.matchMvpNum ?? '—'} · 3K ${item.current.threeKillNum ?? '—'} · 4K ${item.current.fourKillNum ?? '—'} · 5K ${item.current.fiveKillNum ?? '—'}` : '',
     l('标签只基于当前赛季。专精需要至少 25 场且占比不低于 25%，或单图至少 40 场；强图至少需要 10 场且表现显著高于赛季水平。', 'Labels use current-season evidence only. Specialist requires 25+ matches with at least 25% share, or 40+ matches on the map. Strong requires 10+ matches and performance above the season baseline.'),
   ].filter(Boolean).join('\n');
@@ -120,11 +123,11 @@ function overviewTooltip(entry: PerfectHotMap): string {
     :title="currentTooltip()"
   >
     <div class="grid min-w-0 grid-cols-[30px_42px_22px] items-center gap-x-1 leading-none">
-      <span class="inline-flex w-[30px] min-w-0 items-center justify-center truncate rounded-sm px-0.5 py-0.5 text-[9px] font-semibold ring-1 ring-inset" :class="tierClass(summary.familiarity?.tier, summary.strongPerformance)">
+      <span class="inline-flex w-7.5 min-w-0 items-center justify-center truncate rounded-sm px-0.5 py-0.5 text-[9px] font-semibold ring-1 ring-inset" :class="tierClass(summary.familiarity?.tier, summary.strongPerformance)">
         {{ currentTierLabel() }}
       </span>
       <span
-        class="flex w-[42px] gap-0.5"
+        class="flex w-10.5 gap-0.5"
         role="meter"
         :aria-label="l('地图熟练度', 'Map familiarity')"
         aria-valuemin="0"
@@ -138,7 +141,7 @@ function overviewTooltip(entry: PerfectHotMap): string {
           :class="segment < activeSegments(summary.familiarity?.score) ? meterClass(summary.familiarity?.tier, summary.strongPerformance) : 'bg-slate-200'"
         />
       </span>
-      <span class="w-[22px] text-right text-[11px] font-bold tabular-nums text-slate-700">{{ summary.familiarity?.score ?? 0 }}</span>
+      <span class="w-5.5 text-right text-[11px] font-bold tabular-nums text-slate-700">{{ summary.familiarity?.score ?? 0 }}</span>
     </div>
     <div class="mt-1 truncate text-[9px] leading-none tabular-nums text-slate-500">
       {{ summary.metrics?.matches ?? 0 }}{{ l('场', ' matches') }} · {{ l('占比', 'Share') }} {{ pct(summary.metrics?.share) }} · {{ l('胜率', 'WR') }} {{ pct(summary.metrics?.winRate) }}
@@ -159,15 +162,15 @@ function overviewTooltip(entry: PerfectHotMap): string {
         :src="overviewImage"
         :alt="mapName(overviewPrimary.entry)"
         :class="overviewUsesLogo
-          ? 'max-h-[18px] max-w-[18px] object-contain'
-          : 'h-6 w-6 rounded-md object-cover outline outline-1 -outline-offset-1 outline-black/10'"
+          ? 'max-h-4.5 max-w-4.5 object-contain'
+          : 'h-6 w-6 rounded-md object-cover outline-1 -outline-offset-1 outline-black/10'"
         @error="markImageFailed(overviewImage)"
       >
     </div>
     <div class="flex min-w-0 flex-1 flex-col justify-center">
       <div class="flex min-w-0 items-center gap-0.5 leading-none">
         <span
-          class="inline-flex w-[30px] shrink-0 items-center justify-center truncate rounded-sm px-0.5 py-0.5 text-[9px] font-semibold ring-1 ring-inset"
+          class="inline-flex w-7.5 shrink-0 items-center justify-center truncate rounded-sm px-0.5 py-0.5 text-[9px] font-semibold ring-1 ring-inset"
           :class="tierClass(overviewPrimary.familiarity.tier)"
         >
           {{ compactTierLabel(overviewPrimary.familiarity.tier) }}

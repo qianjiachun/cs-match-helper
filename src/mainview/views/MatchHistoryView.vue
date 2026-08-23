@@ -23,6 +23,7 @@ const PAGE_SIZE = 20;
 const props = defineProps<{
   history: MatchHistoryApi;
   comments: ReturnType<typeof useComments>;
+  viewerSteamId?: string;
   /** 历史 Tab 是否可见；用于在显示后再触发列表入场动画 */
   visible?: boolean;
 }>();
@@ -255,6 +256,7 @@ onMounted(() => {
             :match="detailVm.record"
             :ai="detailAi"
             :comments="comments"
+            :viewer-steam-id="detailVm.document.platformId === 'perfect' ? viewerSteamId : undefined"
             @open-settings="emit('openSettings')"
           />
         </div>

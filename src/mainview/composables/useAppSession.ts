@@ -2,7 +2,7 @@ import { setActivePlatformId } from '@platforms/registry';
 import type { PlatformId } from '@platforms/types';
 import { ref } from 'vue';
 
-export type AppPhase = 'select-platform' | 'p5e-launch' | 'main';
+export type AppPhase = 'select-platform' | 'perfect-auth' | 'p5e-launch' | 'main';
 
 export function useAppSession() {
   const phase = ref<AppPhase>('select-platform');
@@ -11,7 +11,17 @@ export function useAppSession() {
   function selectPlatform(id: PlatformId) {
     setActivePlatformId(id);
     selectedPlatform.value = id;
-    phase.value = id === '5e' ? 'p5e-launch' : 'main';
+    phase.value = id === '5e' ? 'p5e-launch' : 'perfect-auth';
+  }
+
+  function completePerfectAuth() {
+    phase.value = 'main';
+  }
+
+  function resetToPerfectAuth() {
+    setActivePlatformId('perfect');
+    selectedPlatform.value = 'perfect';
+    phase.value = 'perfect-auth';
   }
 
   function completeP5eSetup() {
@@ -33,7 +43,9 @@ export function useAppSession() {
     phase,
     selectedPlatform,
     selectPlatform,
+    completePerfectAuth,
     completeP5eSetup,
+    resetToPerfectAuth,
     resetToP5eLaunch,
     resetToPlatformSelect,
   };

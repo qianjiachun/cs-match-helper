@@ -7,6 +7,7 @@ import type {
   AiAnalysisDeltaEvent,
   AiAnalysisDoneEvent,
   AiAnalysisErrorEvent,
+  AiAnalysisCancelledEvent,
   AiAnalysisStartEvent,
   AiSettingsPublic,
   SaveAiSettingsInput,
@@ -17,6 +18,11 @@ import type { ChangelogReleaseDetail, ChangelogReleaseSummary } from '@core/upda
 import type { LogLinePayload, WatcherStatus } from '@core/types';
 import { getActivePlatform } from '@platforms/registry';
 import type { AppLocale } from './i18n';
+import type {
+  PerfectAuthStatus,
+  PerfectDecryptInput,
+  PerfectDecryptOutput,
+} from '@platforms/perfect/auth';
 
 const hasTauriWindow = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const appWindow = hasTauriWindow ? getCurrentWindow() : null;
@@ -100,6 +106,40 @@ export async function searchPerfectBoardUserRaw(steamId: string): Promise<unknow
   return invoke<unknown>('search_perfect_board_user', { steamId });
 }
 
+export async function getPerfectAuthStatus(): Promise<PerfectAuthStatus> {
+  return invoke<PerfectAuthStatus>('get_perfect_auth_status');
+}
+
+export async function startPerfectQrLogin(): Promise<PerfectAuthStatus> {
+  return invoke<PerfectAuthStatus>('start_perfect_qr_login');
+}
+
+export async function startPerfectSteamLogin(): Promise<PerfectAuthStatus> {
+  return invoke<PerfectAuthStatus>('start_perfect_steam_login');
+}
+
+export async function cancelPerfectLogin(): Promise<PerfectAuthStatus> {
+  return invoke<PerfectAuthStatus>('cancel_perfect_login');
+}
+
+export async function clearPerfectAuth(): Promise<PerfectAuthStatus> {
+  return invoke<PerfectAuthStatus>('clear_perfect_auth');
+}
+
+export async function decryptPerfectResponse(
+  input: PerfectDecryptInput,
+): Promise<PerfectDecryptOutput> {
+  return invoke<PerfectDecryptOutput>('decrypt_perfect_response', { input });
+}
+
+export async function onPerfectAuthState(
+  handler: (status: PerfectAuthStatus) => void,
+): Promise<UnlistenFn> {
+  return listen<PerfectAuthStatus>('perfect-auth-state', (event) => {
+    handler(event.payload);
+  });
+}
+
 export async function onLogLine(
   handler: (line: LogLinePayload) => void,
 ): Promise<UnlistenFn> {
@@ -164,6 +204,14 @@ export async function onAiAnalysisError(
   handler: (event: AiAnalysisErrorEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<AiAnalysisErrorEvent>('ai-analysis-error', (event) => {
+    handler(event.payload);
+  });
+}
+
+export async function onAiAnalysisCancelled(
+  handler: (event: AiAnalysisCancelledEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<AiAnalysisCancelledEvent>('ai-analysis-cancelled', (event) => {
     handler(event.payload);
   });
 }

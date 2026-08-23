@@ -13,7 +13,7 @@ describe('localized mock match history', () => {
 
     expect(record.summary.mode).toBe('Casual');
     expect(ai.headline).toContain('Mock AI analysis');
-    expect((ai.quickReasons ?? []).join(' ')).not.toMatch(/[\p{Script=Han}]/u);
+    expect(ai.uncertainties.join(' ')).not.toMatch(/[\p{Script=Han}]/u);
   });
 
   it('keeps Chinese mock copy for a Chinese session', () => {

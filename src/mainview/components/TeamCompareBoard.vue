@@ -11,11 +11,13 @@ import PlayerAvatar from './PlayerAvatar.vue';
 import TeamRadarCompare from './TeamRadarCompare.vue';
 import Team5eComparePanel from './Team5eComparePanel.vue';
 import type { Component } from 'vue';
-import { localize as l } from '../i18n';
+import { currentLocale, localize as l } from '../i18n';
+import { sideRelationshipLabel, type AiSide } from '@core/ai/perspective';
 
 const props = defineProps<{
   teams: MatchTeam[];
   platformId?: MatchPlatformId;
+  selfSide?: AiSide | null;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +35,10 @@ function onPlayerClick(player: MatchPlayer) {
 
 const teamA = computed(() => props.teams.find((t) => t.side === 'A'));
 const teamB = computed(() => props.teams.find((t) => t.side === 'B'));
+
+function sideLabel(side: AiSide): string {
+  return sideRelationshipLabel(side, props.selfSide, currentLocale());
+}
 
 function formatNum(n: number, decimals = 1): string {
   return n.toFixed(decimals);
@@ -57,7 +63,7 @@ interface CompareItem {
 function buildPerfectCompare(aPlayers: MatchPlayer[], bPlayers: MatchPlayer[]): CompareItem[] {
   return [
     { key: 'adpr', label: l('平均 ADR', 'Avg. ADR'), a: avgPlayerStat(aPlayers, 'adpr'), b: avgPlayerStat(bPlayers, 'adpr'), isPct: false, decimals: 1, icon: Target, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500' },
-    { key: 'rating', label: l('平均近期 Rating', 'Avg. recent Rating'), a: avgPlayerStat(aPlayers, 'rating'), b: avgPlayerStat(bPlayers, 'rating'), isPct: false, decimals: 2, icon: Star, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
+    { key: 'rating', label: l('平均 Rating', 'Avg. Rating'), a: avgPlayerStat(aPlayers, 'seasonRating'), b: avgPlayerStat(bPlayers, 'seasonRating'), isPct: false, decimals: 2, icon: Star, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
     { key: 'kd', label: l('平均 K/D', 'Avg. K/D'), a: avgPlayerStat(aPlayers, 'kd'), b: avgPlayerStat(bPlayers, 'kd'), isPct: false, decimals: 2, icon: Crosshair, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500' },
     { key: 'hsRate', label: l('平均爆头率', 'Avg. HS%'), a: avgPlayerStat(aPlayers, 'hsRate'), b: avgPlayerStat(bPlayers, 'hsRate'), isPct: true, decimals: 0, icon: Skull, iconBg: 'bg-rose-50', iconColor: 'text-rose-500' },
     { key: 'firstKill', label: l('平均首杀成功率', 'Avg. opening-kill rate'), a: avgPlayerStat(aPlayers, 'firstKillSuccessRate'), b: avgPlayerStat(bPlayers, 'firstKillSuccessRate'), isPct: true, decimals: 0, icon: UserCheck, iconBg: 'bg-cyan-50', iconColor: 'text-cyan-500' },
@@ -253,7 +259,9 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-blue-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-blue-500" />
-          <h2 class="text-[14px] font-bold text-blue-600">{{ l('队伍 A', 'Team A') }}</h2>
+          <h2 class="text-[14px] font-bold text-blue-600">
+            {{ sideLabel('A') }} <span v-if="selfSide" class="ml-1 text-[10px] font-semibold text-slate-400">A</span>
+          </h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
@@ -267,7 +275,7 @@ onUnmounted(() => {
               :title="isValidSteamId64(p.steamId) ? l(`查看 ${p.nickname} 的评论`, `View comments for ${p.nickname}`) : p.steamId"
               @click="onPlayerClick(p)"
             >
-              <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-blue-200" />
+              <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-[box-shadow] group-hover:ring-blue-200" />
               <span class="mt-1.5 max-w-[48px] truncate text-[10px] text-slate-600 transition-colors group-hover:text-blue-600">{{ p.nickname }}</span>
               <span class="text-[11px] font-semibold text-slate-800">{{ p.score || '-' }}</span>
             </button>
@@ -372,7 +380,9 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-2 border-b border-slate-100/80 bg-linear-to-r from-orange-50 to-transparent px-5 py-3">
           <UserCheck class="h-4 w-4 text-orange-500" />
-          <h2 class="text-[14px] font-bold text-orange-500">{{ l('队伍 B', 'Team B') }}</h2>
+          <h2 class="text-[14px] font-bold text-orange-500">
+            {{ sideLabel('B') }} <span v-if="selfSide" class="ml-1 text-[10px] font-semibold text-slate-400">B</span>
+          </h2>
         </div>
 
         <div class="flex flex-1 flex-col p-4">
@@ -386,7 +396,7 @@ onUnmounted(() => {
               :title="isValidSteamId64(p.steamId) ? l(`查看 ${p.nickname} 的评论`, `View comments for ${p.nickname}`) : p.steamId"
               @click="onPlayerClick(p)"
             >
-              <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-all group-hover:ring-orange-200" />
+              <PlayerAvatar :src="p.avatar" :alt="p.nickname" size="md" shape="rounded" class="ring-2 ring-transparent transition-[box-shadow] group-hover:ring-orange-200" />
               <span class="mt-1.5 max-w-[48px] truncate text-[10px] text-slate-600 transition-colors group-hover:text-orange-500">{{ p.nickname }}</span>
               <span class="text-[11px] font-semibold text-slate-800">{{ p.score || '-' }}</span>
             </button>
@@ -424,7 +434,7 @@ onUnmounted(() => {
       <div
         v-for="item in compareItems"
         :key="`card-${item.key}`"
-        class="compare-entrance-stat stat-card flex flex-col justify-between rounded-2xl border border-slate-200/60 bg-white/90 p-5 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
+        class="compare-entrance-stat stat-card flex flex-col justify-between rounded-2xl border border-slate-200/60 bg-white/90 p-5 shadow-sm backdrop-blur-sm transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-md"
       >
         <div>
           <div class="mb-4 flex items-center gap-2 text-[13px] font-bold text-slate-600">
@@ -451,8 +461,8 @@ onUnmounted(() => {
             />
           </div>
           <div class="flex justify-between text-[11px] font-medium text-slate-400">
-            <span>{{ l('A 队', 'Team A') }}</span>
-            <span>{{ l('B 队', 'Team B') }}</span>
+            <span>{{ sideLabel('A') }} <small v-if="selfSide" class="text-[9px]">A</small></span>
+            <span>{{ sideLabel('B') }} <small v-if="selfSide" class="text-[9px]">B</small></span>
           </div>
         </div>
       </div>

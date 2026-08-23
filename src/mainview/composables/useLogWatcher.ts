@@ -7,8 +7,7 @@ import {
   findLatestPerfectSessionInLogLines,
   parseLogLineTime,
 } from '@platforms/perfect/log-parser';
-import { fetchPerfectPlayerStats, getCachedPerfectBoardId, resolvePerfectBoardUser } from '@platforms/perfect/player-api';
-import { normalizePerfectBoardSearch, normalizePerfectPlayerStats } from '@platforms/perfect/player-api';
+import { fetchPerfectPlayerStatsDetailed, getCachedPerfectBoardId, resolvePerfectBoardUser } from '@platforms/perfect/player-api';
 import { PerfectMatchSession, snapshotPerfectMatchRecord } from '@platforms/perfect/session';
 import { homeDir } from '@tauri-apps/api/path';
 import { onUnmounted, ref, shallowRef } from 'vue';
@@ -68,7 +67,29 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     logEntries.value = [];
   }
 
-  function schedulePlayerEnrichment(steamId: string, token: number) {
+  function pushPerfectApiLog(
+    steamId: string,
+    status: 'requesting' | 'success' | 'partial_failure' | 'error',
+    detail?: unknown,
+  ) {
+    if (!debugEnabled.value) return;
+    const decoded = JSON.stringify({
+      steamId,
+      status,
+      endpoints: ['overview', 'season-stats'],
+      ...(status === 'error' ? { error: detail } : detail ? { result: detail } : {}),
+    }, null, 2);
+    pushLogEntry({
+      time: new Date().toLocaleString(currentLocale()),
+      level: status === 'error' ? 'ERROR' : status === 'partial_failure' ? 'WARN' : 'INFO',
+      category: 'perfect-api',
+      decoded,
+      raw: decoded,
+    }, false);
+  }
+
+  function schedulePlayerEnrichment(steamId: string, token: number): Promise<void> {
+    pushPerfectApiLog(steamId, 'requesting');
     session.setStatsLoading(steamId);
     const cachedBoardId = getCachedPerfectBoardId(steamId);
     session.patchPlayer(steamId, {
@@ -83,18 +104,26 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     });
     publish(session.current);
 
-    void fetchPerfectPlayerStats(steamId).then((stats) => {
+    const requests: Promise<unknown>[] = [];
+    requests.push(fetchPerfectPlayerStatsDetailed(steamId).then(({ raw, stats }) => {
+      pushPerfectApiLog(
+        steamId,
+        stats.partialFailure ? 'partial_failure' : 'success',
+        { response: raw, normalized: stats },
+      );
       if (session.token !== token) return;
       session.setStats(steamId, stats);
       publish(session.current);
     }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      pushPerfectApiLog(steamId, 'error', message);
       if (session.token !== token) return;
-      session.setStatsError(steamId, error instanceof Error ? error.message : String(error));
+      session.setStatsError(steamId, message);
       publish(session.current);
-    });
+    }));
 
     if (!cachedBoardId) {
-      void resolvePerfectBoardUser(steamId).then((user) => {
+      requests.push(resolvePerfectBoardUser(steamId).then((user) => {
         if (session.token !== token) return;
         const player = session.current
           ? [...session.current.detail.unassigned, ...session.current.detail.teams.flatMap((team) => team.players)]
@@ -126,8 +155,10 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
           },
         });
         publish(session.current);
-      });
+      }));
     }
+
+    return Promise.all(requests).then(() => undefined);
   }
 
   function processParsedLine(parsed: LogLine, replay = false) {
@@ -141,7 +172,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     if (update.newSession && update.record && !replay) options?.onNewMatch?.(update.record);
     if (update.record?.detail.source === 'ladder-events') {
       const token = session.token;
-      for (const steamId of update.newPlayerIds) schedulePlayerEnrichment(steamId, token);
+      for (const steamId of update.newPlayerIds) void schedulePlayerEnrichment(steamId, token);
     }
   }
 
@@ -159,13 +190,21 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     };
     const update = session.apply({ kind: 'legacy-create-game', data }, line);
     publish(update.record);
+    if (getActivePlatform().id === 'perfect' && update.record) {
+      const token = session.token;
+      const players = [
+        ...update.record.detail.unassigned,
+        ...update.record.detail.teams.flatMap((team) => team.players),
+      ];
+      for (const steamId of new Set(players.map((player) => player.steamId))) {
+        void schedulePlayerEnrichment(steamId, token);
+      }
+    }
   }
 
   async function replayPerfectFixture() {
-    const [{ default: logFixture }, { default: apiFixture }] = await Promise.all([
-      import('@platforms/perfect/fixtures/perfect-9220102482485790732-log.json'),
-      import('@platforms/perfect/fixtures/perfect-9220102482485790732-api.json'),
-    ]);
+    const { default: logFixture } = await import('@platforms/perfect/fixtures/perfect-9220102482485790732-log.json');
+    const enrichmentTasks = new Map<string, Promise<void>>();
     let previousDelay = 0;
     let readyCount = 0;
     for (const item of logFixture.events) {
@@ -183,49 +222,12 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
       if (update.newSession && update.record) options?.onNewMatch?.(update.record);
       if (event.kind === 'ready') readyCount += 1;
       for (const steamId of update.newPlayerIds) {
-        const snapshot = apiFixture.players[steamId as keyof typeof apiFixture.players];
-        if (!snapshot) continue;
-        session.setStatsLoading(steamId);
-        publish(session.current);
-        await new Promise((resolve) => window.setTimeout(resolve, 90));
-        try {
-          session.setStats(steamId, normalizePerfectPlayerStats(snapshot.stats.body, steamId));
-        } catch (error) {
-          session.setStatsError(steamId, error instanceof Error ? error.message : String(error));
+        if (!enrichmentTasks.has(steamId)) {
+          enrichmentTasks.set(steamId, schedulePlayerEnrichment(steamId, session.token));
         }
-        let boardId: string | undefined;
-        try {
-          boardId = normalizePerfectBoardSearch(snapshot.search.body, steamId)?.wanmeiId;
-        } catch {
-          boardId = undefined;
-        }
-        const internalBody = apiFixture.internalComments.body;
-        const internalCount = typeof internalBody === 'object' && internalBody && 'data' in internalBody
-          ? Number((internalBody.data as Record<string, { count?: number }>)[steamId]?.count ?? 0)
-          : 0;
-        const boardBody = snapshot.platformComments.body;
-        const boardCount = typeof boardBody === 'object' && boardBody && 'result' in boardBody
-          ? Number((boardBody.result as { commentResponse?: { itemCount?: number } })?.commentResponse?.itemCount ?? 0)
-          : 0;
-        const player = session.current
-          ? [...session.current.detail.unassigned, ...session.current.detail.teams.flatMap((team) => team.players)]
-            .find((value) => value.steamId === steamId)
-          : undefined;
-        session.patchPlayer(steamId, {
-          platformBoardId: boardId,
-          mockInternalCommentCount: internalCount,
-          mockPlatformCommentCount: boardCount,
-          perfectLoadState: {
-            ...player!.perfectLoadState!,
-            stats: player?.perfectLoadState?.stats ?? 'loaded',
-            internalComments: 'loaded',
-            boardIdentity: 'loaded',
-            platformComments: 'loaded',
-          },
-        });
-        publish(session.current);
       }
     }
+    await Promise.all(enrichmentTasks.values());
   }
 
   function patchPlayerLoadState(steamId: string, patch: Partial<PerfectPlayerLoadState>) {
@@ -252,7 +254,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
         publish(update.record);
         if (update.record?.detail.source === 'ladder-events') {
           const token = session.token;
-          for (const steamId of update.newPlayerIds) schedulePlayerEnrichment(steamId, token);
+          for (const steamId of update.newPlayerIds) void schedulePlayerEnrichment(steamId, token);
         }
       }
       scheduleSessionExpiry();

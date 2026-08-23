@@ -1,5 +1,5 @@
 import type { MatchHistoryListItem } from '@core/match/history';
-import { resolveMapAsset } from '@core/match/history/map-assets';
+import { resolveCanonicalMapName, resolveMapAsset } from '@core/match/history/map-assets';
 import { currentLocale, localize as l } from '../i18n';
 
 export function platformLabel(platformId: string): string {
@@ -13,21 +13,21 @@ export function formatMapDisplayName(raw?: string | null): string | null {
   return asset?.en ?? null;
 }
 
-/** 列表主标题：中文优先 */
+/** 列表主标题：引擎地图 ID，例如 de_cache */
 export function historyPrimaryMapTitle(item: MatchHistoryListItem): string {
-  const asset = resolveMapAsset(item.mapName);
-  if (currentLocale() === 'en-US' && asset?.en) return asset.en;
-  if (asset?.zh) return asset.zh;
-  if (asset?.en) return asset.en;
+  const canonical = resolveCanonicalMapName(item.mapName);
+  if (canonical) return canonical;
   return l('未知地图', 'Unknown map');
 }
 
-/** 列表副行：英文名（主标题已是中文且不同时） */
+/** 列表副行：本地化常用名（与主标题不同时） */
 export function historyMapEnCaption(item: MatchHistoryListItem): string | null {
   const asset = resolveMapAsset(item.mapName);
   if (!asset) return null;
-  if (asset.zh && asset.zh !== asset.en) return asset.en;
-  return null;
+  const title = historyPrimaryMapTitle(item);
+  const caption = currentLocale() === 'en-US' ? asset.en : asset.zh;
+  if (!caption || caption === title) return null;
+  return caption;
 }
 
 export function historyItemTitle(item: MatchHistoryListItem): string {

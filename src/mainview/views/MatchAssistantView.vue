@@ -15,6 +15,8 @@ const props = defineProps<{
   matches: MatchRecord[];
   watcher: WatcherStatus;
   platform: PlatformId;
+  active?: boolean;
+  viewerSteamId?: string;
   p5e?: ReturnType<typeof useP5eCdp>;
 }>();
 
@@ -33,6 +35,8 @@ const latestMatch = computed(() => props.matches[0] ?? null);
         :ai="ai"
         :comments="comments"
         :match="latestMatch"
+        :active="active"
+        :viewer-steam-id="viewerSteamId"
         @open-settings="emit('openSettings')"
       />
     </div>

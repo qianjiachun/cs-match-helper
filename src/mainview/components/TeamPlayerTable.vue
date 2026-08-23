@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
-import type { MatchPlayer, MatchTeam } from '@core/match/models';
+import type { MatchPlatformId, MatchPlayer, MatchTeam } from '@core/match/models';
+import type { AiEvidenceSnapshot, AiPlayerSignal, AiPlayerSignalKind } from '@core/ai/types';
+import { Crown, Crosshair, Eye, Shield, TriangleAlert, Zap } from 'lucide-vue-next';
 import type { TeamTableColumnDef } from './team-table-columns';
 import PlayerAvatar from './PlayerAvatar.vue';
 import PlayerGreenBadge from './PlayerGreenBadge.vue';
@@ -9,6 +11,7 @@ import PartyBarIndicator from './PartyBarIndicator.vue';
 import PlayerCommentBadge from './comments/PlayerCommentBadge.vue';
 import PerfectMapPoolCell from './PerfectMapPoolCell.vue';
 import PerfectWeaponCell from './PerfectWeaponCell.vue';
+import PerfectRankCell from './PerfectRankCell.vue';
 import { isValidSteamId64 } from '@core/comments/steam-id';
 import {
   buildTroopColorMap,
@@ -25,7 +28,8 @@ import {
   type SortDir,
   type TeamTableColumnKey,
 } from './team-table-shared';
-import { localize as l } from '../i18n';
+import { currentLocale, localize as l } from '../i18n';
+import { displayPerspectiveText, sideRelationshipLabel, type AiSide } from '@core/ai/perspective';
 import { displayPlayerNickname } from '../utils/playerDisplay';
 
 interface WaitingProgress {
@@ -39,18 +43,23 @@ const props = defineProps<{
   team: MatchTeam;
   columns: TeamTableColumnDef[];
   highlighted?: boolean;
-  highlightedSteamId?: string | null;
+  playerSignals?: AiPlayerSignal[];
+  animatedSignalSteamIds?: string[];
   getCommentCount?: (steamId: string) => number;
   getCommentCountHasMore?: (steamId: string) => boolean;
   currentMap?: string;
   neutral?: boolean;
   title?: string;
+  sideToken?: 'A' | 'B';
+  selfSide?: AiSide | null;
   statusText?: string;
   waitingProgress?: WaitingProgress;
+  platformId?: MatchPlatformId;
 }>();
 
 const emit = defineEmits<{
   openComments: [player: MatchPlayer];
+  openAiSignal: [signal: AiPlayerSignal];
 }>();
 
 const sortKey = ref<TeamTableColumnKey>('seasonRating');
@@ -61,6 +70,110 @@ const sortedPlayers = computed(() =>
     ? props.team.players
     : sortTeamPlayers(props.team.players, sortKey.value, sortDir.value),
 );
+
+const signalBySteamId = computed(() => new Map(
+  (props.playerSignals ?? []).map((signal) => [signal.steamId, signal]),
+));
+
+const signalAnimationOrder = computed(() => new Map(
+  (props.animatedSignalSteamIds ?? []).map((steamId, index) => [steamId, index]),
+));
+
+const signalTooltip = ref<{ signal: AiPlayerSignal; left: number; top: number } | null>(null);
+
+function signalLabel(kind: AiPlayerSignalKind): string {
+  if (kind === 'carry') return l('强点', 'Carry');
+  if (kind === 'anchor') return l('支点', 'Anchor');
+  if (kind === 'specialist') return l('专长', 'Specialist');
+  if (kind === 'weakLink') return l('短板', 'Weak link');
+  if (kind === 'volatile') return l('变量', 'Volatile');
+  return l('关注', 'Watch');
+}
+
+function signalClass(kind: AiPlayerSignalKind): string {
+  if (kind === 'carry') return 'bg-emerald-600 text-white';
+  if (kind === 'anchor') return 'bg-blue-600 text-white';
+  if (kind === 'specialist') return 'bg-violet-600 text-white';
+  if (kind === 'weakLink') return 'bg-rose-600 text-white';
+  if (kind === 'volatile') return 'bg-amber-500 text-white';
+  return 'bg-slate-600 text-white';
+}
+
+function signalRowClass(kind: AiPlayerSignalKind): string {
+  return `ai-signal-row ai-signal-row--${kind}`;
+}
+
+function signalIcon(kind: AiPlayerSignalKind) {
+  if (kind === 'carry') return Crown;
+  if (kind === 'anchor') return Shield;
+  if (kind === 'specialist') return Crosshair;
+  if (kind === 'weakLink') return TriangleAlert;
+  if (kind === 'volatile') return Zap;
+  return Eye;
+}
+
+function signalSweepColor(kind: AiPlayerSignalKind): string {
+  if (kind === 'carry') return '16 185 129';
+  if (kind === 'anchor') return '59 130 246';
+  if (kind === 'specialist') return '139 92 246';
+  if (kind === 'weakLink') return '244 63 94';
+  if (kind === 'volatile') return '245 158 11';
+  return '100 116 139';
+}
+
+function formatEvidence(evidence: AiEvidenceSnapshot): string {
+  const value = evidence.value ?? (evidence.valueA && evidence.valueB
+    ? `${sideRelationshipLabel('A', props.selfSide, currentLocale())} ${evidence.valueA} / ${sideRelationshipLabel('B', props.selfSide, currentLocale())} ${evidence.valueB}`
+    : '');
+  const sample = evidence.sampleSize != null ? l(` · ${evidence.sampleSize} 场`, ` · ${evidence.sampleSize} matches`) : '';
+  return `${evidence.label}${value ? ` ${value}` : ''}${sample}`;
+}
+
+function showSignalTooltip(signal: AiPlayerSignal, event: MouseEvent | FocusEvent) {
+  const element = event.currentTarget as HTMLElement | null;
+  if (!element) return;
+  const anchor = element.matches('[data-ai-signal-anchor]')
+    ? element
+    : element.querySelector<HTMLElement>('[data-ai-signal-anchor]') ?? element;
+  const rect = anchor.getBoundingClientRect();
+  const width = 320;
+  const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+  const preferredTop = rect.bottom + 8;
+  const top = preferredTop + 150 < window.innerHeight ? preferredTop : Math.max(12, rect.top - 158);
+  signalTooltip.value = { signal, left, top };
+}
+
+function signalForPlayer(player: MatchPlayer): AiPlayerSignal | undefined {
+  return signalBySteamId.value.get(player.steamId);
+}
+
+function openSignalFromRow(player: MatchPlayer, event?: MouseEvent | KeyboardEvent) {
+  const signal = signalForPlayer(player);
+  if (!signal) return;
+  const target = event?.target as HTMLElement | null;
+  if (target?.closest('[data-player-comment-action],button,a,input,select,textarea')) return;
+  if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return;
+  event?.preventDefault();
+  emit('openAiSignal', signal);
+}
+
+function onSignalRowFocus(player: MatchPlayer, event: FocusEvent) {
+  if (event.target !== event.currentTarget) return;
+  const signal = signalForPlayer(player);
+  if (signal) showSignalTooltip(signal, event);
+}
+
+function onSignalRowBlur(player: MatchPlayer, event: FocusEvent) {
+  if (event.target !== event.currentTarget) return;
+  const signal = signalForPlayer(player);
+  if (signal) hideSignalTooltip(signal);
+}
+
+function hideSignalTooltip(signal: AiPlayerSignal) {
+  if (signalTooltip.value?.signal.steamId === signal.steamId) signalTooltip.value = null;
+}
+
+const usesPerfectRank = computed(() => props.platformId !== '5e');
 
 const assignmentMotionReady = computed(() => (
   !props.neutral || props.waitingProgress?.phase === 'all-ready'
@@ -84,6 +197,7 @@ const tableMinWidth = computed(() => {
     if (col.key === 'nickname') return sum;
     if (col.key === 'mapPool') return sum + 116;
     if (col.key === 'primaryWeapon') return sum + 142;
+    if (col.key === 'peakRank') return sum + 92;
     const width = Number.parseInt(col.width, 10);
     return sum + (Number.isNaN(width) ? 82 : Math.max(76, width * 10));
   }, 0);
@@ -132,8 +246,7 @@ function motionTransition() {
 }
 
 function clutchAttemptCount(player: MatchPlayer): number | undefined {
-  if (player.clutch1v1 == null || player.clutchWinRate == null || player.clutchWinRate <= 0) return undefined;
-  return Math.max(player.clutch1v1, Math.round(player.clutch1v1 / player.clutchWinRate));
+  return player.clutch1v1Attempts ?? player.clutch1v1Total;
 }
 
 function clutchRateClass(rate?: number): string {
@@ -144,13 +257,19 @@ function clutchRateClass(rate?: number): string {
 }
 
 function clutchTooltip(player: MatchPlayer): string {
-  const attempts = clutchAttemptCount(player);
   const rate = player.clutchWinRate == null ? '—' : `${Math.round(player.clutchWinRate * 100)}%`;
-  const sample = attempts == null ? `${player.clutch1v1 ?? '—'} ${l('胜', 'wins')}` : `${player.clutch1v1 ?? 0} ${l('胜', 'wins')} / ${attempts} ${l('局', 'attempts')}`;
   return l(
-    `1v1 残局：${sample}，胜率 ${rate}\n全部残局胜场：${player.clutchWins ?? '—'}（包含 1v1 至 1v5）`,
-    `1v1 clutches: ${sample}, ${rate} win rate\nAll clutch wins: ${player.clutchWins ?? '—'} (1v1 through 1v5)`,
+    `全部残局胜率（1vx）：${rate}\n残局获胜：${player.clutchWins ?? '—'}（1v1 ${player.clutch1v1 ?? '—'} / ${player.clutch1v1Total ?? '—'}）`,
+    `Overall clutch win rate (1vx): ${rate}\nClutch wins: ${player.clutchWins ?? '—'} (1v1 ${player.clutch1v1 ?? '—'} / ${player.clutch1v1Total ?? '—'})`,
   );
+}
+
+function clutch1v1Tooltip(player: MatchPlayer): string {
+  const rate = player.clutch1v1Rate == null ? '—' : `${Math.round(player.clutch1v1Rate * 100)}%`;
+  const sample = player.clutch1v1Attempts != null
+    ? `${player.clutch1v1 ?? 0} ${l('胜', 'wins')} / ${player.clutch1v1Attempts} ${l('局', 'attempts')}`
+    : `${player.clutch1v1 ?? '—'} ${l('胜', 'wins')}`;
+  return l(`1v1 胜率：${rate}，${sample}`, `1v1 win rate: ${rate}, ${sample}`);
 }
 
 function hardClutchWins(player: MatchPlayer): number {
@@ -193,7 +312,7 @@ function waitingRemainingText(): string {
 <template>
   <section
     data-match-reveal="team"
-    class="shrink-0 rounded-lg transition-[box-shadow] duration-300"
+    class="shrink-0 rounded-lg transition-shadow duration-300"
     :class="highlighted ? (team.side === 'A' ? 'ring-2 ring-blue-300/80' : 'ring-2 ring-orange-300/80') : ''"
   >
     <header class="mb-2 px-0.5">
@@ -214,6 +333,7 @@ function waitingRemainingText(): string {
         >
           {{ title ?? l(`队伍 ${team.side}`, `Team ${team.side}`) }}
         </h3>
+        <span v-if="sideToken" class="text-[10px] font-semibold text-slate-400">{{ sideToken }}</span>
         <span v-if="statusText" class="ml-auto text-[12px] font-medium tabular-nums text-slate-500">{{ statusText }}</span>
       </div>
 
@@ -230,7 +350,7 @@ function waitingRemainingText(): string {
           <span
             v-for="index in waitingProgress.total"
             :key="index"
-            class="h-1.5 origin-center rounded-[2px] transition-[background-color,opacity,transform] duration-200 ease-out"
+            class="h-1.5 origin-center rounded-xs transition-[background-color,opacity,transform] duration-200 ease-out"
             :class="waitingSegmentClass(index - 1)"
           />
         </div>
@@ -296,17 +416,30 @@ function waitingRemainingText(): string {
             :exit="neutral ? undefined : { opacity: 0, y: -4 }"
             :transition="assignmentMotionReady ? motionTransition() : undefined"
             :data-match-reveal="neutral ? undefined : 'row'"
-            class="border-b border-slate-100/80 transition-colors duration-200 last:border-b-0 group"
+            class="h-13 border-b border-slate-100/80 transition-colors duration-200 last:border-b-0 group"
             :class="[
               idx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white',
               'hover:bg-slate-100/70',
-              highlightedSteamId === player.steamId ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-300' : '',
+              signalForPlayer(player) ? signalRowClass(signalForPlayer(player)!.kind) : '',
+              signalForPlayer(player) ? 'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/70' : '',
+              signalAnimationOrder.has(player.steamId) ? 'ai-signal-row-enter' : '',
             ]"
+            :tabindex="signalForPlayer(player) ? 0 : undefined"
+            :aria-label="signalForPlayer(player) ? l(`查看 ${displayPlayerNickname(player.nickname)} 的 AI 分析`, `View AI analysis for ${displayPlayerNickname(player.nickname)}`) : undefined"
+            :aria-describedby="signalForPlayer(player) ? `ai-signal-tooltip-${player.steamId}` : undefined"
+            :style="signalAnimationOrder.has(player.steamId) ? {
+              '--ai-signal-delay': `${(signalAnimationOrder.get(player.steamId) ?? 0) * 110}ms`,
+              '--ai-signal-rgb': signalSweepColor(signalBySteamId.get(player.steamId)?.kind ?? 'watch'),
+            } : undefined"
+            @click="openSignalFromRow(player, $event)"
+            @keydown="openSignalFromRow(player, $event)"
+            @focus="onSignalRowFocus(player, $event)"
+            @blur="onSignalRowBlur(player, $event)"
           >
             <td
               v-for="col in columns"
               :key="col.key"
-              class="px-2 py-2.5"
+              class="px-2 py-1.5"
               :class="[
                 col.align === 'left' && col.key !== 'mapPool' && col.key !== 'primaryWeapon' ? 'px-3' : col.align === 'left' ? 'px-2' : 'text-center',
                 col.key === 'nickname' ? 'relative' : '',
@@ -320,25 +453,53 @@ function waitingRemainingText(): string {
                   :title="l('组排', 'Party')"
                 />
                 <div class="flex min-w-0 items-center gap-1">
+                  <div
+                    class="relative shrink-0"
+                    data-ai-signal-anchor
+                    @mouseenter="signalForPlayer(player) && showSignalTooltip(signalForPlayer(player)!, $event)"
+                    @mouseleave="signalForPlayer(player) && hideSignalTooltip(signalForPlayer(player)!)"
+                  >
+                    <PlayerAvatar
+                      :src="player.avatar"
+                      :alt="displayPlayerNickname(player.nickname)"
+                      size="sm"
+                      shape="rounded"
+                      class="outline-1 -outline-offset-1 outline-black/10"
+                    />
+                    <span
+                      v-if="signalForPlayer(player)"
+                      class="ai-player-signal pointer-events-none absolute -left-0.5 -top-0.5 flex h-3.75 w-3.75 items-center justify-center rounded-sm shadow-[0_1px_3px_rgb(15_23_42/0.2)]"
+                      :class="[
+                        signalClass(signalForPlayer(player)!.kind),
+                        signalAnimationOrder.has(player.steamId) ? 'ai-player-signal-enter' : '',
+                      ]"
+                      :style="signalAnimationOrder.has(player.steamId) ? { animationDelay: `${(signalAnimationOrder.get(player.steamId) ?? 0) * 110 + 80}ms` } : undefined"
+                      aria-hidden="true"
+                    >
+                      <component :is="signalIcon(signalForPlayer(player)!.kind)" class="h-2.5 w-2.5" aria-hidden="true" />
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    class="group/name flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent p-0 text-left outline-none focus-visible:outline-none"
+                    data-player-comment-action
+                    class="group/name flex min-h-10 min-w-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
                     :class="isValidSteamId64(player.steamId) ? '' : 'cursor-default'"
                     :title="isValidSteamId64(player.steamId) ? l(`查看 ${displayPlayerNickname(player.nickname)} 的评论`, `View comments for ${displayPlayerNickname(player.nickname)}`) : player.steamId"
-                    @click="onPlayerClick(player)"
+                    @click.stop="onPlayerClick(player)"
                   >
-                    <PlayerAvatar :src="player.avatar" :alt="displayPlayerNickname(player.nickname)" size="sm" shape="rounded" />
                     <span class="truncate font-medium text-slate-800 transition-colors group-hover/name:text-blue-600">
                       {{ displayPlayerNickname(player.nickname) }}
                     </span>
                     <PlayerGreenBadge :show="player.isGreen" />
                   </button>
-                  <PlayerCommentBadge
-                    :steam-id="player.steamId"
-                    :count="getCommentCount?.(player.steamId) ?? 0"
-                    :count-has-more="getCommentCountHasMore?.(player.steamId) ?? false"
-                    @open="emit('openComments', player)"
-                  />
+                  <span data-player-comment-action @click.stop>
+                    <PlayerCommentBadge
+                      :steam-id="player.steamId"
+                      :count="getCommentCount?.(player.steamId) ?? 0"
+                      :count-has-more="getCommentCountHasMore?.(player.steamId) ?? false"
+                      @open="emit('openComments', player)"
+                    />
+                  </span>
                 </div>
               </template>
 
@@ -361,10 +522,27 @@ function waitingRemainingText(): string {
                 <PerfectWeaponCell :weapons="player.primaryWeapons" />
               </template>
 
+              <template v-else-if="col.key === 'peakRank'">
+                <PerfectRankCell
+                  variant="peak"
+                  :score="player.peakScore"
+                  :stars="player.peakSStars"
+                  :season="player.peakSeason"
+                />
+              </template>
+
               <template v-else-if="col.key === 'clutchWinRate'">
                 <div class="leading-none tabular-nums" :title="clutchTooltip(player)">
                   <div class="text-[13px] font-semibold" :class="clutchRateClass(player.clutchWinRate)">
                     {{ player.clutchWinRate == null ? '—' : `${Math.round(player.clutchWinRate * 100)}%` }}
+                  </div>
+                </div>
+              </template>
+
+              <template v-else-if="col.key === 'clutch1v1Rate'">
+                <div class="leading-none tabular-nums" :title="clutch1v1Tooltip(player)">
+                  <div class="text-[13px] font-semibold" :class="clutchRateClass(player.clutch1v1Rate)">
+                    {{ player.clutch1v1Rate == null ? '—' : `${Math.round(player.clutch1v1Rate * 100)}%` }}
                   </div>
                   <div v-if="player.clutch1v1 != null" class="mt-1.5 whitespace-nowrap text-[9px] text-slate-400">
                     {{ player.clutch1v1 }}{{ l('胜', 'W') }}<template v-if="clutchAttemptCount(player) != null"> / {{ clutchAttemptCount(player) }}{{ l('局', '') }}</template>
@@ -396,7 +574,7 @@ function waitingRemainingText(): string {
                     {{ player.clutchWins ?? '—' }}<span v-if="player.clutchWins != null" class="ml-0.5 text-[9px] font-medium text-slate-400">{{ l('次获胜', ' wins') }}</span>
                   </div>
                   <div v-if="player.clutchWins != null" class="mt-1 text-[9px] text-slate-400">
-                    1v1 {{ player.clutch1v1 ?? 0 }}<span class="mx-1 text-slate-200">|</span>1v2+ {{ hardClutchWins(player) }}
+                    1v1 {{ player.clutch1v1 ?? 0 }}<template v-if="player.clutch1v1Total != null">/{{ player.clutch1v1Total }}</template><span class="mx-1 text-slate-200">|</span>1v2+ {{ hardClutchWins(player) }}
                   </div>
                 </div>
               </template>
@@ -407,7 +585,7 @@ function waitingRemainingText(): string {
                     v-for="(res, i) in getRecentFiveResults(player.recentResults)"
                     :key="i"
                     :class="[
-                      'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-sm text-[10px] font-bold',
+                      'flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-sm text-[10px] font-bold',
                       getResultColor(res),
                     ]"
                   >
@@ -417,7 +595,13 @@ function waitingRemainingText(): string {
               </template>
 
               <template v-else-if="col.key === 'score'">
-                <span class="text-[13px] font-medium" :class="accent.score">
+                <PerfectRankCell
+                  v-if="usesPerfectRank"
+                  :score="player.score"
+                  :stars="player.currentSStars"
+                  :score-class="accent.score"
+                />
+                <span v-else class="text-[13px] font-medium" :class="accent.score">
                   {{ formatCellValue(col.key, player) }}
                 </span>
               </template>
@@ -432,7 +616,7 @@ function waitingRemainingText(): string {
           </AnimatePresence>
           <tr
             v-if="waitingProgress?.phase === 'accepting' && waitingProgress.ready < waitingProgress.total"
-            class="h-[52px] bg-slate-50/45"
+            class="h-13 bg-slate-50/45"
           >
             <td :colspan="columns.length" class="px-3">
               <div class="flex items-center gap-2 text-[11px] text-slate-400">
@@ -445,5 +629,91 @@ function waitingRemainingText(): string {
         </tbody>
       </table>
     </div>
+
+    <Teleport to="body">
+      <Transition name="ai-signal-tooltip">
+        <div
+          v-if="signalTooltip"
+          :id="`ai-signal-tooltip-${signalTooltip.signal.steamId}`"
+          role="tooltip"
+          class="pointer-events-none fixed z-120 w-80 rounded-lg bg-slate-950 px-3 py-2.5 text-left shadow-[0_12px_30px_rgb(15_23_42/0.24)]"
+          :style="{ left: `${signalTooltip.left}px`, top: `${signalTooltip.top}px` }"
+        >
+          <div class="flex items-center gap-1.5 text-[11px] font-bold text-white">
+            <component :is="signalIcon(signalTooltip.signal.kind)" class="h-3.5 w-3.5" aria-hidden="true" />
+            {{ signalLabel(signalTooltip.signal.kind) }} · {{ displayPerspectiveText(signalTooltip.signal.title, selfSide, currentLocale()) }}
+          </div>
+          <p class="mt-1 text-pretty text-[11px] leading-relaxed text-slate-200">{{ displayPerspectiveText(signalTooltip.signal.summary, selfSide, currentLocale()) }}</p>
+          <div v-if="signalTooltip.signal.evidence.length" class="mt-2 space-y-1 border-t border-white/10 pt-2">
+            <p
+              v-for="item in signalTooltip.signal.evidence.slice(0, 2)"
+              :key="item.id"
+              class="text-[10px] tabular-nums text-slate-400"
+            >
+              {{ formatEvidence(item) }}
+            </p>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>
+
+<style scoped>
+.ai-player-signal-enter {
+  opacity: 0;
+  scale: 0.25;
+  filter: blur(4px);
+  animation: ai-signal-icon-in 300ms cubic-bezier(0.2, 0, 0, 1) forwards;
+  will-change: opacity, scale, filter;
+}
+
+.ai-signal-row-enter {
+  animation: ai-signal-row-sweep 720ms cubic-bezier(0.2, 0, 0, 1) var(--ai-signal-delay, 0ms) both;
+}
+
+.ai-signal-row {
+  background-color: rgb(var(--ai-signal-rgb) / 0.045);
+  transition-property: background-color;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+
+.ai-signal-row:hover,
+.ai-signal-row:focus-visible {
+  background-color: rgb(var(--ai-signal-rgb) / 0.085);
+}
+
+.ai-signal-row--carry { --ai-signal-rgb: 16 185 129; }
+.ai-signal-row--anchor { --ai-signal-rgb: 59 130 246; }
+.ai-signal-row--specialist { --ai-signal-rgb: 139 92 246; }
+.ai-signal-row--weakLink { --ai-signal-rgb: 244 63 94; }
+.ai-signal-row--volatile { --ai-signal-rgb: 245 158 11; }
+.ai-signal-row--watch { --ai-signal-rgb: 100 116 139; }
+
+.ai-signal-tooltip-enter-active,
+.ai-signal-tooltip-leave-active {
+  transition: opacity 160ms ease-out, transform 160ms ease-out, filter 160ms ease-out;
+}
+
+.ai-signal-tooltip-enter-from,
+.ai-signal-tooltip-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+  filter: blur(4px);
+}
+
+@keyframes ai-signal-icon-in {
+  to {
+    opacity: 1;
+    scale: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes ai-signal-row-sweep {
+  0% { box-shadow: inset 0 0 0 999px rgb(var(--ai-signal-rgb, 100 116 139) / 0); }
+  38% { box-shadow: inset 0 0 0 999px rgb(var(--ai-signal-rgb, 100 116 139) / 0.1); }
+  100% { box-shadow: inset 0 0 0 999px rgb(var(--ai-signal-rgb, 100 116 139) / 0); }
+}
+</style>

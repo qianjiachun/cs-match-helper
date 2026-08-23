@@ -69,6 +69,9 @@ const EN_ERROR_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
   ['创建 HTTP 客户端失败', 'Could not create the HTTP client'],
   ['请求 AI 服务失败', 'Could not reach the AI service'],
   ['AI API 错误', 'AI API error'],
+  ['AI 服务返回错误', 'The AI service returned an error'],
+  ['AI 输出达到长度上限，请减少上下文后重试', 'The AI output hit the length limit. Reduce the context and try again'],
+  ['AI 服务当前请求过多，已触发限流。软件不会自动重试，请稍等一会儿后再手动分析。', 'The AI service is rate-limiting requests. The app will not retry automatically; wait a moment, then run the analysis again.'],
   ['读取流式响应失败', 'Could not read the streaming response'],
   ['解析 SSE 数据失败', 'Could not parse SSE data'],
   ['AI 返回内容为空', 'The AI returned an empty response'],
@@ -109,9 +112,34 @@ const EN_ERROR_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
   ['操作失败，请稍后重试', 'The action failed. Try again later'],
 ];
 
+const ERROR_CODE_MESSAGES: ReadonlyArray<readonly [string, string, string]> = [
+  [
+    'PERFECT_STEAM_PHONE_REQUIRED:',
+    '该 Steam 账号尚未在完美平台绑定手机号。请先在完美电竞 App 或完美对战平台完成手机号绑定，再返回重新登录。',
+    'This Steam account has no mobile number linked on Perfect World. Link one in the Perfect Esports app or client, then return and sign in again.',
+  ],
+  [
+    'PERFECT_STEAM_STATE_MISMATCH:',
+    'Steam 登录未能完成。请先确认该账号已在完美平台绑定手机号，然后关闭登录窗口并重新登录。',
+    'Steam sign-in could not be completed. Confirm that this account has a mobile number linked on Perfect World, then close the sign-in window and try again.',
+  ],
+  [
+    'PERFECT_STEAM_CALLBACK_FAILED:',
+    '完美平台未能完成 Steam 登录。请关闭登录窗口后重试。',
+    'Perfect World could not complete Steam sign-in. Close the sign-in window and try again.',
+  ],
+];
+
 /** Localize app/backend error summaries while retaining unknown diagnostic details verbatim. */
 export function localizeErrorMessage(error: unknown): string {
   const raw = (error instanceof Error ? error.message : String(error)).replace(/^Error:\s*/, '');
+  if (/\b429\b|too many requests|exceeded retry limit/i.test(raw)) {
+    return currentLocale() === 'zh-CN'
+      ? 'AI 服务当前请求过多，已触发限流。软件不会自动重试，请稍等一会儿后再手动分析。'
+      : 'The AI service is rate-limiting requests. The app will not retry automatically; wait a moment, then run the analysis again.';
+  }
+  const codedMessage = ERROR_CODE_MESSAGES.find(([prefix]) => raw.startsWith(prefix));
+  if (codedMessage) return currentLocale() === 'zh-CN' ? codedMessage[1] : codedMessage[2];
   if (currentLocale() === 'zh-CN') return raw;
   let translated = raw;
   for (const [source, target] of EN_ERROR_REPLACEMENTS) {
