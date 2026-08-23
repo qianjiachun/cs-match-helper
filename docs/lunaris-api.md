@@ -482,16 +482,22 @@ POST /quota-request
 
 1. `POST /projects/{slug}/versions` — 创建版本 tag（如 `2.1.0`）
 2. `POST /upload/initiate` → `PUT /upload/part` × N → `POST /upload/complete` — 上传 `cs-match-helper.exe`
-3. `POST /projects/{slug}/versions/{tag}/set-latest` — 标记为最新
+3. 同上传流程写入公开 `latest.json`（含 `version`、`sha256`、可选 `releaseNotes` / `releases`）
+4. `POST /projects/{slug}/versions/{tag}/set-latest` — 标记为最新
+
+若存在 `release/notes.md`，其内容写入 `latest.json` 的 `releaseNotes`。GitHub Release 应复用同一份说明。`release/` 目录不进 git。
 
 **必须在创建 GitHub Release 之前完成 Lunaris 上传**，确保用户收到更新提示时 CDN 已可用。
 
 ### 客户端自动更新
 
-1. 检测 GitHub Release 或 Lunaris 版本 tag 是否有新版本
-2. 从 CDN 下载：`https://cdn.lunaris.win/{username}/{project}/cs-match-helper.exe?v={tag}&download`
-3. 读取响应头 `X-Checksum-SHA256` 与本地计算值比对
-4. 校验通过后替换可执行文件并重启应用
+1. 并行请求 GitHub `releases/latest` 与 CDN `https://cdn.lunaris.win/qianjiachun/cs-match-helper/latest.json?download`（各约 8s 超时）
+2. 任一成功即可；两边都成功时取更高版本，版本相同则优先有发布说明的一侧
+3. 从 CDN 下载：`https://cdn.lunaris.win/{username}/{project}/cs-match-helper.exe?v={tag}&download`
+4. 读取响应头 `X-Checksum-SHA256`（及清单中的 `sha256`）与本地计算值比对
+5. 校验通过后替换可执行文件并重启应用
+
+设置页更新日志同样合并 GitHub 列表与 `latest.json` 的 `releases`。客户端不调用 Lunaris 管理 API，也不携带 API Key。
 
 ---
 

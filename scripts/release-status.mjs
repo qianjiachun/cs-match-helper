@@ -8,6 +8,7 @@ const LUNARIS_USERNAME = 'qianjiachun';
 const APP_FILE_NAME = 'cs-match-helper.exe';
 const PROJECT_SLUG = 'cs-match-helper';
 const EXE_CDN_BASE = `https://cdn.lunaris.win/${LUNARIS_USERNAME}/${PROJECT_SLUG}/${APP_FILE_NAME}`;
+const MANIFEST_CDN_URL = `https://cdn.lunaris.win/${LUNARIS_USERNAME}/${PROJECT_SLUG}/latest.json?download`;
 
 function normalizeVersion(version) {
   return String(version).trim().replace(/^v/i, '');
@@ -56,6 +57,22 @@ async function checkLunarisCdn(version, localSha256) {
   }
 }
 
+async function checkLatestManifest(version) {
+  const url = MANIFEST_CDN_URL;
+  try {
+    const response = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
+    if (!response.ok) return { ready: false, reason: `清单 HTTP ${response.status}`, url };
+    const payload = await response.json();
+    const remoteVersion = normalizeVersion(payload?.version || '');
+    if (remoteVersion !== version) {
+      return { ready: false, reason: `清单版本为 ${remoteVersion || '未知'}，期望 ${version}`, url };
+    }
+    return { ready: true, url, version: remoteVersion };
+  } catch (error) {
+    return { ready: false, reason: error instanceof Error ? error.message : String(error), url };
+  }
+}
+
 function checkGithubReleaseAsset(tag) {
   try {
     const output = execFileSync('gh', ['release', 'view', tag, '--json', 'assets'], {
@@ -79,6 +96,7 @@ async function main() {
   const exeSize = exeExists ? statSync(exePath).size : 0;
   const localSha256 = exeExists ? await sha256File(exePath) : null;
   const lunaris = await checkLunarisCdn(version, localSha256);
+  const latestManifest = await checkLatestManifest(version);
 
   let versionVerify = false;
   try {
@@ -102,7 +120,7 @@ async function main() {
   const steps = {
     versionVerify,
     buildDone: exeExists && exeSize > 0,
-    lunarisUploaded: lunaris.ready,
+    lunarisUploaded: lunaris.ready && latestManifest.ready,
     committed: hasReleaseCommit && workingTreeClean,
     pushed: unpushedCommits === 0 && hasReleaseCommit,
     githubRelease: githubRelease.ready,
@@ -127,6 +145,7 @@ async function main() {
     nextAction,
     exe: exeExists ? { path: exePath, size: exeSize, sha256: localSha256 } : null,
     lunaris,
+    latestManifest,
     githubRelease,
     git: { hasReleaseCommit, workingTreeClean, upstream: upstream || null, unpushedCommits },
   }, null, 2));
