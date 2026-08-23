@@ -227,9 +227,7 @@ fn cap_gate_debug_body(url: &str, gate_debug_mode: bool, body: Option<Value>) ->
     if !gate_debug_mode || is_whitelisted_url(url) {
         return body;
     }
-    let Some(value) = body else {
-        return None;
-    };
+    let value = body?;
     let serialized = value.to_string();
     if serialized.len() <= GATE_DEBUG_BODY_CAP {
         return Some(value);
@@ -611,6 +609,7 @@ async fn pick_arena_target(port: u16) -> Result<CdpTarget, String> {
     Err(format!("等待 {ARENA_HOST} 页面出现"))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn request_response_body(
     write: &mut futures_util::stream::SplitSink<
         tokio_tungstenite::WebSocketStream<
@@ -643,7 +642,7 @@ async fn request_response_body(
         "method": "Network.getResponseBody",
         "params": { "requestId": network_request_id }
     });
-    let _ = write.send(Message::Text(cmd.to_string().into())).await;
+    let _ = write.send(Message::Text(cmd.to_string())).await;
 }
 
 async fn handle_body_response(
@@ -749,7 +748,7 @@ async fn run_cdp_session(
     });
     msg_id += 1;
     if write
-        .send(Message::Text(auto_attach_cmd.to_string().into()))
+        .send(Message::Text(auto_attach_cmd.to_string()))
         .await
         .is_err()
     {
@@ -767,7 +766,7 @@ async fn run_cdp_session(
     });
     msg_id += 1;
     if write
-        .send(Message::Text(enable_cmd.to_string().into()))
+        .send(Message::Text(enable_cmd.to_string()))
         .await
         .is_err()
     {

@@ -155,7 +155,7 @@ mod tests {
         )
         .expect("event");
 
-        assert_eq!(event.gate_debug, false);
+        assert!(!event.gate_debug);
         assert!(event.response_body.is_none());
         let body = event.request_body.expect("request");
         assert_eq!(body.get("game_map").and_then(|v| v.as_str()), Some("de_dust2"));

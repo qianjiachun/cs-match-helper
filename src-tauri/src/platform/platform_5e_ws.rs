@@ -212,16 +212,15 @@ fn parse_comet_json(bytes: &[u8]) -> Option<Value> {
     serde_json::from_slice(json_slice).ok()
 }
 
-fn analyze_decoded_bytes(
-    bytes: &[u8],
-    truncated: &mut bool,
-) -> (
+type DecodedWsAnalysis = (
     Option<String>,
     Option<Value>,
     Option<String>,
     Option<Value>,
     Option<String>,
-) {
+);
+
+fn analyze_decoded_bytes(bytes: &[u8], truncated: &mut bool) -> DecodedWsAnalysis {
     let raw_text = String::from_utf8_lossy(bytes);
     let mut decoded_json = parse_comet_json(bytes);
     let mut json_text = decoded_json
@@ -344,7 +343,7 @@ fn try_second_layer_base64(text: &str, truncated: &mut bool) -> (Option<String>,
 }
 
 fn looks_like_base64(text: &str) -> bool {
-    if text.len() < 8 || text.len() % 4 != 0 {
+    if text.len() < 8 || !text.len().is_multiple_of(4) {
         return false;
     }
     text.chars()

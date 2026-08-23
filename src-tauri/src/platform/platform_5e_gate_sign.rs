@@ -34,7 +34,7 @@ fn build_headers_block(extra: &[(&str, &str)]) -> (String, Vec<String>) {
         .map(|(k, _)| k.to_string())
         .collect();
 
-    keys.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
+    keys.sort_by_key(|a| a.to_ascii_lowercase());
 
     let mut lines = Vec::new();
     let mut signed_names = Vec::new();

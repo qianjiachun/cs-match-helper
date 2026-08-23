@@ -296,7 +296,7 @@ fn port_state_with_timeout(port: u16, cdp_timeout: Duration) -> PortState {
 }
 
 fn scan_end(preferred: u16) -> u16 {
-    preferred.saturating_add(MAX_CDP_PORT_SCAN).min(u16::MAX)
+    preferred.saturating_add(MAX_CDP_PORT_SCAN)
 }
 
 #[cfg(windows)]
@@ -468,12 +468,10 @@ pub fn resolve_cdp_launch_port(preferred: u16) -> Result<u16, String> {
     let end = scan_end(preferred);
 
     match port_state(preferred) {
-        PortState::CdpActive => {
-            return Err(format!(
-                "端口 {preferred} 上已有调试连接，请先完全退出 5E"
-            ));
-        }
-        PortState::Available => return Ok(preferred),
+        PortState::CdpActive => Err(format!(
+            "端口 {preferred} 上已有调试连接，请先完全退出 5E"
+        )),
+        PortState::Available => Ok(preferred),
         PortState::Occupied => {
             for port in (preferred + 1)..=end {
                 match port_state(port) {
