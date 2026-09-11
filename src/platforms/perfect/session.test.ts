@@ -1,9 +1,90 @@
 import { describe, expect, it } from 'vitest';
 import fixture from './fixtures/perfect-9220102482485790732-log.json';
 import { extractPerfectMatchEvent, parseLogLine } from './log-parser';
-import { PerfectMatchSession, snapshotPerfectMatchRecord } from './session';
+import { createReadyPlayer, mergePerfectStats, PerfectMatchSession, snapshotPerfectMatchRecord } from './session';
+import type { PerfectPlayerStats } from './types';
+
+function apiStats(overrides: Partial<PerfectPlayerStats> = {}): PerfectPlayerStats {
+  return {
+    steamId: '76561198104088654',
+    recentStandardRatings: [],
+    recentPwRatings: [],
+    recentRwsValues: [],
+    recentWeValues: [],
+    recentScores: [],
+    hotMaps: [],
+    primaryWeapons: [],
+    ...overrides,
+  };
+}
 
 describe('PerfectMatchSession', () => {
+  it('prefers the authenticated API ELO over the live game-info placeholder', () => {
+    const player = { ...createReadyPlayer('76561198104088654'), score: 0 };
+    const merged = mergePerfectStats(player, apiStats({
+      pvpScore: 1876,
+    }));
+
+    expect(merged.score).toBe(1876);
+  });
+
+  it('keeps a positive live ELO when the cached API score is older', () => {
+    const player = { ...createReadyPlayer('76561198104088654'), score: 1946 };
+    expect(mergePerfectStats(player, apiStats({ pvpScore: 1900 })).score).toBe(1946);
+  });
+
+  it('does not let a later game-start score placeholder replace an enriched ELO', () => {
+    const session = new PerfectMatchSession();
+    const successLine = parseLogLine(fixture.events[1].raw);
+    session.apply(extractPerfectMatchEvent(successLine.decoded)!, successLine, Date.now());
+    const readyLine = parseLogLine(fixture.events[2].raw);
+    const readyEvent = extractPerfectMatchEvent(readyLine.decoded)!;
+    session.apply(readyEvent, readyLine, Date.now());
+    const steamId = session.current!.detail.unassigned[0].steamId;
+    session.setStats(steamId, apiStats({ steamId, pvpScore: 1876 }));
+
+    const gameStartLine = parseLogLine(fixture.events.at(-1)!.raw);
+    session.apply({
+      kind: 'game-start',
+      gameInfo: {
+        players: [{ player_id: steamId, score: 0, roll_team_id: 1 }],
+      },
+    }, gameStartLine, Date.now());
+    const player = session.current!.detail.teams
+      .flatMap((team) => team.players)
+      .find((item) => item.steamId === steamId);
+
+    expect(player?.score).toBe(1876);
+  });
+
+  it('preserves richer legacy log fields when the API returns a partial player payload', () => {
+    const player = {
+      ...createReadyPlayer('76561198104088654'),
+      adpr: 91,
+      seasonRating: 1.24,
+      hsRate: 0.53,
+      hotMaps: [{ map: 'de_dust2', totalMatch: 12, winCount: 7 }],
+      primaryWeapons: [{ name: 'ak47', killNum: 88 }],
+      abilityProfile: { shot: 81 },
+      combat: { kast: 0.72 },
+    };
+    const merged = mergePerfectStats(player, apiStats({
+      name: 'API name',
+      partialFailure: 'PERFECT_PARTIAL:season-stats: timeout',
+    }));
+
+    expect(merged).toMatchObject({
+      adpr: 91,
+      seasonRating: 1.24,
+      hsRate: 0.53,
+      hotMaps: [{ map: 'de_dust2' }],
+      primaryWeapons: [{ name: 'ak47' }],
+      abilityProfile: { shot: 81 },
+      combat: { kast: 0.72 },
+    });
+    expect(merged.perfectLoadState?.statsError).toContain('season-stats');
+  });
+
   it('publishes detached snapshots for progressive ready updates', () => {
     const session = new PerfectMatchSession();
     const successLine = parseLogLine(fixture.events[1].raw);

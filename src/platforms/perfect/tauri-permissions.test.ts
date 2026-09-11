@@ -15,6 +15,7 @@ describe('Perfect player Tauri permissions', () => {
     ) as { permissions?: string[] };
 
     expect(permission).toContain('"fetch_perfect_player_stats"');
+    expect(permission).toContain('"debug_perfect_player_apis"');
     expect(permission).toContain('"search_perfect_board_user"');
     expect(capability.permissions).toContain('allow-perfect-player-data');
   });

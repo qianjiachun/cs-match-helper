@@ -483,10 +483,10 @@
           "markdownDescription": "Allow Perfect World authentication and local API response decryption"
         },
         {
-          "description": "Allow fetching Perfect World player stats and resolving board identities",
+          "description": "Allow fetching and debugging Perfect World player stats and resolving board identities",
           "type": "string",
           "const": "allow-perfect-player-data",
-          "markdownDescription": "Allow fetching Perfect World player stats and resolving board identities"
+          "markdownDescription": "Allow fetching and debugging Perfect World player stats and resolving board identities"
         },
         {
           "description": "允许检测 5E 是否已在外部运行",

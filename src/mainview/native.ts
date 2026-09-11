@@ -23,6 +23,7 @@ import type {
   PerfectDecryptInput,
   PerfectDecryptOutput,
 } from '@platforms/perfect/auth';
+import type { PerfectApiDebugReport } from '@platforms/perfect/api-debug';
 
 const hasTauriWindow = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const appWindow = hasTauriWindow ? getCurrentWindow() : null;
@@ -100,6 +101,12 @@ export async function stopLogWatch(): Promise<void> {
 
 export async function fetchPerfectPlayerStatsRaw(steamId: string): Promise<unknown> {
   return invoke<unknown>('fetch_perfect_player_stats', { steamId });
+}
+
+export async function debugPerfectPlayerApis(steamId?: string): Promise<PerfectApiDebugReport> {
+  return invoke<PerfectApiDebugReport>('debug_perfect_player_apis', {
+    steamId: steamId?.trim() || null,
+  });
 }
 
 export async function searchPerfectBoardUserRaw(steamId: string): Promise<unknown> {

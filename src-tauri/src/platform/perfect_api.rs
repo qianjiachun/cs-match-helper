@@ -7,10 +7,11 @@ use serde_json::{json, Map, Value};
 use std::{collections::HashMap, sync::OnceLock, time::Duration};
 use tokio::sync::Mutex;
 
-const OVERVIEW_URL: &str = "https://pwaweblogin.wmpvp.com/user-info/overview";
-const SEASON_STATS_URL: &str = "https://pwaweblogin.wmpvp.com/user-info/season-stats";
-const SEASON_LIST_URL: &str = "https://pwaweblogin.wmpvp.com/user-info/season-ladder-score-list";
-const CLIENT_REFERER: &str = "https://client.wmpvp.com";
+pub(super) const OVERVIEW_URL: &str = "https://pwaweblogin.wmpvp.com/user-info/overview";
+pub(super) const SEASON_STATS_URL: &str = "https://pwaweblogin.wmpvp.com/user-info/season-stats";
+pub(super) const SEASON_LIST_URL: &str =
+    "https://pwaweblogin.wmpvp.com/user-info/season-ladder-score-list";
+pub(super) const CLIENT_REFERER: &str = "https://client.wmpvp.com";
 const CACHE_TTL: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone)]
@@ -71,7 +72,7 @@ pub fn redact_sensitive(input: &str) -> String {
     rebuilt
 }
 
-fn scoped_partial_error(stage: &str, error: &str) -> String {
+pub(super) fn scoped_partial_error(stage: &str, error: &str) -> String {
     if is_auth_invalid(error) {
         error.to_string()
     } else {
@@ -82,7 +83,14 @@ fn scoped_partial_error(stage: &str, error: &str) -> String {
 async fn decode_response(response: reqwest::Response) -> Result<Value, String> {
     let status = response.status();
     if !status.is_success() {
-        return Err(format!("PERFECT_HTTP: {}", status.as_u16()));
+        let detail = response.text().await.unwrap_or_default();
+        let detail = redact_sensitive(detail.trim());
+        let detail: String = detail.chars().take(2_048).collect();
+        return Err(if detail.is_empty() {
+            format!("PERFECT_HTTP: {}", status.as_u16())
+        } else {
+            format!("PERFECT_HTTP: {}: {detail}", status.as_u16())
+        });
     }
     let envelope = response
         .json::<Value>()
@@ -168,7 +176,10 @@ pub async fn fetch_season_stats(
     decode_response(response).await
 }
 
-async fn fetch_season_list(credential: &PerfectCredential, uid: &str) -> Result<Value, String> {
+pub(super) async fn fetch_season_list(
+    credential: &PerfectCredential,
+    uid: &str,
+) -> Result<Value, String> {
     let response = client()?
         .get(SEASON_LIST_URL)
         .header("Referer", CLIENT_REFERER)
@@ -213,19 +224,33 @@ pub fn extract_uid(value: &Value) -> Option<&str> {
 }
 
 pub fn extract_season(value: &Value) -> Option<&str> {
-    find_string_by_keys(
-        value,
-        &[
-            "current_season",
-            "currentSeason",
-            "season",
-            "seasonId",
-            "season_id",
-        ],
-    )
+    const POINTERS: &[&str] = &[
+        "/current_season",
+        "/currentSeason",
+        "/seasonId",
+        "/season_id",
+        "/ladder/current_season",
+        "/ladder/currentSeason",
+        "/ladder/season",
+        "/matchmaking/current_season",
+        "/matchmaking/currentSeason",
+        "/data/current_season",
+        "/data/currentSeason",
+        "/data/seasonId",
+        "/data/season_id",
+        "/data/ladder/current_season",
+        "/data/ladder/currentSeason",
+        "/data/ladder/season",
+    ];
+    POINTERS
+        .iter()
+        .find_map(|pointer| value.pointer(pointer).and_then(Value::as_str))
+        .filter(|season| !season.is_empty())
+        .or_else(|| find_string_by_keys(value, &["current_season", "currentSeason", "seasonId", "season_id"]))
+        .or_else(|| value.get("season").and_then(Value::as_str))
 }
 
-fn latest_season(value: &Value) -> Option<String> {
+pub(super) fn latest_season(value: &Value) -> Option<String> {
     fn visit(value: &Value, latest: &mut Option<(u32, String)>) {
         match value {
             Value::String(value) => {
@@ -297,6 +322,33 @@ fn payload_object(value: Value) -> Map<String, Value> {
     }
 }
 
+pub(super) fn build_aggregated_player_value(
+    uid: &str,
+    overview: Value,
+    season: Option<&str>,
+    season_stats: Option<Value>,
+    partial_failure: Option<String>,
+) -> Value {
+    let mut merged = payload_object(overview);
+    merged
+        .entry("steamId")
+        .or_insert_with(|| Value::String(uid.to_string()));
+    if let Some(season) = season {
+        merged
+            .entry("seasonId")
+            .or_insert_with(|| Value::String(season.to_string()));
+    }
+    if let Some(stats) = season_stats {
+        for (key, value) in payload_object(stats) {
+            merged.insert(key, value);
+        }
+    }
+    if let Some(error) = partial_failure {
+        merged.insert("partialFailure".into(), Value::String(error));
+    }
+    json!({"statusCode":0,"data":merged})
+}
+
 pub async fn fetch_aggregated_player(
     credential: &PerfectCredential,
     uid: &str,
@@ -325,35 +377,31 @@ pub async fn fetch_aggregated_player(
                 })
             })
     };
-    let mut merged = payload_object(overview);
-    merged
-        .entry("steamId")
-        .or_insert_with(|| Value::String(uid.to_string()));
-
+    let mut stats = None;
     let mut partial_failure = None;
-    match season {
+    let season = match season {
         Ok(season) => {
-            merged
-                .entry("seasonId")
-                .or_insert_with(|| Value::String(season.clone()));
             match fetch_season_stats(credential, uid, &season).await {
-                Ok(stats) => {
-                    for (key, value) in payload_object(stats) {
-                        merged.insert(key, value);
-                    }
-                }
+                Ok(value) => stats = Some(value),
                 Err(error) if error.starts_with("PERFECT_AUTH_INVALID") => return Err(error),
                 Err(error) => partial_failure = Some(scoped_partial_error("season-stats", &error)),
             }
+            Some(season)
         }
         Err(error) if error.starts_with("PERFECT_AUTH_INVALID") => return Err(error),
-        Err(error) => partial_failure = Some(redact_sensitive(&error)),
-    }
+        Err(error) => {
+            partial_failure = Some(redact_sensitive(&error));
+            None
+        }
+    };
     let cacheable = partial_failure.is_none();
-    if let Some(error) = partial_failure {
-        merged.insert("partialFailure".into(), Value::String(error));
-    }
-    let result = json!({"statusCode":0,"data":merged});
+    let result = build_aggregated_player_value(
+        uid,
+        overview,
+        season.as_deref(),
+        stats,
+        partial_failure,
+    );
     if cacheable {
         cache().lock().await.insert(
             uid.to_string(),
@@ -392,6 +440,15 @@ mod tests {
             json!({"user":{"steamId":"76561199667272550"},"ladder":{"current_season":"S23"}});
         assert_eq!(extract_uid(&value), Some("76561199667272550"));
         assert_eq!(extract_season(&value), Some("S23"));
+    }
+
+    #[test]
+    fn current_season_wins_over_a_nested_historical_match_season() {
+        let value = json!({
+            "recent_matches": [{ "season": "S22" }],
+            "ladder": { "current_season": "S24" }
+        });
+        assert_eq!(extract_season(&value), Some("S24"));
     }
 
     #[test]

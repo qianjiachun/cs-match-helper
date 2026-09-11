@@ -3,7 +3,7 @@ import { formatDebugLogEntriesForCopy } from '@core/log/format-debug-log';
 import type { DebugLogEntry } from '@core/log/types';
 import type { WatcherStatus } from '@core/types';
 import { MOCK_RELEASE_NOTES } from '@core/update/mock-release-notes';
-import { Bug, ChevronDown, Code2, MessageSquare, ScrollText, X } from 'lucide-vue-next';
+import { Bug, ChevronDown, Code2, Database, MessageSquare, ScrollText, X } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import { getActivePlatform } from '@platforms/registry';
 import {
@@ -18,6 +18,7 @@ import {
 import type { useP5eCdp } from '../composables/useP5eCdp';
 import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
+import type { PerfectAuthStatus } from '@platforms/perfect/auth';
 import { formatAppVersion, useUpdateCheck } from '../composables/useUpdateCheck';
 import { closeAppDevtools, openAppDevtools } from '../utils/devtools';
 import { showToast, useCopyFeedback } from '../composables/useCopyFeedback';
@@ -31,6 +32,7 @@ import {
 } from '../utils/matchHistoryMock';
 import { currentLocale, localize as l, localizeErrorMessage } from '../i18n';
 import { decryptPerfectResponse } from '../native';
+import PerfectApiDebugPanel from './PerfectApiDebugPanel.vue';
 
 const { copyText } = useCopyFeedback();
 const props = withDefaults(
@@ -45,6 +47,7 @@ const props = withDefaults(
     p5e?: ReturnType<typeof useP5eCdp>;
     comments?: ReturnType<typeof useComments>;
     matchHistory?: MatchHistoryApi;
+    perfectAuthStatus?: PerfectAuthStatus;
   }>(),
   {
     placement: 'inline',
@@ -68,7 +71,7 @@ const emit = defineEmits<{
   clearLogs: [];
 }>();
 
-type DebugTab = 'inject' | 'decrypt' | 'logs';
+type DebugTab = 'inject' | 'api' | 'decrypt' | 'logs';
 type InjectSubTab = 'match' | 'p5e' | 'ai' | 'comments' | 'history' | 'update' | 'runtime';
 type LogSubTab = 'perfect' | 'p5e';
 
@@ -483,7 +486,7 @@ watch(
 
     <div
       v-if="open"
-      class="absolute right-28 top-full z-50 mt-0 w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-b-xl border border-t-0 border-border bg-surface shadow-xl"
+      class="absolute right-2 top-full z-50 mt-0 w-[min(720px,calc(100vw-2rem))] overflow-hidden rounded-b-xl border border-t-0 border-border bg-surface shadow-xl sm:right-28"
     >
       <div class="flex items-center justify-between border-b border-border bg-elevated px-4 py-2.5">
         <span class="flex items-center gap-2 text-[12px] font-medium text-fg-secondary">
@@ -511,10 +514,10 @@ watch(
         </div>
       </div>
 
-      <div class="flex border-b border-border bg-base px-2">
+      <div class="debug-top-tabs flex overflow-x-auto border-b border-border bg-base px-2">
         <button
           type="button"
-          class="cursor-pointer border-b-2 px-3 py-2 text-[11px] font-medium transition-colors"
+          class="h-10 shrink-0 cursor-pointer border-b-2 px-3 text-[11px] font-medium transition-colors"
           :class="
             activeTab === 'inject'
               ? 'border-accent text-fg'
@@ -526,7 +529,20 @@ watch(
         </button>
         <button
           type="button"
-          class="flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors"
+          class="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 border-b-2 px-3 text-[11px] font-medium transition-colors"
+          :class="
+            activeTab === 'api'
+              ? 'border-accent text-fg'
+              : 'border-transparent text-fg-muted hover:text-fg-secondary'
+          "
+          @click="switchTab('api')"
+        >
+          <Database class="h-3.5 w-3.5" />
+          {{ l('完美 API', 'Perfect API') }}
+        </button>
+        <button
+          type="button"
+          class="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 border-b-2 px-3 text-[11px] font-medium transition-colors"
           :class="
             activeTab === 'decrypt'
               ? 'border-accent text-fg'
@@ -539,7 +555,7 @@ watch(
         </button>
         <button
           type="button"
-          class="flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors"
+          class="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 border-b-2 px-3 text-[11px] font-medium transition-colors"
           :class="
             activeTab === 'logs'
               ? 'border-accent text-fg'
@@ -958,6 +974,8 @@ watch(
         </div>
       </div>
 
+      <PerfectApiDebugPanel v-else-if="activeTab === 'api'" :auth-status="perfectAuthStatus" />
+
       <div v-else-if="activeTab === 'decrypt'" class="space-y-3 p-4">
         <div class="inline-flex rounded-md bg-elevated p-1" role="tablist" :aria-label="l('解密输入方式', 'Decrypt input mode')">
           <button
@@ -1340,10 +1358,12 @@ watch(
 </template>
 
 <style scoped>
-.debug-inject-tabs {
+.debug-inject-tabs,
+.debug-top-tabs {
   scrollbar-width: none;
 }
-.debug-inject-tabs::-webkit-scrollbar {
+.debug-inject-tabs::-webkit-scrollbar,
+.debug-top-tabs::-webkit-scrollbar {
   display: none;
 }
 </style>

@@ -257,6 +257,8 @@ function mergePlayer(
   }
 
   const zqId = pickString(extra, ['zq_id']);
+  const rawScore = pickNumber(raw, ['score']);
+  const extraScore = pickNumber(extra, ['score']);
 
   return {
     steamId,
@@ -264,7 +266,7 @@ function mergePlayer(
       ?? pickString(raw, ['nickname', 'nick_name', 'name'])
       ?? steamId.slice(-6),
     avatar: pickPlayerAvatar(extra),
-    score: pickNumber(raw, ['score']) ?? pickNumber(extra, ['score']),
+    score: rawScore != null && rawScore > 0 ? rawScore : extraScore ?? rawScore,
     teamSide,
     slotType: pickNumber(raw, ['slot_type']),
     isSingle: pickBool(raw, ['is_single']) ?? pickNumber(raw, ['is_single']) === 1,

@@ -11,10 +11,11 @@ mod update;
 use ai::AiAnalysisState;
 use log_watcher::WatcherState;
 use platform::{
-    cancel_perfect_login, clear_perfect_auth, decrypt_perfect_response, fetch_5e_match_detail,
-    fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json, fetch_perfect_player_stats,
-    fetch_proxied_image, get_cdp_status, get_perfect_auth_status, launch_with_cdp,
-    probe_5e_environment, relaunch_current_exe_as_admin, search_perfect_board_user,
+    cancel_perfect_login, clear_perfect_auth, debug_perfect_player_apis, decrypt_perfect_response,
+    fetch_5e_match_detail, fetch_5e_player_home, fetch_5e_player_home_batch, fetch_http_json,
+    fetch_perfect_player_stats, fetch_proxied_image, get_cdp_status, get_perfect_auth_status,
+    launch_with_cdp, probe_5e_environment, relaunch_current_exe_as_admin,
+    search_perfect_board_user,
     set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector, start_perfect_qr_login,
     start_perfect_steam_login, stop_cdp_collector, wait_for_cdp_port, P5eCdpRuntime, P5eCdpStatus,
     P5eLaunchResult, P5eProbeResult, PerfectAuthRuntime, P5E_DEFAULT_CDP_PORT,
@@ -231,6 +232,7 @@ pub fn run() {
             stop_log_watch,
             read_latest_log_lines,
             fetch_perfect_player_stats,
+            debug_perfect_player_apis,
             search_perfect_board_user,
             get_perfect_auth_status,
             start_perfect_qr_login,

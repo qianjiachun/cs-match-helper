@@ -23,6 +23,12 @@ describe('Perfect debug injection boundary', () => {
     const injectSource = source.slice(injectStart, injectEnd);
 
     expect(injectSource).toContain("getActivePlatform().id === 'perfect'");
-    expect(injectSource).toContain('schedulePlayerEnrichment(steamId, token)');
+    expect(injectSource).toContain('scheduleUpdatePlayerEnrichment(update)');
+  });
+
+  it('re-enriches every player when a live legacy CreateGame record replaces the ladder session', () => {
+    expect(source).toContain("update.record.detail.source !== 'legacy-create-game'");
+    expect(source).toContain('...update.record.detail.teams.flatMap((team) => team.players)');
+    expect(source).toContain('scheduleUpdatePlayerEnrichment(update)');
   });
 });

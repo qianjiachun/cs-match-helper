@@ -347,6 +347,7 @@ function onBackFromP5e() {
       :has-update="updateState.hasUpdate"
       :comments="comments"
       :match-history="matchHistory"
+      :perfect-auth-status="perfectAuth.status.value"
       @clear-logs="clearLogEntries"
       @open-settings="openSettings()"
       @open-match-hud="openMatchHudDialog()"

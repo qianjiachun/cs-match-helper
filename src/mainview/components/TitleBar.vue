@@ -9,6 +9,7 @@ import appIcon from '@app-icon';
 import { useDebugUnlock } from '../composables/useDebugUnlock';
 import type { useComments } from '../composables/useComments';
 import type { MatchHistoryApi } from '../composables/useMatchHistory';
+import type { PerfectAuthStatus } from '@platforms/perfect/auth';
 import UpdateBadge from './UpdateBadge.vue';
 import MatchHudIcon from './MatchHudIcon.vue';
 
@@ -39,6 +40,7 @@ const props = defineProps<{
   hasUpdate: boolean;
   comments: ReturnType<typeof useComments>;
   matchHistory: MatchHistoryApi;
+  perfectAuthStatus: PerfectAuthStatus;
 }>();
 
 const emit = defineEmits<{
@@ -105,6 +107,7 @@ const showBackButton = computed(() => props.view === 'settings');
         :p5e="p5e"
         :comments="comments"
         :match-history="matchHistory"
+        :perfect-auth-status="perfectAuthStatus"
         @inject="injectMatch"
         @clear-logs="emit('clearLogs')"
       />

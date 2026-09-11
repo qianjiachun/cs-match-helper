@@ -8,7 +8,11 @@ import {
   parseLogLineTime,
 } from '@platforms/perfect/log-parser';
 import { fetchPerfectPlayerStatsDetailed, getCachedPerfectBoardId, resolvePerfectBoardUser } from '@platforms/perfect/player-api';
-import { PerfectMatchSession, snapshotPerfectMatchRecord } from '@platforms/perfect/session';
+import {
+  PerfectMatchSession,
+  snapshotPerfectMatchRecord,
+  type PerfectSessionUpdate,
+} from '@platforms/perfect/session';
 import { homeDir } from '@tauri-apps/api/path';
 import { onUnmounted, ref, shallowRef } from 'vue';
 import { getLogStatus, onLogLine, onWatcherStatus, readLatestLogLines, startLogWatch, stopLogWatch } from '../native';
@@ -161,6 +165,23 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     return Promise.all(requests).then(() => undefined);
   }
 
+  function playerIdsForEnrichment(update: PerfectSessionUpdate): string[] {
+    if (!update.record) return [];
+    if (update.record.detail.source === 'ladder-events') return update.newPlayerIds;
+    if (update.record.detail.source !== 'legacy-create-game' || !update.newSession) return [];
+    return [
+      ...update.record.detail.unassigned,
+      ...update.record.detail.teams.flatMap((team) => team.players),
+    ].map((player) => player.steamId);
+  }
+
+  function scheduleUpdatePlayerEnrichment(update: PerfectSessionUpdate) {
+    const token = session.token;
+    for (const steamId of new Set(playerIdsForEnrichment(update))) {
+      void schedulePlayerEnrichment(steamId, token);
+    }
+  }
+
   function processParsedLine(parsed: LogLine, replay = false) {
     const event = extractPerfectMatchEvent(parsed.decoded);
     pushLogEntry(parsed, Boolean(event));
@@ -170,10 +191,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     publish(update.record);
     scheduleSessionExpiry();
     if (update.newSession && update.record && !replay) options?.onNewMatch?.(update.record);
-    if (update.record?.detail.source === 'ladder-events') {
-      const token = session.token;
-      for (const steamId of update.newPlayerIds) void schedulePlayerEnrichment(steamId, token);
-    }
+    scheduleUpdatePlayerEnrichment(update);
   }
 
   function handleLogLine(raw: string) {
@@ -190,16 +208,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
     };
     const update = session.apply({ kind: 'legacy-create-game', data }, line);
     publish(update.record);
-    if (getActivePlatform().id === 'perfect' && update.record) {
-      const token = session.token;
-      const players = [
-        ...update.record.detail.unassigned,
-        ...update.record.detail.teams.flatMap((team) => team.players),
-      ];
-      for (const steamId of new Set(players.map((player) => player.steamId))) {
-        void schedulePlayerEnrichment(steamId, token);
-      }
-    }
+    if (getActivePlatform().id === 'perfect') scheduleUpdatePlayerEnrichment(update);
   }
 
   async function replayPerfectFixture() {
@@ -252,10 +261,7 @@ export function useLogWatcher(options?: { autoInit?: boolean; onNewMatch?: (reco
         const eventTime = parseLogLineTime(logLine.time)?.getTime() ?? Date.now();
         const update = session.apply(event, logLine, eventTime);
         publish(update.record);
-        if (update.record?.detail.source === 'ladder-events') {
-          const token = session.token;
-          for (const steamId of update.newPlayerIds) void schedulePlayerEnrichment(steamId, token);
-        }
+        scheduleUpdatePlayerEnrichment(update);
       }
       scheduleSessionExpiry();
     } catch {

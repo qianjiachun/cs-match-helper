@@ -1,4 +1,8 @@
 [[permission]]
 identifier = "allow-perfect-player-data"
-description = "Allow fetching Perfect World player stats and resolving board identities"
-commands.allow = ["fetch_perfect_player_stats", "search_perfect_board_user"]
+description = "Allow fetching and debugging Perfect World player stats and resolving board identities"
+commands.allow = [
+  "fetch_perfect_player_stats",
+  "debug_perfect_player_apis",
+  "search_perfect_board_user",
+]

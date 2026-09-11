@@ -20,7 +20,9 @@ pub use perfect_auth::{
     start_perfect_steam_login, PerfectAuthRuntime,
 };
 pub use perfect_crypto::decrypt_perfect_response;
-pub use perfect_player::{fetch_perfect_player_stats, search_perfect_board_user};
+pub use perfect_player::{
+    debug_perfect_player_apis, fetch_perfect_player_stats, search_perfect_board_user,
+};
 pub use platform_5e_cdp::{
     get_cdp_status, set_cdp_gate_debug_mode, set_cdp_ws_debug_mode, start_cdp_collector,
     stop_cdp_collector, P5eCdpRuntime, P5eCdpStatus,
