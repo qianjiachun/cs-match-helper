@@ -41,8 +41,8 @@ const comboVisible = ref(false);
 const comboRecord = ref<AssessmentSample | null>(null);
 const elapsedMs = ref(0);
 
-let sampleTimer: ReturnType<typeof window.setInterval> | null = null;
-let comboTimer: ReturnType<typeof window.setTimeout> | null = null;
+let sampleTimer: ReturnType<typeof setInterval> | null = null;
+let comboTimer: ReturnType<typeof setTimeout> | null = null;
 
 const initialAssessment = assessmentRecords.value;
 const demoAverageTiming = Math.round(average(initialAssessment.map((record) => record.diffMs)));
@@ -197,8 +197,8 @@ const airLive = computed(() => {
 function flashCombo(record: AssessmentSample) {
   comboRecord.value = record;
   comboVisible.value = true;
-  if (comboTimer != null) window.clearTimeout(comboTimer);
-  comboTimer = window.setTimeout(() => {
+  if (comboTimer != null) clearTimeout(comboTimer);
+  comboTimer = setTimeout(() => {
     comboVisible.value = false;
   }, 360);
 }
@@ -220,19 +220,19 @@ function appendCounterSample() {
 
 function stopAll() {
   if (sampleTimer != null) {
-    window.clearInterval(sampleTimer);
+    clearInterval(sampleTimer);
     sampleTimer = null;
   }
 }
 
 function startCounterLoop() {
   stopAll();
-  sampleTimer = window.setInterval(appendCounterSample, 1_400);
+  sampleTimer = setInterval(appendCounterSample, 1_400);
 }
 
 function startFrameLoop() {
   stopAll();
-  sampleTimer = window.setInterval(() => {
+  sampleTimer = setInterval(() => {
     elapsedMs.value += 32;
   }, 32);
 }

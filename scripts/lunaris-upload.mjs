@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadEnvFile, root } from './load-env.mjs';
@@ -36,20 +36,101 @@ function getApiKey() {
   return apiKey;
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function curlRequest(url, options = {}) {
+  const method = options.method || 'GET';
+  const headers = { ...(options.headers || {}) };
+  const args = [
+    '-sS',
+    '--connect-timeout',
+    '60',
+    '--max-time',
+    '180',
+    '-X',
+    method,
+    '-w',
+    '\n__HTTP_STATUS__:%{http_code}',
+  ];
+  let tmpFile = null;
+
+  if (options.body != null) {
+    if (Buffer.isBuffer(options.body)) {
+      headers['Content-Type'] ??= 'application/octet-stream';
+      tmpFile = join(root, 'release', `.lunaris-part-${process.pid}-${Date.now()}`);
+      writeFileSync(tmpFile, options.body);
+      args.push('--data-binary', `@${tmpFile}`);
+    } else {
+      headers['Content-Type'] ??= 'application/json';
+      args.push('--data-binary', String(options.body));
+    }
+  }
+
+  for (const [key, value] of Object.entries(headers)) {
+    args.push('-H', `${key}: ${value}`);
+  }
+  args.push(url);
+
+  try {
+    const output = execFileSync('curl.exe', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 20 * 1024 * 1024,
+      windowsHide: true,
+    });
+    const marker = '\n__HTTP_STATUS__:';
+    const idx = output.lastIndexOf(marker);
+    if (idx === -1) {
+      throw new Error('curl 未返回 HTTP 状态');
+    }
+    return {
+      status: Number.parseInt(output.slice(idx + marker.length).trim(), 10),
+      text: output.slice(0, idx),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('curl ')) {
+      throw error;
+    }
+    const stderr = error && typeof error === 'object' && 'stderr' in error
+      ? String(error.stderr).trim()
+      : '';
+    const detail = stderr || (error instanceof Error ? error.message.split('\n')[0] : 'curl 请求失败');
+    throw new Error(`curl ${method} 失败: ${detail}`);
+  } finally {
+    if (tmpFile) rmSync(tmpFile, { force: true });
+  }
+}
+
+async function requestWithRetry(url, options = {}, attempts = 6) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return curlRequest(url, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      const waitMs = Math.min(20_000, 1_000 * 2 ** (attempt - 1));
+      const message = (error instanceof Error ? error.message : String(error))
+        .replace(/Bearer\s+\S+/gi, 'Bearer ***');
+      console.log(`网络请求失败（${attempt}/${attempts}）: ${message}，${waitMs}ms 后重试`);
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
+}
+
 async function lunarisRequest(path, options = {}) {
   const apiKey = getApiKey();
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const { status, text } = await requestWithRetry(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      ...(options.body && !(options.body instanceof Buffer)
-        ? { 'Content-Type': 'application/json' }
-        : {}),
       ...options.headers,
     },
   });
 
-  const text = await response.text();
   let payload = null;
   if (text) {
     try {
@@ -59,11 +140,11 @@ async function lunarisRequest(path, options = {}) {
     }
   }
 
-  if (!response.ok) {
+  if (status < 200 || status >= 300) {
     const message =
       payload?.error ||
       payload?.message ||
-      `HTTP ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`;
+      `HTTP ${status}${text ? `: ${text.slice(0, 200)}` : ''}`;
     throw new Error(message);
   }
 
@@ -131,17 +212,26 @@ async function uploadFile(filePath, versionTag, fileName) {
     const length = Math.min(partSize, totalSize - start);
     const chunk = await readFilePart(filePath, start, length);
 
-    const response = await lunarisRequest('/upload/part', {
-      method: 'PUT',
-      headers: {
-        'x-upload-session-id': uploadSessionId,
-        'x-part-number': String(partNumber),
-      },
-      body: chunk,
-    });
+    let uploadedCount = partNumber;
+    try {
+      const response = await lunarisRequest('/upload/part', {
+        method: 'PUT',
+        headers: {
+          'x-upload-session-id': uploadSessionId,
+          'x-part-number': String(partNumber),
+        },
+        body: chunk,
+      });
+      uploadedCount = response.uploadedCount ?? partNumber;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.toLowerCase().includes('already been uploaded')) {
+        throw error;
+      }
+    }
 
     console.log(
-      `分片 ${partNumber}/${totalParts} 完成（已上传 ${response.uploadedCount ?? partNumber}）`,
+      `分片 ${partNumber}/${totalParts} 完成（已上传 ${uploadedCount}）`,
     );
   }
 
@@ -155,6 +245,19 @@ async function uploadFile(filePath, versionTag, fileName) {
 
   console.log('上传完成:', complete.file?.fileName ?? fileName);
   return complete.file;
+}
+
+async function uploadFileIfNeeded(filePath, versionTag, fileName) {
+  try {
+    return await uploadFile(filePath, versionTag, fileName);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.toLowerCase().includes('already exists')) {
+      throw error;
+    }
+    console.log(`文件已存在，跳过: ${fileName}`);
+    return null;
+  }
 }
 
 async function promoteLatest(versionTag) {
@@ -215,11 +318,11 @@ function mergeReleaseEntries(primary, extras) {
 
 async function fetchExistingManifestReleases() {
   try {
-    const response = await fetch(MANIFEST_CDN_URL, {
+    const { status, text } = await requestWithRetry(MANIFEST_CDN_URL, {
       headers: { 'Cache-Control': 'no-cache' },
     });
-    if (!response.ok) return [];
-    const payload = await response.json();
+    if (status < 200 || status >= 300) return [];
+    const payload = JSON.parse(text);
     return Array.isArray(payload?.releases) ? payload.releases : [];
   } catch {
     return [];
@@ -308,8 +411,8 @@ async function main() {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
   await ensureVersion(versionTag);
-  await uploadFile(filePath, versionTag, APP_FILE_NAME);
-  await uploadFile(manifestPath, versionTag, MANIFEST_FILE_NAME);
+  await uploadFileIfNeeded(filePath, versionTag, APP_FILE_NAME);
+  await uploadFileIfNeeded(manifestPath, versionTag, MANIFEST_FILE_NAME);
   await promoteLatest(versionTag);
 
   console.log(`更新通道: ${MANIFEST_CDN_URL}`);

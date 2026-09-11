@@ -10,12 +10,12 @@ describe('AI V3 table signals and report integration', () => {
     expect(table).toContain('playerSignals?: AiPlayerSignal[]');
     expect(table).not.toContain('<col style="width: 40px" />');
     expect(table).toContain('absolute -left-0.5 -top-0.5');
-    expect(table).toContain('h-[15px] w-[15px]');
+    expect(table).toContain('h-3.75 w-3.75');
     expect(table).toContain('class="h-2.5 w-2.5"');
     expect(table).not.toContain('0_0_0_2px_white');
     expect(table).not.toContain('ai-player-marker');
     expect(table).not.toContain('<span>{{ signalLabel');
-    expect(table).toContain('class="h-[52px] border-b');
+    expect(table).toContain('class="h-13 border-b');
     expect(table).toContain('class="px-2 py-1.5"');
     expect(table).toContain("if (kind === 'carry') return Crown");
     expect(table).toContain("if (kind === 'anchor') return Shield");
